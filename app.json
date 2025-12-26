@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "productivity-ai",
+    "slug": "productivity-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF8E7"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF8E7"
+      }
+    },
+    "scheme": "productivity-ai",
+    "plugins": [
+      "expo-router"
+    ],
+    "sdkVersion": "54.0.0"
+  }
+}
+
