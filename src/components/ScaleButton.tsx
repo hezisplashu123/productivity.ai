@@ -51,20 +51,37 @@ export const ScaleButton: React.FC<ScaleButtonProps> = ({
   };
 
   const handlePress = () => {
+    console.log('=== SCALEBUTTON PRESSED ===');
+    console.log('disabled:', disabled);
+    console.log('hapticFeedback:', hapticFeedback);
+    console.log('hapticType:', hapticType);
+    
     if (!disabled) {
-      if (hapticFeedback) {
-        switch (hapticType) {
-          case 'impact':
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            break;
-          case 'notification':
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            break;
-          default:
-            Haptics.selectionAsync();
+      try {
+        if (hapticFeedback) {
+          console.log('Triggering haptics...');
+          switch (hapticType) {
+            case 'impact':
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              break;
+            case 'notification':
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              break;
+            default:
+              Haptics.selectionAsync();
+          }
         }
+        console.log('Calling onPress callback...');
+        onPress();
+        console.log('=== SCALEBUTTON PRESS COMPLETE ===');
+      } catch (error) {
+        console.error('=== SCALEBUTTON PRESS ERROR ===');
+        console.error('Error type:', error?.constructor?.name);
+        console.error('Error message:', error?.message);
+        console.error('Error stack:', error?.stack);
+        console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+        throw error;
       }
-      onPress();
     }
   };
 
@@ -90,4 +107,6 @@ export const ScaleButton: React.FC<ScaleButtonProps> = ({
     </AnimatedTouchable>
   );
 };
+
+
 

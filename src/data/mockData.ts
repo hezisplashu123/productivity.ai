@@ -13,14 +13,16 @@ export const mockTasks: Task[] = [
   {
     id: '1',
     goalId: '1',
-    title: 'Research profitable niches',
-    description: 'Identify 3-5 high-demand, low-competition niches',
-    timeBudget: 120,
+    title: 'Deep Work - Project Alpha',
+    description: 'Research profitable niches',
+    duration: 90,
+    status: 'queued',
+    order: 0,
     completed: false,
     subTasks: [
-      { id: '1-1', title: 'Use Google Trends', completed: false },
-      { id: '1-2', title: 'Analyze competitor stores', completed: false },
-      { id: '1-3', title: 'Check supplier availability', completed: false },
+      { id: '1-1', title: 'Use Google Trends', completed: false, duration: 30 },
+      { id: '1-2', title: 'Analyze competitor stores', completed: false, duration: 45 },
+      { id: '1-3', title: 'Check supplier availability', completed: false, duration: 15 },
     ],
   },
   {
@@ -28,7 +30,9 @@ export const mockTasks: Task[] = [
     goalId: '1',
     title: 'Set up Shopify store',
     description: 'Create account, choose theme, configure basic settings',
-    timeBudget: 90,
+    duration: 45,
+    status: 'queued',
+    order: 1,
     completed: false,
   },
   {
@@ -36,7 +40,9 @@ export const mockTasks: Task[] = [
     goalId: '1',
     title: 'Find and vet suppliers',
     description: 'Contact suppliers, request samples, negotiate terms',
-    timeBudget: 180,
+    duration: 120,
+    status: 'queued',
+    order: 2,
     completed: false,
   },
   {
@@ -44,7 +50,9 @@ export const mockTasks: Task[] = [
     goalId: '1',
     title: 'Create product listings',
     description: 'Write descriptions, take/edit photos, set prices',
-    timeBudget: 60,
+    duration: 30,
+    status: 'queued',
+    order: 3,
     completed: false,
   },
   {
@@ -52,9 +60,13 @@ export const mockTasks: Task[] = [
     goalId: '1',
     title: 'Set up payment and shipping',
     description: 'Configure payment gateways and shipping options',
-    timeBudget: 45,
+    duration: 20,
+    status: 'queued',
+    order: 4,
     completed: false,
   },
 ];
+
+
 
 

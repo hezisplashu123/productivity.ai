@@ -9,8 +9,10 @@ interface AppContextType {
   addGoal: (title: string) => Goal;
   addTasks: (goalId: string, tasks: Task[]) => void;
   completeTask: (taskId: string) => void;
+  toggleSubTask: (taskId: string, subTaskId: string) => void;
   rateProductivity: (taskId: string, rating: number) => void;
   setCurrentGoal: (goal: Goal | null) => void;
+  getGhostTime: () => number; // Returns available time in minutes
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -49,7 +51,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTasks((prev) =>
       prev.map((task) =>
         task.id === taskId
-          ? { ...task, completed: true, completedAt: new Date() }
+          ? {
+              ...task,
+              status: 'completed' as const,
+              completed: true, // Legacy support
+              completedAt: new Date(),
+            }
           : task
       )
     );
@@ -63,6 +70,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   }, []);
 
+  const toggleSubTask = useCallback((taskId: string, subTaskId: string) => {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              subTasks: task.subTasks?.map((subTask) =>
+                subTask.id === subTaskId
+                  ? { ...subTask, completed: !subTask.completed }
+                  : subTask
+              ),
+            }
+          : task
+      )
+    );
+  }, []);
+
+  const getGhostTime = useCallback(() => {
+    // Calculate available time (free time = total time - task durations)
+    // For now, let's assume a default day has 16 waking hours (960 minutes)
+    // and subtract completed/queued task durations
+    const totalMinutes = 16 * 60; // 960 minutes
+    const usedMinutes = tasks
+      .filter((task) => task.status !== 'completed')
+      .reduce((sum, task) => sum + (task.duration || 0), 0);
+    return Math.max(0, totalMinutes - usedMinutes);
+  }, [tasks]);
+
   return (
     <AppContext.Provider
       value={{
@@ -72,8 +107,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addGoal,
         addTasks,
         completeTask,
+        toggleSubTask,
         rateProductivity,
         setCurrentGoal,
+        getGhostTime,
       }}
     >
       {children}

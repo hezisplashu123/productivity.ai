@@ -9,6 +9,7 @@ import {
   Platform,
   Keyboard,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
@@ -23,7 +24,9 @@ import { Sparkles, ArrowRight } from 'lucide-react-native';
 import { useApp } from '../src/context/AppContext';
 import { mockTasks } from '../src/data/mockData';
 import { lightColors as colors } from '../src/constants/colors';
-import { SunBackground } from '../src/components/SunBackground';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40); // Fixed width with padding
 
 export default function GoalInputScreen() {
   const [goal, setGoal] = useState('');
@@ -38,8 +41,9 @@ export default function GoalInputScreen() {
 
   const borderAnimatedStyle = useAnimatedStyle(() => {
     return {
-      shadowOpacity: 0.1 + borderOpacity.value * 0.2,
-      shadowRadius: 12 + borderOpacity.value * 4,
+      shadowOpacity: 0.1 + borderOpacity.value * 0.4,
+      shadowRadius: 12 + borderOpacity.value * 8,
+      borderWidth: 1 + borderOpacity.value, // Animate border width
     };
   });
 
@@ -114,12 +118,11 @@ export default function GoalInputScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: '#FFFFFF' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <StatusBar style="dark" />
-      <SunBackground textLength={goal.length} isInputFocused={isInputFocused} />
 
       <View style={styles.centeredContainer}>
         <MotiView
@@ -138,30 +141,37 @@ export default function GoalInputScreen() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'timing', duration: 600, delay: 200 }}
         >
-          {/* Orange border wrapper - acts as the container */}
+          {/* Light card wrapper with border */}
           <Animated.View 
             style={[
-              styles.orangeBorderWrapper, 
+              styles.inputCard, 
               borderAnimatedStyle,
-              isInputFocused && { borderColor: colors.primary }
+              isInputFocused && { 
+                borderColor: colors.primary,
+                shadowColor: colors.primary,
+              }
             ]}
           >
-            <TextInput
-              style={[styles.input, { 
-                color: colors.text,
-              }]}
-              placeholder="e.g., Launch my dropshipping store"
-              placeholderTextColor={colors.textLight}
-              value={goal}
-              onChangeText={setGoal}
-              onFocus={handleInputFocus}
-              onBlur={handleInputBlur}
-              multiline
-              editable={!isLoading}
-              textAlignVertical="top"
-            />
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={[styles.input, { 
+                  color: colors.text,
+                }]}
+                placeholder="e.g., Launch my dropshipping store"
+                placeholderTextColor={colors.textLight}
+                value={goal}
+                onChangeText={setGoal}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+                multiline
+                editable={!isLoading}
+                textAlign="left"
+                textAlignVertical="top"
+                scrollEnabled={true}
+              />
+            </View>
             
-            {/* Submit button - inside the orange wrapper, bottom-right */}
+            {/* Submit button - inside the card, bottom-right */}
             <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
               <TouchableOpacity
                 style={[
@@ -221,6 +231,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     zIndex: 1,
+    width: '100%', // Ensure full width
+    maxWidth: '100%', // Prevent expansion beyond screen
   },
   title: {
     fontSize: 32,
@@ -228,6 +240,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 12,
     lineHeight: 40,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
@@ -235,30 +249,44 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     lineHeight: 24,
   },
-  // Orange border wrapper - this is the visual container
-  orangeBorderWrapper: {
-    width: '100%',
-    maxWidth: 600, // Responsive max-width for larger screens
+  // Light card wrapper matching onboarding style
+  inputCard: {
+    width: INPUT_CARD_WIDTH, // Fixed pixel width - prevents horizontal expansion
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: 'rgba(245, 158, 11, 0.4)', // Orange border - will be animated
-    backgroundColor: '#FFFFFF', // White background
+    borderColor: colors.border, // Light gold border
+    backgroundColor: colors.backgroundCard, // White card background
     position: 'relative',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 4,
     minHeight: 120,
+    alignSelf: 'center', // Center the card
+    // Prevent horizontal expansion - lock the width
+    flexShrink: 0,
+    flexGrow: 0,
+    overflow: 'hidden', // Prevent content from expanding the container
+  },
+  inputWrapper: {
+    width: '100%', // Fill the card width
+    flexShrink: 1,
+    flexGrow: 0,
   },
   input: {
-    width: '100%',
+    width: '100%', // Fill the wrapper width
     padding: 20,
     paddingBottom: 60, // Space for submit button
     fontSize: 18,
     borderWidth: 0,
-    backgroundColor: 'transparent', // Transparent so orange wrapper shows
+    backgroundColor: 'transparent',
     minHeight: 120,
     maxHeight: 300, // Limit max height for very long text
+    textAlign: 'left', // Start text from left
+    textAlignVertical: 'top', // Start text from top
+    // Allow natural text flow
+    flexShrink: 1,
+    flexGrow: 0,
   },
   submitButtonContainer: {
     position: 'absolute',
@@ -272,10 +300,10 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 8,
   },
   submitButtonDisabled: {
     opacity: 0.5,
@@ -310,5 +338,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+
+
 
 

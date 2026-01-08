@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -21,14 +21,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Brain, CheckCircle, TrendingUp, Sparkles } from 'lucide-react-native';
 import { lightColors as colors } from '../src/constants/colors';
-import { SunBackground } from '../src/components/SunBackground';
 
 const { width, height } = Dimensions.get('window');
 
+// Messages to rotate through in the tagline area
 const TAGLINES = [
-  "Stop managing tasks. Start finishing them.\nGet a personalized plan to crush procrastination.",
+  "Stop managing tasks. Start finishing them.",
+  "Get a personalized plan to crush procrastination.",
   "Silence the noise. Amplify the focus.",
-  "Turn 'I'll do it tomorrow' into 'Done'.",
 ];
 
 export default function WelcomeScreen() {
@@ -36,6 +36,8 @@ export default function WelcomeScreen() {
   const [currentTaglineIndex, setCurrentTaglineIndex] = useState(0);
   const taglineOpacity = useSharedValue(1);
   const taglineTranslateY = useSharedValue(0);
+  const isTransitioningRef = useRef(false);
+  const autoRotateRef = useRef(true);
   
   // Animation values
   const pulseScale = useSharedValue(1);
@@ -75,39 +77,97 @@ export default function WelcomeScreen() {
       -1,
       true
     );
-  }, []);
+  }, [pulseScale, card1Y, card2Y, card1Rotation, card2Rotation]);
 
-  // Tagline rotation animation - continuous cycle
+  // Handle fade-in when tagline index changes
+  useEffect(() => {
+    if (isTransitioningRef.current) {
+      // Reset position below (for fade in from bottom)
+      taglineTranslateY.value = 20;
+      // Fade in new tagline and move to center
+      taglineOpacity.value = withTiming(1, { duration: 500 });
+      
+      const finishTransition = () => {
+        if (isTransitioningRef.current) {
+          isTransitioningRef.current = false;
+        }
+      };
+      
+      taglineTranslateY.value = withTiming(0, { duration: 500 }, (finished) => {
+        if (finished) {
+          runOnJS(finishTransition)();
+        }
+      });
+    }
+  }, [currentTaglineIndex]);
+
+  // Tagline rotation animation - continuous cycle (only if auto-rotate is enabled)
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
+    let isMounted = true;
+    
+    const updateTaglineIndex = () => {
+      if (isMounted && autoRotateRef.current) {
+        // Mark that we're transitioning
+        isTransitioningRef.current = true;
+        // Change tagline index - this will trigger the fade-in via useEffect
+        setCurrentTaglineIndex((prev) => (prev + 1) % TAGLINES.length);
+      }
+    };
     
     const cycleTagline = () => {
+      if (!isMounted || !autoRotateRef.current) return;
       // Fade out current and move up
       taglineOpacity.value = withTiming(0, { duration: 500 });
-      taglineTranslateY.value = withTiming(-20, { duration: 500 }, () => {
-        // Change tagline while invisible
-        runOnJS(setCurrentTaglineIndex)((prev) => (prev + 1) % TAGLINES.length);
-        // Reset position below (for fade in from bottom)
-        taglineTranslateY.value = 20;
-        // Fade in new tagline and move to center
-        taglineOpacity.value = withTiming(1, { duration: 500 });
-        taglineTranslateY.value = withTiming(0, { duration: 500 });
+      taglineTranslateY.value = withTiming(-20, { duration: 500 }, (finished) => {
+        if (finished) {
+          // Use runOnJS to safely update React state from UI thread
+          runOnJS(updateTaglineIndex)();
+        }
       });
     };
 
     // Start cycling after initial 3 seconds, then repeat every 3 seconds
     const timeout = setTimeout(() => {
-      cycleTagline();
-      intervalId = setInterval(cycleTagline, 3000);
+      if (isMounted && autoRotateRef.current) {
+        cycleTagline();
+        intervalId = setInterval(() => {
+          if (isMounted && autoRotateRef.current) {
+            cycleTagline();
+          }
+        }, 3000);
+      }
     }, 3000);
 
     return () => {
+      isMounted = false;
       clearTimeout(timeout);
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
   }, []);
+
+  // Handle manual dot navigation
+  const handleDotPress = useCallback((index: number) => {
+    if (index === currentTaglineIndex) return;
+    
+    // Disable auto-rotate when user manually navigates
+    autoRotateRef.current = false;
+    
+    // Mark that we're transitioning
+    isTransitioningRef.current = true;
+    
+    // Fade out current
+    taglineOpacity.value = withTiming(0, { duration: 300 });
+    taglineTranslateY.value = withTiming(-20, { duration: 300 }, (finished) => {
+      if (finished) {
+        runOnJS(() => {
+          setCurrentTaglineIndex(index);
+        })();
+      }
+    });
+  }, [currentTaglineIndex, taglineOpacity, taglineTranslateY]);
 
   const pulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
@@ -155,7 +215,7 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.backgroundLight }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#FFFFFF' }]}>
       <StatusBar style="dark" />
       
       {/* Hero Section - 50-60% of screen */}
@@ -207,16 +267,34 @@ export default function WelcomeScreen() {
         </MotiView>
         
         <Animated.View style={taglineStyle}>
-          <Text style={[styles.subtext, { color: colors.textSecondary }]}>
+          <Text 
+            style={[styles.subtext, { color: colors.textSecondary }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {TAGLINES[currentTaglineIndex]}
           </Text>
         </Animated.View>
 
         {/* Pagination Dots */}
         <View style={styles.pagination}>
-          <View style={[styles.dot, { backgroundColor: colors.primary }]} />
-          <View style={[styles.dot, styles.dotInactive, { backgroundColor: colors.border }]} />
-          <View style={[styles.dot, styles.dotInactive, { backgroundColor: colors.border }]} />
+          {TAGLINES.map((_, index) => (
+            <TouchableOpacity
+              key={index}
+              onPress={() => handleDotPress(index)}
+              activeOpacity={0.7}
+              style={styles.dotContainer}
+            >
+              <View
+                style={[
+                  styles.dot,
+                  index === currentTaglineIndex
+                    ? { backgroundColor: colors.primary }
+                    : [styles.dotInactive, { backgroundColor: colors.border }],
+                ]}
+              />
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
@@ -379,6 +457,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
+  },
+  dotContainer: {
+    padding: 4,
   },
   dot: {
     width: 8,

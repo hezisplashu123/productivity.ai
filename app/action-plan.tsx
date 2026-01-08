@@ -10,7 +10,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
-import { SunBackground } from '../src/components/SunBackground';
 import { ProgressBar } from '../src/components/ProgressBar';
 import { TaskCard } from '../src/components/TaskCard';
 import { ReflectionModal } from '../src/components/ReflectionModal';
@@ -72,7 +71,6 @@ export default function ActionPlanScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar style="dark" />
-      <SunBackground />
 
       <View style={styles.header}>
         <TouchableOpacity

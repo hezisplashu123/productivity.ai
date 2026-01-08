@@ -3,195 +3,175 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
+  Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MotiView } from 'moti';
-import { ChevronDown, ChevronUp, ArrowRight } from 'lucide-react-native';
-import { useApp } from '../src/context/AppContext';
+import { Menu, Home, Brain, User } from 'lucide-react-native';
+import { AnimatedStreakFlame } from '../src/components/AnimatedStreakFlame';
+import { TaskReactorCircle, TaskGoal } from '../src/components/TaskReactorCircle';
+import { TaskDetailModal } from '../src/components/TaskDetailModal';
+import { useTaskGenerator } from '../src/hooks/useTaskGenerator';
 import { lightColors as colors } from '../src/constants/colors';
-import { SunBackground } from '../src/components/SunBackground';
+import * as Haptics from 'expo-haptics';
 
 export default function HomeScreen() {
-  const { goals, currentGoal, setCurrentGoal } = useApp();
   const router = useRouter();
-  const [expandedGoalId, setExpandedGoalId] = useState<string | null>(
-    currentGoal?.id || null
-  );
+  const [activeTab, setActiveTab] = useState('Home');
+  const [taskGoals, setTaskGoals] = useState<TaskGoal[]>([]);
+  const [selectedTaskGoal, setSelectedTaskGoal] = useState<TaskGoal | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [newGoalIds, setNewGoalIds] = useState<Set<string>>(new Set());
+  
+  const { createGoal } = useTaskGenerator();
 
-  const handleGoalPress = useCallback((goalId: string) => {
-    if (expandedGoalId === goalId) {
-      setExpandedGoalId(null);
-    } else {
-      setExpandedGoalId(goalId);
-      const goal = goals.find((g) => g.id === goalId);
-      if (goal) {
-        setCurrentGoal(goal);
-      }
-    }
-  }, [expandedGoalId, goals, setCurrentGoal]);
+  const handleFlamePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
 
-  const handleViewActionPlan = useCallback((goalId: string) => {
-    const goal = goals.find((g) => g.id === goalId);
-    if (goal) {
-      setCurrentGoal(goal);
-      router.push('/action-plan');
-    }
-  }, [goals, setCurrentGoal, router]);
+  const handleMenuPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // TODO: Open menu/drawer
+  }, []);
 
+  const handleAITasksPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/goal-input');
+  }, [router]);
 
-  if (goals.length === 0) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.backgroundLight }]}>
-        <StatusBar style="dark" />
-        <View style={styles.emptyContainer}>
-          <MotiView
-            from={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'timing', duration: 400 }}
-          >
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              No goals yet
-            </Text>
-          </MotiView>
-          <MotiView
-            from={{ opacity: 0, translateY: 20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 400, delay: 200 }}
-          >
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/goal-input')}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.buttonText, { color: colors.background }]}>
-                Create Your First Goal
-              </Text>
-            </TouchableOpacity>
-          </MotiView>
-        </View>
-      </View>
+  const handleTaskReactorPress = useCallback((taskGoal: TaskGoal) => {
+    setSelectedTaskGoal(taskGoal);
+    setModalVisible(true);
+  }, []);
+
+  const handleToggleSubTask = useCallback((goalId: string, subTaskId: string) => {
+    setTaskGoals((prev) =>
+      prev.map((goal) => {
+        if (goal.id === goalId) {
+          return {
+            ...goal,
+            subTasks: goal.subTasks.map((st) =>
+              st.id === subTaskId ? { ...st, isCompleted: !st.isCompleted } : st
+            ),
+          };
+        }
+        return goal;
+      })
     );
-  }
+  }, []);
+
+  // Format date
+  const formatDate = () => {
+    const today = new Date();
+    const day = today.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+    const month = today.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+    const date = today.getDate();
+    return `${day}, ${month} ${date}`;
+  };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.backgroundLight }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: '#FFFFFF' }]}
+      edges={['top', 'bottom']}
+    >
       <StatusBar style="dark" />
 
+      {/* Header */}
       <View style={styles.header}>
-        <MotiView
-          from={{ opacity: 0, translateY: -10 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 400 }}
-        >
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            My Goals
-          </Text>
-        </MotiView>
+        {/* Left Side: Menu Icon + Date */}
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={handleMenuPress} style={styles.headerButton}>
+            <Menu size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerDate}>{formatDate()}</Text>
+        </View>
+        
+        {/* Right Side: Flame */}
+        <View style={styles.headerButton}>
+          <AnimatedStreakFlame onPress={handleFlamePress} />
+        </View>
       </View>
 
+      {/* Scrollable Content */}
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
       >
-        {goals.map((goal, index) => {
-          const isExpanded = expandedGoalId === goal.id;
-          return (
-            <MotiView
-              key={goal.id}
-              from={{ opacity: 0, translateY: 10 }}
-              animate={{ opacity: 1, translateY: 0 }}
-              transition={{ type: 'timing', duration: 200, delay: Math.min(index * 50, 300) }}
-            >
-              <TouchableOpacity
-                style={[
-                  styles.goalCard,
-                  {
-                    backgroundColor: colors.backgroundCard,
-                    borderColor: colors.border,
-                    shadowColor: colors.primary,
-                  },
-                  isExpanded && {
-                    borderColor: colors.primary,
-                    borderWidth: 2,
-                  },
-                ]}
-                onPress={() => handleGoalPress(goal.id)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.goalHeader}>
-                  <View style={styles.goalHeaderContent}>
-                    <Text style={[styles.goalTitle, { color: colors.text }]}>
-                      {goal.title}
-                    </Text>
-                    <Text
-                      style={[styles.goalStatus, { color: colors.textSecondary }]}
-                    >
-                      {goal.status === 'active' ? 'In Progress' : 'Completed'}
-                    </Text>
-                  </View>
-                  {isExpanded ? (
-                    <ChevronUp size={24} color={colors.primary} />
-                  ) : (
-                    <ChevronDown size={24} color={colors.textSecondary} />
-                  )}
-                </View>
+        <View style={styles.contentContainer}>
+          <Text style={styles.sectionTitle}>Task Reactors</Text>
+          
+          {/* Task Reactor Grid */}
+          {taskGoals.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                No tasks yet. Tap the AI button to create one!
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.taskGrid}>
+              {taskGoals.map((goal) => (
+                <TaskReactorCircle
+                  key={goal.id}
+                  taskGoal={goal}
+                  onPress={handleTaskReactorPress}
+                  isNew={newGoalIds.has(goal.id)}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+      </ScrollView>
 
-                {isExpanded && (
-                  <MotiView
-                    from={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    transition={{ type: 'timing', duration: 300 }}
-                  >
-                    <View style={styles.expandedContent}>
-                      <Text
-                        style={[
-                          styles.expandedDescription,
-                          { color: colors.textSecondary },
-                        ]}
-                      >
-                        View and manage your action plan for this goal
-                      </Text>
-                      <TouchableOpacity
-                        style={[
-                          styles.actionButton,
-                          { backgroundColor: colors.primary },
-                        ]}
-                        onPress={() => handleViewActionPlan(goal.id)}
-                        activeOpacity={0.8}
-                      >
-                        <Text
-                          style={[
-                            styles.actionButtonText,
-                            { color: colors.background },
-                          ]}
-                        >
-                          View Action Plan
-                        </Text>
-                        <ArrowRight size={20} color={colors.background} />
-                      </TouchableOpacity>
-                    </View>
-                  </MotiView>
-                )}
-              </TouchableOpacity>
-            </MotiView>
-          );
-        })}
+      {/* Bottom Navigation Bar */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity
+          style={[styles.navButton, activeTab === 'Home' && styles.navButtonActive]}
+          onPress={() => {
+            setActiveTab('Home');
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+        >
+          <Home
+            size={24}
+            color={activeTab === 'Home' ? colors.primary : colors.textSecondary}
+          />
+        </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.glow }]}
-          onPress={() => router.push('/goal-input')}
-          activeOpacity={0.8}
+          style={styles.navButtonCenter}
+          onPress={handleAITasksPress}
         >
-          <Text style={[styles.addButtonText, { color: colors.primary }]}>
-            + Add New Goal
-          </Text>
+          <Brain size={28} color="#FFFFFF" />
         </TouchableOpacity>
-      </ScrollView>
-    </View>
+
+        <TouchableOpacity
+          style={[styles.navButton, activeTab === 'Placeholder' && styles.navButtonActive]}
+          onPress={() => {
+            setActiveTab('Placeholder');
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+        >
+          <User
+            size={24}
+            color={activeTab === 'Placeholder' ? colors.primary : colors.textSecondary}
+          />
+        </TouchableOpacity>
+      </View>
+
+      {/* Task Detail Modal */}
+      {selectedTaskGoal && (
+        <TaskDetailModal
+          visible={modalVisible}
+          taskGoal={selectedTaskGoal}
+          onClose={() => setModalVisible(false)}
+          onToggleSubTask={handleToggleSubTask}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
@@ -199,112 +179,111 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-    zIndex: 1,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  emptyContainer: {
+  scrollView: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
   },
-  emptyText: {
-    fontSize: 18,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  goalCard: {
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 16,
-    borderWidth: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  goalHeader: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  goalHeaderContent: {
-    flex: 1,
-  },
-  goalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  goalStatus: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  expandedContent: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(245, 158, 11, 0.2)',
-  },
-  expandedDescription: {
-    fontSize: 14,
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  actionButton: {
-    borderRadius: 12,
-    padding: 16,
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 12, // Space between menu icon and date
   },
-  actionButtonText: {
+  headerButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerDate: {
     fontSize: 16,
     fontWeight: '600',
+    color: colors.text,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    letterSpacing: 0.5,
   },
-  addButton: {
-    borderRadius: 20,
+  scrollContent: {
     padding: 20,
+    paddingBottom: 100,
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 24,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    letterSpacing: -0.5,
+  },
+  taskGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    justifyContent: 'flex-start',
+  },
+  emptyState: {
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 20,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 4 },
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  bottomNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  navButton: {
+    width: 48,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 24,
+  },
+  navButtonActive: {
+    backgroundColor: colors.backgroundCard,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
-  addButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  button: {
-    borderRadius: 28,
-    paddingVertical: 18,
-    paddingHorizontal: 32,
+  navButtonCenter: {
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#F59E0B',
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 5,
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: '700',
+    elevation: 8,
   },
 });
-

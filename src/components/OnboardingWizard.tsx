@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { MotiView } from 'moti';
 import Animated, {
@@ -8,14 +8,15 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
-  interpolateColor,
+  withDelay,
   interpolate,
+  useAnimatedProps,
 } from 'react-native-reanimated';
 import { ArrowRight, Sunrise, Coffee, Moon, Clock, MinusCircle, Flame, Hourglass } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
-import { SunBackground } from './SunBackground';
 import { SwipableCardStack, SwipableCardData } from './SwipableCardStack';
 import { ScaleButton } from './ScaleButton';
+import * as Haptics from 'expo-haptics';
 
 export interface OnboardingData {
   // Habit Profiler questions (first 3 steps)
@@ -67,12 +68,24 @@ const WORK_ARCHETYPES = [
   },
 ];
 
-const PRODUCTIVITY_KILLERS = [
-  { id: 'social-media', label: 'Social Media' },
-  { id: 'analysis-paralysis', label: 'Analysis Paralysis' },
-  { id: 'too-many-meetings', label: 'Too many meetings' },
-  { id: 'brain-fog', label: 'Brain fog' },
+const FRICTION_TYPES = [
+  { id: 'dopamine', title: 'The Dopamine Loop', subtitle: 'Doomscrolling & Apps' },
+  { id: 'switch', title: 'The Switch Tax', subtitle: 'Interruptions & Context Switching' },
+  { id: 'fatigue', title: 'Decision Fatigue', subtitle: 'Overthinking & Paralysis' },
+  { id: 'biology', title: 'Biological Drag', subtitle: 'Sleep Debt & Burnout' },
+  { id: 'loops', title: 'Open Loops', subtitle: 'Mental Clutter & Unfinished Tasks' },
+  { id: 'perfectionism', title: 'Perfectionism', subtitle: 'Fear of Starting' },
 ];
+
+// Scientific explanations for each friction type
+const FRICTION_EXPLANATIONS: Record<string, string> = {
+  dopamine: 'Every notification triggers a 23% dopamine spike, creating an addiction loop that fragments focus.',
+  switch: 'Every interruption costs you 23 minutes of refocus time. Your brain pays a "context switching tax."',
+  fatigue: 'The average person makes 35,000 decisions daily. Decision fatigue depletes willpower by 2pm.',
+  biology: 'Sleep debt reduces cognitive performance by 30%. Chronic burnout shrinks the prefrontal cortex.',
+  loops: 'Unfinished tasks create "Zeigarnik loops" that consume 20% of your working memory, even when ignored.',
+  perfectionism: 'Perfectionism delays action by 3x. The fear of starting is often worse than imperfect execution.',
+};
 
 const AI_PERSONALITIES = [
   {
@@ -158,18 +171,18 @@ const FOCUS_WINDOWS = [
   },
 ];
 
-const getProcessingPhrases = (personality: string | null): string[] => {
-  const personalityName = AI_PERSONALITIES.find(p => p.id === personality)?.label || 'personality';
+const getProcessingPhrases = (): string[] => {
   return [
     'Analyzing your workflow...',
-    `Calibrating ${personalityName} personality...`,
     'Building your custom dashboard...',
+    'Almost ready...',
   ];
 };
 
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }) => {
   // Start at step 0 - Cognitive Triggers (FIRST QUESTION)
   const [currentStep, setCurrentStep] = useState(0);
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState<OnboardingData>({
     // Habit Profiler questions (first 3 steps)
     cognitiveTrigger: null,
@@ -184,44 +197,40 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
 
   // Animation values
   const stepTransition = useSharedValue(0);
-  const backgroundColorProgress = useSharedValue(0);
-  const previousFocusWindow = useSharedValue<string | null>(null);
 
   // Debug: Log current step
   useEffect(() => {
     console.log('Onboarding Step:', currentStep);
-    console.log('Step 0 = Cognitive Triggers, Step 1 = Distractions, Step 2 = Focus Window, Step 3 = Work Archetype, Step 4 = Productivity Killers, Step 5 = AI Personality, Step 6 = Primary Goal');
+    console.log('Step 0 = Cognitive Triggers, Step 1 = Distractions, Step 2 = Focus Window, Step 3 = Work Archetype, Step 4 = Productivity Killers');
     
     // Animate step transition
     stepTransition.value = 0;
     stepTransition.value = withSpring(1, { damping: 20, stiffness: 100 });
   }, [currentStep]);
 
-  // Animate background color for Focus Window step
-  useEffect(() => {
-    if (currentStep === 2 && data.focusWindow) {
-      if (previousFocusWindow.value !== data.focusWindow) {
-        backgroundColorProgress.value = 0;
-        backgroundColorProgress.value = withTiming(1, { duration: 800 });
-        previousFocusWindow.value = data.focusWindow;
-      }
-    } else {
-      backgroundColorProgress.value = 0;
-    }
-  }, [data.focusWindow, currentStep]);
-
-
-  const handleNext = useCallback(() => {
-    if (currentStep < 7) {
-      setCurrentStep(currentStep + 1);
-    }
-  }, [currentStep]);
 
   const handleBack = useCallback(() => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
   }, [currentStep]);
+
+  const handleNext = useCallback(() => {
+    if (currentStep < 4) {
+      setCurrentStep(currentStep + 1);
+    } else if (currentStep === 4) {
+      // Step 4 is the last step, complete onboarding with a delay
+      // to allow UI to finish rendering before navigation
+      setTimeout(() => {
+        try {
+          onComplete(data);
+        } catch (error) {
+          console.error('Error completing onboarding:', error);
+        }
+      }, 300);
+    }
+  }, [currentStep, data, onComplete]);
+
 
   const canProceed = useMemo(() => {
     switch (currentStep) {
@@ -235,60 +244,50 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
         return data.workArchetype !== null;
       case 4:
         return data.productivityKillers.length > 0;
-      case 5:
-        return data.aiPersonality !== null;
-      case 6:
-        return data.primaryGoal !== null;
       default:
         return false;
     }
   }, [currentStep, data]);
 
-  // Animated background color for Focus Window step
-  const animatedBackgroundStyle = useAnimatedStyle(() => {
-    if (currentStep === 2 && data.focusWindow) {
-      const window = FOCUS_WINDOWS.find((w) => w.id === data.focusWindow);
-      const targetColor = window?.bgColor || colors.backgroundLight;
-      
-      return {
-        backgroundColor: interpolateColor(
-          backgroundColorProgress.value,
-          [0, 1],
-          [colors.backgroundLight, targetColor]
-        ),
-      };
-    }
-    return {
-      backgroundColor: colors.backgroundLight,
-    };
-  });
+  // Use white background matching dashboard for all steps
+  const backgroundColor = '#FFFFFF';
 
   // Step transition animation
+  // BACKUP: Original slide-from-right animation (saved in case you want to revert)
+  // const stepAnimatedStyle = useAnimatedStyle(() => {
+  //   return {
+  //     opacity: stepTransition.value,
+  //     transform: [
+  //       {
+  //         translateX: interpolate(stepTransition.value, [0, 1], [30, 0]),
+  //       },
+  //     ],
+  //   };
+  // });
+
+  // NEW: Pop-up from center animation
   const stepAnimatedStyle = useAnimatedStyle(() => {
     return {
       opacity: stepTransition.value,
       transform: [
         {
-          translateX: interpolate(stepTransition.value, [0, 1], [30, 0]),
+          scale: interpolate(stepTransition.value, [0, 1], [0.85, 1]),
         },
       ],
     };
   });
 
-  const isDarkMode = currentStep === 2 && data.focusWindow === 'night-owl';
-
-  // Early return after all hooks are called
-  if (currentStep === 7) {
-    return <Step7Processing data={data} onComplete={() => onComplete(data)} />;
-  }
+  const isFrictionStep = currentStep === 4;
 
   return (
-    <Animated.View style={[styles.container, animatedBackgroundStyle]}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <StatusBar style={isDarkMode ? 'light' : 'dark'} />
+    <View style={[styles.container, { backgroundColor: backgroundColor }]}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <StatusBar style="dark" />
 
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           style={{ flex: 1 }}
@@ -302,59 +301,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
             {/* Original Onboarding Questions (Steps 3-6) */}
             {currentStep === 3 && <Step3WorkArchetype data={data} setData={setData} />}
             {currentStep === 4 && <Step4ProductivityKillers data={data} setData={setData} />}
-            {currentStep === 5 && <Step5AIPersonality data={data} setData={setData} />}
-            {currentStep === 6 && <Step6PrimaryGoal data={data} setData={setData} />}
-            {currentStep >= 7 && <Step7Processing data={data} onComplete={() => onComplete(data)} />}
           </Animated.View>
         </ScrollView>
 
-      {/* Navigation */}
-      <View style={styles.navigation}>
-        {currentStep > 0 && (
-          <ScaleButton
-            style={[styles.backButton, { borderColor: colors.border }]}
-            onPress={handleBack}
-            hapticType="selection"
-          >
-            <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>Back</Text>
-          </ScaleButton>
-        )}
-        <View style={{ flex: 1 }} />
-        {canProceed ? (
-          <ScaleButton
-            style={[
-              styles.nextButton,
-              { backgroundColor: colors.primary },
-            ]}
-            onPress={handleNext}
-            hapticType="notification"
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={[styles.nextButtonText, { color: colors.background, marginRight: 8 }]}>
-                Next
-              </Text>
-              <ArrowRight size={20} color={colors.background} />
-            </View>
-          </ScaleButton>
-        ) : (
-          <View
-            style={[
-              styles.nextButton,
-              { backgroundColor: colors.border },
-              styles.nextButtonDisabled,
-            ]}
-          >
-            <Text style={[styles.nextButtonText, { color: colors.textSecondary, marginRight: 8 }]}>
-              Next
-            </Text>
-            <ArrowRight size={20} color={colors.textSecondary} />
-          </View>
-        )}
-      </View>
-
       {/* Progress dots */}
       <View style={styles.progressContainer}>
-        {[0, 1, 2, 3, 4, 5, 6].map((step) => (
+        {[0, 1, 2, 3, 4].map((step) => (
           <View
             key={step}
             style={[
@@ -369,7 +321,50 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }
         ))}
       </View>
       </SafeAreaView>
-    </Animated.View>
+
+      {/* Navigation Button - Outside SafeAreaView */}
+      <View style={[styles.navigationWrapper, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+        <View style={styles.navigation}>
+          {currentStep > 0 && (
+            <ScaleButton
+              style={[styles.backButton, { borderColor: colors.border }]}
+              onPress={handleBack}
+              hapticType="selection"
+            >
+              <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>Back</Text>
+            </ScaleButton>
+          )}
+          <View style={{ flex: 1 }} />
+          {canProceed ? (
+            <ScaleButton
+              style={[styles.nextButton, { backgroundColor: colors.primary }]}
+              onPress={handleNext}
+              hapticType="notification"
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[styles.nextButtonText, { color: colors.background, marginRight: 8 }]}>
+                  {currentStep === 4 ? 'Complete' : 'Next'}
+                </Text>
+                {currentStep < 4 && <ArrowRight size={20} color={colors.background} />}
+              </View>
+            </ScaleButton>
+          ) : (
+            <View
+              style={[
+                styles.nextButton,
+                { backgroundColor: colors.border },
+                styles.nextButtonDisabled,
+              ]}
+            >
+              <Text style={[styles.nextButtonText, { color: colors.textSecondary, marginRight: 8 }]}>
+                Next
+              </Text>
+              <ArrowRight size={20} color={colors.textSecondary} />
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
   );
 };
 
@@ -382,7 +377,7 @@ const Step0CognitiveTriggers: React.FC<{
     setData((prevData) => ({ ...prevData, cognitiveTrigger: triggerId }));
   }, [setData]);
 
-  const AnimatedCard = ({ trigger, isSelected, onPress }: any) => {
+  const AnimatedPill = ({ trigger, isSelected, onPress }: any) => {
     const scale = useSharedValue(1);
     
     const animatedStyle = useAnimatedStyle(() => ({
@@ -397,17 +392,21 @@ const Step0CognitiveTriggers: React.FC<{
       scale.value = withSpring(1, { damping: 15, stiffness: 300 });
     };
 
-    const IconComponent = trigger.icon;
-    
     return (
       <Animated.View style={animatedStyle}>
         <TouchableOpacity
           style={[
-            styles.focusCard,
+            styles.pillButton,
             {
               backgroundColor: isSelected ? colors.primary : colors.backgroundCard,
               borderColor: isSelected ? colors.primary : colors.border,
-              borderWidth: 1,
+              borderWidth: isSelected ? 2 : 1,
+            },
+            isSelected && {
+              shadowColor: colors.primary,
+              shadowOpacity: 0.3,
+              shadowRadius: 16,
+              elevation: 6,
             },
           ]}
           onPress={onPress}
@@ -415,39 +414,26 @@ const Step0CognitiveTriggers: React.FC<{
           onPressOut={handlePressOut}
           activeOpacity={1}
         >
-          <View style={styles.cardContent}>
-            <View style={styles.cardTextContainer}>
-              <View style={styles.focusHeader}>
-                {IconComponent && (
-                  <IconComponent 
-                    size={24} 
-                    color={isSelected ? colors.background : colors.textSecondary} 
-                    style={{ marginRight: 8 }}
-                  />
-                )}
-                <Text
-                  style={[
-                    styles.focusLabel,
-                    {
-                      color: isSelected ? colors.background : colors.text,
-                    },
-                  ]}
-                >
-                  {trigger.title}
-                </Text>
-              </View>
-              <Text
-                style={[
-                  styles.focusDescription,
-                  {
-                    color: isSelected ? 'rgba(255,255,255,0.8)' : colors.textSecondary,
-                  },
-                ]}
-              >
-                {trigger.description}
-              </Text>
-            </View>
-          </View>
+          <Text
+            style={[
+              styles.pillLabel,
+              {
+                color: isSelected ? colors.background : colors.text,
+              },
+            ]}
+          >
+            {trigger.title}
+          </Text>
+          <Text
+            style={[
+              styles.pillDescription,
+              {
+                color: isSelected ? colors.background : colors.textSecondary,
+              },
+            ]}
+          >
+            {trigger.description}
+          </Text>
         </TouchableOpacity>
       </Animated.View>
     );
@@ -462,11 +448,11 @@ const Step0CognitiveTriggers: React.FC<{
         The "Cognitive Trigger"
       </Text>
 
-      <View style={styles.focusContainer}>
+      <View style={styles.pillsContainer}>
         {COGNITIVE_TRIGGERS.map((trigger) => {
           const isSelected = data.cognitiveTrigger === trigger.id;
           return (
-            <AnimatedCard
+            <AnimatedPill
               key={trigger.id}
               trigger={trigger}
               isSelected={isSelected}
@@ -683,10 +669,10 @@ const Step2FocusWindow: React.FC<{
 
   return (
     <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: isDark ? '#FFFFFF' : colors.text }]}>
+      <Text style={[styles.stepTitle, { color: colors.text }]}>
         When is your brain actually awake?
       </Text>
-      <Text style={[styles.stepSubtitle, { color: isDark ? 'rgba(255,255,255,0.7)' : colors.textSecondary }]}>
+      <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>
         The "Focus Window"
       </Text>
 
@@ -785,7 +771,7 @@ const Step3WorkArchetype: React.FC<{
   );
 });
 
-// Step 4: Productivity Killers
+// Step 4: Productivity Killers (Dark Theme Pill Design)
 const Step4ProductivityKillers: React.FC<{
   data: OnboardingData;
   setData: React.Dispatch<React.SetStateAction<OnboardingData>>;
@@ -793,43 +779,37 @@ const Step4ProductivityKillers: React.FC<{
   const toggleKiller = useCallback((id: string) => {
     setData((prevData) => {
       const current = prevData.productivityKillers;
-      if (current.includes(id)) {
+      const isCurrentlySelected = current.includes(id);
+      
+      if (isCurrentlySelected) {
+        // Deselecting
         return { ...prevData, productivityKillers: current.filter((k) => k !== id) };
       } else {
+        // Selecting - trigger haptic
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         return { ...prevData, productivityKillers: [...current, id] };
       }
     });
   }, [setData]);
 
   return (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>What kills your productivity?</Text>
-      <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>Select all that apply</Text>
+    <View style={styles.frictionStepContainer}>
+      <Text style={styles.frictionQuestionTitle}>What kills your productivity?</Text>
+      <Text style={styles.frictionInstructions}>
+        Select all that apply. This will help us personalize your experience.
+      </Text>
 
-      <View style={styles.chipsContainer}>
-        {PRODUCTIVITY_KILLERS.map((killer) => {
-          const isSelected = data.productivityKillers.includes(killer.id);
+      {/* Vertical List of Friction Cards */}
+      <View style={styles.frictionPillsContainer}>
+        {FRICTION_TYPES.map((friction) => {
+          const isSelected = data.productivityKillers.includes(friction.id);
           return (
-            <AnimatedSelectableCard
-              key={killer.id}
-              onPress={() => toggleKiller(killer.id)}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: isSelected ? colors.primary : colors.backgroundCard,
-                  borderColor: isSelected ? colors.primary : colors.border,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  { color: isSelected ? colors.background : colors.text, marginRight: 8 },
-                ]}
-              >
-                {killer.label}
-              </Text>
-            </AnimatedSelectableCard>
+            <FrictionPill
+              key={friction.id}
+              friction={friction}
+              isSelected={isSelected}
+              onPress={() => toggleKiller(friction.id)}
+            />
           );
         })}
       </View>
@@ -837,94 +817,66 @@ const Step4ProductivityKillers: React.FC<{
   );
 });
 
-// Step 5: AI Personality
-const Step5AIPersonality: React.FC<{
-  data: OnboardingData;
-  setData: React.Dispatch<React.SetStateAction<OnboardingData>>;
-}> = React.memo(({ data, setData }) => {
-  const handleSelect = useCallback((personalityId: string) => {
-    setData((prevData) => ({ ...prevData, aiPersonality: personalityId }));
-  }, [setData]);
+// Friction Pill Component
+const FrictionPill: React.FC<{
+  friction: { id: string; title: string; subtitle: string };
+  isSelected: boolean;
+  onPress: () => void;
+}> = React.memo(({ friction, isSelected, onPress }) => {
+  const scale = useSharedValue(1);
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.98, { damping: 15, stiffness: 300 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1.0, { damping: 15, stiffness: 300 });
+  };
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   return (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>How should your AI Assistant treat you?</Text>
-
-      <View style={styles.cardsContainer}>
-        {AI_PERSONALITIES.map((personality) => {
-          const isSelected = data.aiPersonality === personality.id;
-          return (
-            <AnimatedSelectableCard
-              key={personality.id}
-              onPress={() => handleSelect(personality.id)}
-              style={[
-                styles.personalityCard,
-                {
-                  backgroundColor: colors.backgroundCard,
-                  borderColor: isSelected ? colors.primary : colors.border,
-                  shadowColor: colors.primary,
-                },
-                isSelected && styles.personalityCardSelected,
-              ]}
-            >
-              <Text style={styles.personalityIcon}>{personality.icon}</Text>
-              <Text style={[styles.personalityLabel, { color: colors.text }]}>{personality.label}</Text>
-              <Text style={[styles.personalityDescription, { color: colors.textSecondary }]}>
-                {personality.description}
-              </Text>
-            </AnimatedSelectableCard>
-          );
-        })}
-      </View>
-    </View>
+    <TouchableOpacity
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      activeOpacity={1}
+      style={styles.frictionPillWrapper}
+    >
+      <Animated.View
+        style={[
+          styles.frictionPill,
+          animatedStyle,
+          {
+            backgroundColor: isSelected ? colors.primary : colors.backgroundCard,
+            borderWidth: isSelected ? 2 : 1,
+            borderColor: isSelected ? colors.primary : colors.border,
+            shadowColor: isSelected ? colors.primary : '#000',
+            shadowOffset: { width: 0, height: isSelected ? 4 : 2 },
+            shadowOpacity: isSelected ? 0.2 : 0.05,
+            shadowRadius: isSelected ? 8 : 4,
+            elevation: isSelected ? 4 : 2,
+          },
+        ]}
+      >
+        <Text style={[
+          styles.frictionPillText,
+          { color: isSelected ? colors.background : colors.text }
+        ]}>
+          {friction.title}
+        </Text>
+      </Animated.View>
+    </TouchableOpacity>
   );
 });
 
-// Step 6: Primary Goal (renamed from Step1)
-const Step6PrimaryGoal: React.FC<{
-  data: OnboardingData;
-  setData: React.Dispatch<React.SetStateAction<OnboardingData>>;
-}> = React.memo(({ data, setData }) => {
-  const handleSelect = useCallback((goalId: string) => {
-    setData((prevData) => ({ ...prevData, primaryGoal: goalId }));
-  }, [setData]);
-
-  return (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>What is your primary goal?</Text>
-
-      <View style={styles.cardsContainer}>
-        {PRIMARY_GOALS.map((goal) => {
-          const isSelected = data.primaryGoal === goal.id;
-          return (
-            <AnimatedSelectableCard
-              key={goal.id}
-              onPress={() => handleSelect(goal.id)}
-              style={[
-                styles.goalCard,
-                {
-                  backgroundColor: colors.backgroundCard,
-                  borderColor: isSelected ? colors.primary : colors.border,
-                  shadowColor: colors.primary,
-                },
-                isSelected && styles.goalCardSelected,
-              ]}
-            >
-              <Text style={styles.goalIcon}>{goal.icon}</Text>
-              <Text style={[styles.goalLabel, { color: colors.text }]}>{goal.label}</Text>
-            </AnimatedSelectableCard>
-          );
-        })}
-      </View>
-    </View>
-  );
-});
-
-// Step 7: Processing Screen
-const Step7Processing = React.memo<{ data: OnboardingData; onComplete: () => void }>(({ data, onComplete }) => {
+// Step 5: Processing Screen
+const Step5Processing = React.memo<{ data: OnboardingData; onComplete: () => void }>(({ data, onComplete }) => {
   const [currentPhraseIndex, setCurrentPhraseIndex] = useState(0);
   const pulseScale = useSharedValue(1);
-  const phrases = useMemo(() => getProcessingPhrases(data.aiPersonality), [data.aiPersonality]);
+  const phrases = useMemo(() => getProcessingPhrases(), []);
 
   useEffect(() => {
     // Cycle through phrases every second
@@ -966,7 +918,6 @@ const Step7Processing = React.memo<{ data: OnboardingData; onComplete: () => voi
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <StatusBar style="dark" />
-      <SunBackground />
 
       <View style={styles.processingContainer}>
         <MotiView
@@ -1094,27 +1045,52 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-  chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 24,
-    justifyContent: 'center',
+  // Friction Step Styles (Light Theme)
+  frictionStepContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+    paddingTop: 20,
+    minHeight: '100%',
   },
-  chip: {
-    borderRadius: 24,
+  frictionQuestionTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 12,
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderWidth: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    lineHeight: 40,
   },
-  chipText: {
+  frictionInstructions: {
     fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 32,
+    paddingHorizontal: 20,
+    lineHeight: 22,
+  },
+  frictionPillsContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+    gap: 14,
+    paddingBottom: 20,
+  },
+  frictionPillWrapper: {
+    width: '100%',
+  },
+  frictionPill: {
+    borderRadius: 20,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 60,
+  },
+  frictionPillText: {
+    fontSize: 17,
     fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
   personalityCard: {
     borderRadius: 20,
@@ -1159,15 +1135,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  navigation: {
+  navigationWrapper: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+    width: '100%',
+  },
+  navigation: {
     flexDirection: 'row',
     padding: 20,
-    paddingBottom: 40,
-    backgroundColor: 'transparent',
+    paddingTop: 20,
+    alignItems: 'center',
   },
   backButton: {
     paddingHorizontal: 24,
@@ -1191,12 +1170,22 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-  nextButtonDisabled: {
-    opacity: 0.5,
+  nextButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nextButtonText: {
     fontSize: 16,
     fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  nextButtonTextDisabled: {
+    color: colors.textSecondary,
+  },
+  nextButtonDisabled: {
+    backgroundColor: colors.border,
+    opacity: 0.5,
   },
   progressContainer: {
     position: 'absolute',

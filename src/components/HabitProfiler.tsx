@@ -12,7 +12,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ArrowRight, Check, Sunrise, Coffee, Moon } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
-import { SunBackground } from './SunBackground';
 
 export interface HabitProfileData {
   cognitiveTrigger: string | null;
@@ -187,13 +186,18 @@ export const HabitProfiler: React.FC<HabitProfilerProps> = ({ onComplete }) => {
     }, 100);
   };
 
-  const getBackgroundColor = () => {
+  // Calculate background color - should change when focus window is selected on step 2
+  const backgroundColor = React.useMemo(() => {
+    // If we're on the focus window step (step 2, index 2) and a selection has been made
     if (currentStep === 2 && data.focusWindow) {
-      const window = FOCUS_WINDOWS.find((w) => w.id === data.focusWindow);
-      return window?.bgColor || colors.background;
+      const selectedWindow = FOCUS_WINDOWS.find(w => w.id === data.focusWindow);
+      if (selectedWindow) {
+        return selectedWindow.bgColor;
+      }
     }
-    return colors.background;
-  };
+    // Default background color
+    return colors.backgroundLight;
+  }, [currentStep, data.focusWindow]);
 
   const renderStep = () => {
     switch (currentStep) {
@@ -209,15 +213,15 @@ export const HabitProfiler: React.FC<HabitProfilerProps> = ({ onComplete }) => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: getBackgroundColor() }]} edges={['top', 'bottom']}>
-      <StatusBar style={currentStep === 2 && data.focusWindow === 'night-owl' ? 'light' : 'dark'} />
-      {currentStep !== 2 && <SunBackground />}
+    <View style={[styles.container, { backgroundColor }]}>
+      <SafeAreaView style={styles.safeAreaContainer} edges={['top', 'bottom']}>
+        <StatusBar style={currentStep === 2 && data.focusWindow === 'night-owl' ? 'light' : 'dark'} />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: 'transparent' }}
       >
         <Animated.View style={[animatedStyle, { flex: 1 }]}>
           {renderStep()}
@@ -276,7 +280,8 @@ export const HabitProfiler: React.FC<HabitProfilerProps> = ({ onComplete }) => {
           />
         ))}
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 };
 
@@ -561,9 +566,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     position: 'relative',
-    // Debug border - remove after fixing
-    borderWidth: 4,
-    borderColor: 'red',
+  },
+  safeAreaContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   scrollContent: {
     flexGrow: 1,
@@ -571,6 +577,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 120,
     minHeight: '100%',
+    backgroundColor: 'transparent',
   },
   stepContainer: {
     flex: 1,

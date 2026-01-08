@@ -12,7 +12,7 @@ const BACKEND_PORT = 3000;
 
 // Determine the API base URL
 export const getApiUrl = () => {
-  if (__DEV__) {
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
     // In development, use your local IP address
     return `http://${LOCAL_IP}:${BACKEND_PORT}`;
   } else {
@@ -39,5 +39,7 @@ export const getNetworkInfo = async () => {
     };
   }
 };
+
+
 
 
