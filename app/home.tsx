@@ -1,289 +1,202 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Platform,
-  TouchableOpacity,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Menu, Home, Brain, User } from 'lucide-react-native';
+import { Home as HomeIcon, Brain, User, Plus } from 'lucide-react-native';
 import { AnimatedStreakFlame } from '../src/components/AnimatedStreakFlame';
-import { TaskReactorCircle, TaskGoal } from '../src/components/TaskReactorCircle';
-import { TaskDetailModal } from '../src/components/TaskDetailModal';
-import { useTaskGenerator } from '../src/hooks/useTaskGenerator';
+import { TaskReactorCircle } from '../src/components/TaskReactorCircle';
 import { lightColors as colors } from '../src/constants/colors';
-import * as Haptics from 'expo-haptics';
+import { useApp } from '../src/context/AppContext';
+import { StatusBar } from 'expo-status-bar';
+
+const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { goals, tasks } = useApp();
   const [activeTab, setActiveTab] = useState('Home');
-  const [taskGoals, setTaskGoals] = useState<TaskGoal[]>([]);
-  const [selectedTaskGoal, setSelectedTaskGoal] = useState<TaskGoal | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [newGoalIds, setNewGoalIds] = useState<Set<string>>(new Set());
-  
-  const { createGoal } = useTaskGenerator();
 
-  const handleFlamePress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
+  const reactorGoals = useMemo(() => {
+    return goals.map(goal => {
+      const goalTasks = tasks.filter(t => t.goalId === goal.id);
+      return {
+        id: goal.id,
+        title: goal.title,
+        subTasks: goalTasks.map(t => ({
+          id: t.id,
+          isCompleted: t.status === 'completed'
+        }))
+      };
+    });
+  }, [goals, tasks]);
 
-  const handleMenuPress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: Open menu/drawer
-  }, []);
-
-  const handleAITasksPress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/goal-input');
-  }, [router]);
-
-  const handleTaskReactorPress = useCallback((taskGoal: TaskGoal) => {
-    setSelectedTaskGoal(taskGoal);
-    setModalVisible(true);
-  }, []);
-
-  const handleToggleSubTask = useCallback((goalId: string, subTaskId: string) => {
-    setTaskGoals((prev) =>
-      prev.map((goal) => {
-        if (goal.id === goalId) {
-          return {
-            ...goal,
-            subTasks: goal.subTasks.map((st) =>
-              st.id === subTaskId ? { ...st, isCompleted: !st.isCompleted } : st
-            ),
-          };
-        }
-        return goal;
-      })
-    );
-  }, []);
-
-  // Format date
   const formatDate = () => {
     const today = new Date();
-    const day = today.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-    const month = today.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-    const date = today.getDate();
-    return `${day}, ${month} ${date}`;
+    const dayName = today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+    const dateNum = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return { dayName, dateNum };
   };
 
+  const { dayName, dateNum } = formatDate();
+
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: '#FFFFFF' }]}
-      edges={['top', 'bottom']}
-    >
+    <View style={styles.root}>
       <StatusBar style="dark" />
-
-      {/* Header */}
-      <View style={styles.header}>
-        {/* Left Side: Menu Icon + Date */}
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={handleMenuPress} style={styles.headerButton}>
-            <Menu size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerDate}>{formatDate()}</Text>
-        </View>
+      <SafeAreaView style={styles.container} edges={['top']}>
         
-        {/* Right Side: Flame */}
-        <View style={styles.headerButton}>
-          <AnimatedStreakFlame onPress={handleFlamePress} />
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.dateBox}>
+            <Text style={styles.dayLabel}>{dayName}</Text>
+            <Text style={styles.dateLabel}>{dateNum}</Text>
+          </View>
+          <AnimatedStreakFlame onPress={() => {}} />
         </View>
-      </View>
 
-      {/* Scrollable Content */}
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.contentContainer}>
-          <Text style={styles.sectionTitle}>Task Reactors</Text>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.sectionHeader}>Operational Goals</Text>
           
-          {/* Task Reactor Grid */}
-          {taskGoals.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                No tasks yet. Tap the AI button to create one!
-              </Text>
-            </View>
+          {reactorGoals.length === 0 ? (
+            <TouchableOpacity 
+              style={styles.emptyPrompt}
+              onPress={() => router.push('/goal-input')}
+            >
+              <View style={styles.plusIcon}>
+                <Plus size={24} color={colors.primary} />
+              </View>
+              <Text style={styles.emptyText}>Start a new sequence</Text>
+            </TouchableOpacity>
           ) : (
-            <View style={styles.taskGrid}>
-              {taskGoals.map((goal) => (
+            <View style={styles.grid}>
+              {reactorGoals.map((reactor) => (
                 <TaskReactorCircle
-                  key={goal.id}
-                  taskGoal={goal}
-                  onPress={handleTaskReactorPress}
-                  isNew={newGoalIds.has(goal.id)}
+                  key={reactor.id}
+                  taskGoal={reactor}
+                  onPress={(g: any) => router.push({ pathname: '/goal-detail', params: { goalId: g.id }})}
                 />
               ))}
             </View>
           )}
+        </ScrollView>
+
+        {/* Floating White Pill Navigation */}
+        <View style={styles.navContainer}>
+          <View style={styles.pill}>
+            <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Home')}>
+              <HomeIcon size={22} color={activeTab === 'Home' ? colors.primary : '#D1D1D1'} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.pillCenter} 
+              onPress={() => router.push('/goal-input')}
+            >
+              <Brain size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Profile')}>
+              <User size={22} color={activeTab === 'Profile' ? colors.primary : '#D1D1D1'} />
+            </TouchableOpacity>
+          </View>
         </View>
-      </ScrollView>
-
-      {/* Bottom Navigation Bar */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={[styles.navButton, activeTab === 'Home' && styles.navButtonActive]}
-          onPress={() => {
-            setActiveTab('Home');
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-        >
-          <Home
-            size={24}
-            color={activeTab === 'Home' ? colors.primary : colors.textSecondary}
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navButtonCenter}
-          onPress={handleAITasksPress}
-        >
-          <Brain size={28} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.navButton, activeTab === 'Placeholder' && styles.navButtonActive]}
-          onPress={() => {
-            setActiveTab('Placeholder');
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-        >
-          <User
-            size={24}
-            color={activeTab === 'Placeholder' ? colors.primary : colors.textSecondary}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Task Detail Modal */}
-      {selectedTaskGoal && (
-        <TaskDetailModal
-          visible={modalVisible}
-          taskGoal={selectedTaskGoal}
-          onClose={() => setModalVisible(false)}
-          onToggleSubTask={handleToggleSubTask}
-        />
-      )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12, // Space between menu icon and date
+  dateBox: { flexDirection: 'column' },
+  dayLabel: { fontSize: 11, fontWeight: '800', color: '#BDBDBD', letterSpacing: 1.5 },
+  dateLabel: { fontSize: 24, fontWeight: '900', color: '#1A1A1A', marginTop: 2 },
+  
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 150 },
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#1A1A1A',
+    marginTop: 16,
+    marginBottom: 20,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginLeft: 4,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
+  grid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    justifyContent: 'space-between',
+  },
+  
+  emptyPrompt: {
+    width: '100%',
+    height: 140,
+    borderRadius: 24,
+    backgroundColor: '#F9FAFB',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    borderStyle: 'dashed',
   },
-  headerDate: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
-    letterSpacing: 0.5,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 24,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
-    letterSpacing: -0.5,
-  },
-  taskGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    justifyContent: 'flex-start',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 20,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  navButton: {
+  plusIcon: {
     width: 48,
     height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
     borderRadius: 24,
-  },
-  navButtonActive: {
-    backgroundColor: colors.backgroundCard,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  navButtonCenter: {
-    width: 56,
-    height: 56,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 28,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  emptyText: { fontSize: 15, fontWeight: '600', color: '#9CA3AF' },
+
+  navContainer: {
+    position: 'absolute',
+    bottom: 40,
+    width: '100%',
+    alignItems: 'center',
+  },
+  pill: {
+    width: width * 0.6,
+    height: 64,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  pillItem: { flex: 1, alignItems: 'center' },
+  pillCenter: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
-    elevation: 8,
   },
 });

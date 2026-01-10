@@ -1,236 +1,211 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import Animated, {
   useSharedValue,
-  useAnimatedStyle,
   useAnimatedProps,
-  withSpring,
   withTiming,
+  useAnimatedStyle,
+  withSpring,
+  interpolateColor,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-// Using dark theme colors directly - will be passed as props or context in the future
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedView = Animated.createAnimatedComponent(View);
 
-export interface TaskGoal {
-  id: string;
-  title: string; // e.g. "Launch Website"
-  totalTime: number; // in minutes
-  color: string; // Hex code for the glow (e.g., "#FF4500" or "#00F0FF")
-  subTasks: {
-    id: string;
-    title: string; // e.g. "Fix Navbar"
-    duration: number; // e.g. 20 (minutes)
-    isCompleted: boolean;
-  }[];
-}
-
-interface TaskReactorCircleProps {
-  taskGoal: TaskGoal;
-  onPress: (taskGoal: TaskGoal) => void;
-  isNew?: boolean; // For entry animation
-}
-
-const CIRCLE_SIZE = 140;
-const CIRCLE_CENTER = CIRCLE_SIZE / 2;
-const STROKE_WIDTH = 8;
+const CIRCLE_SIZE = 120;
+const STROKE_WIDTH = 10;
 const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-export const TaskReactorCircle: React.FC<TaskReactorCircleProps> = ({
-  taskGoal,
-  onPress,
-  isNew = false,
-}) => {
-  // Safety check
-  if (!taskGoal || !taskGoal.id) {
-    return null;
-  }
+// A 260-degree arc (open at the bottom)
+const ARC_ANGLE = 260;
+const ARC_LENGTH = (ARC_ANGLE / 360) * CIRCUMFERENCE;
+// Rotate to center the opening at the bottom
+const ROTATION = 90 + (360 - ARC_ANGLE) / 2; 
 
-  const scale = useSharedValue(isNew ? 0 : 1);
+export const TaskReactorCircle = ({ taskGoal, onPress }: any) => {
   const animatedProgress = useSharedValue(0);
+  const scale = useSharedValue(1);
   
-  // Entry animation for new circles
+  const completedCount = taskGoal.subTasks.filter((st: any) => st.isCompleted).length;
+  const totalCount = taskGoal.subTasks.length || 1;
+  const percentage = completedCount / totalCount;
+
   useEffect(() => {
-    if (isNew) {
-      scale.value = withSpring(1, { damping: 12, stiffness: 150 });
-    }
-  }, [isNew, scale]);
+    animatedProgress.value = withTiming(percentage, { duration: 1000 });
+  }, [percentage]);
 
-  // Calculate completion percentage
-  const subTasks = taskGoal?.subTasks || [];
-  const completedTasks = subTasks.filter((st) => st.isCompleted).length;
-  const totalTasks = subTasks.length || 1;
-  const progressPercentage = totalTasks > 0 ? completedTasks / totalTasks : 0;
-
-  // Animate progress
-  useEffect(() => {
-    animatedProgress.value = withTiming(progressPercentage, {
-      duration: 500,
-    });
-  }, [progressPercentage]);
-
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    scale.value = withSpring(0.95, { damping: 15 }, () => {
-      scale.value = withSpring(1, { damping: 15 });
-    });
-
-    onPress(taskGoal);
+  const handlePressIn = () => {
+    scale.value = withSpring(0.96, { damping: 15 });
+    Haptics.selectionAsync();
   };
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scale.value }],
-    };
-  });
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15 });
+  };
 
-  // Animated props for progress circle
   const animatedCircleProps = useAnimatedProps(() => {
-    const strokeDashoffset = CIRCUMFERENCE * (1 - animatedProgress.value);
+    // Map 0-1 to the full arc length
+    const strokeDashoffset = CIRCUMFERENCE - (ARC_LENGTH * animatedProgress.value);
     return {
       strokeDashoffset,
     };
   });
 
-  const percentage = Math.round(progressPercentage * 100);
-  const gradientId = `gradient-${taskGoal.id}`;
-  
-  // Create glow effect colors
-  const neonColor = taskGoal.color;
-  const glowColor1 = neonColor;
-  const glowColor2 = neonColor + 'CC'; // 80% opacity
-  const glowColor3 = neonColor + '80'; // 50% opacity
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  // Unique Gradient ID based on task ID to prevent caching issues
+  const gradientId = `grad-${taskGoal.id}`;
 
   return (
-    <Animated.View style={animatedStyle}>
-      <Pressable onPress={handlePress} style={styles.container}>
-        <View style={styles.circleWrapper}>
-          <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE} style={styles.svg}>
+    <AnimatedView style={[styles.container, cardStyle]}>
+      <Pressable 
+        onPress={() => onPress(taskGoal)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={styles.card}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title} numberOfLines={1}>{taskGoal.title}</Text>
+          <Text style={styles.subtitle}>{totalCount} Steps</Text>
+        </View>
+
+        <View style={styles.gaugeContainer}>
+          <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
             <Defs>
-              {/* Neon gradient for glow effect */}
               <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor={glowColor1} stopOpacity="1" />
-                <Stop offset="50%" stopColor={glowColor2} stopOpacity="0.9" />
-                <Stop offset="100%" stopColor={glowColor3} stopOpacity="0.7" />
+                <Stop offset="0%" stopColor="#00F0FF" /> {/* Neon Cyan */}
+                <Stop offset="100%" stopColor="#007AFF" /> {/* Electric Blue */}
               </LinearGradient>
             </Defs>
 
-            {/* Background track - thin, dark grey */}
+            {/* Background Track (Subtle Grey) */}
             <Circle
-              cx={CIRCLE_CENTER}
-              cy={CIRCLE_CENTER}
+              cx={CIRCLE_SIZE / 2}
+              cy={CIRCLE_SIZE / 2}
               r={RADIUS}
-              stroke="rgba(255, 255, 255, 0.2)"
+              stroke="#F3F4F6"
               strokeWidth={STROKE_WIDTH}
               fill="transparent"
+              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
+              strokeLinecap="round"
+              rotation={ROTATION}
+              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
             />
 
-            {/* Glow layers for neon effect */}
-            {progressPercentage > 0 && (
-              <>
-                {/* Outer glow - subtle blur effect */}
-                <AnimatedCircle
-                  cx={CIRCLE_CENTER}
-                  cy={CIRCLE_CENTER}
-                  r={RADIUS}
-                  stroke={neonColor}
-                  strokeWidth={STROKE_WIDTH + 6}
-                  fill="transparent"
-                  strokeDasharray={CIRCUMFERENCE}
-                  strokeLinecap="round"
-                  transform={`rotate(-90 ${CIRCLE_CENTER} ${CIRCLE_CENTER})`}
-                  opacity={0.25}
-                  animatedProps={animatedCircleProps}
-                />
-                {/* Middle glow */}
-                <AnimatedCircle
-                  cx={CIRCLE_CENTER}
-                  cy={CIRCLE_CENTER}
-                  r={RADIUS}
-                  stroke={neonColor}
-                  strokeWidth={STROKE_WIDTH + 3}
-                  fill="transparent"
-                  strokeDasharray={CIRCUMFERENCE}
-                  strokeLinecap="round"
-                  transform={`rotate(-90 ${CIRCLE_CENTER} ${CIRCLE_CENTER})`}
-                  opacity={0.4}
-                  animatedProps={animatedCircleProps}
-                />
-              </>
-            )}
-
-            {/* Main progress circle - crisp neon stroke */}
-            {progressPercentage > 0 && (
-              <AnimatedCircle
-                cx={CIRCLE_CENTER}
-                cy={CIRCLE_CENTER}
-                r={RADIUS}
-                stroke={`url(#${gradientId})`}
-                strokeWidth={STROKE_WIDTH}
-                fill="transparent"
-                strokeDasharray={CIRCUMFERENCE}
-                strokeLinecap="round"
-                transform={`rotate(-90 ${CIRCLE_CENTER} ${CIRCLE_CENTER})`}
-                animatedProps={animatedCircleProps}
-              />
-            )}
+            {/* Active Progress Gradient Bar */}
+            <AnimatedCircle
+              cx={CIRCLE_SIZE / 2}
+              cy={CIRCLE_SIZE / 2}
+              r={RADIUS}
+              stroke={`url(#${gradientId})`}
+              strokeWidth={STROKE_WIDTH}
+              fill="transparent"
+              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
+              strokeLinecap="round"
+              rotation={ROTATION}
+              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
+              animatedProps={animatedCircleProps}
+            />
           </Svg>
 
-          {/* Center percentage */}
+          {/* Centered Percentage */}
           <View style={styles.centerContent}>
-            <Text style={styles.percentageText}>{percentage}%</Text>
+            <Text style={styles.percentText}>{Math.round(percentage * 100)}%</Text>
           </View>
         </View>
 
-        {/* Goal name below circle */}
-        <Text style={styles.goalName} numberOfLines={2}>
-          {taskGoal.title}
-        </Text>
+        <View style={styles.footer}>
+          <View style={[
+            styles.statusBadge, 
+            { backgroundColor: percentage === 1 ? '#E6FFFA' : '#F0F9FF' }
+          ]}>
+            <Text style={[
+              styles.statusText,
+              { color: percentage === 1 ? '#059669' : '#0284C7' }
+            ]}>
+              {percentage === 1 ? 'Complete' : percentage === 0 ? 'Not Started' : 'In Progress'}
+            </Text>
+          </View>
+        </View>
       </Pressable>
-    </Animated.View>
+    </AnimatedView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    width: CIRCLE_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
+  container: { 
+    width: '48%', 
+    marginBottom: 16 
   },
-  circleWrapper: {
-    width: CIRCLE_SIZE,
-    height: CIRCLE_SIZE,
-    justifyContent: 'center',
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 16,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    // Soft, luxurious shadow
+    shadowColor: '#0047FF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
+    height: 230, // Fixed height for uniformity
+    justifyContent: 'space-between',
+  },
+  header: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  title: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  subtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#9CA3AF',
+  },
+  gaugeContainer: {
     position: 'relative',
-    marginBottom: 12,
-  },
-  svg: {
-    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 4,
   },
   centerContent: {
     position: 'absolute',
-    justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
+    justifyContent: 'center',
   },
-  percentageText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF', // White text for dark theme
-    fontFamily: 'monospace',
+  percentText: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     letterSpacing: -1,
   },
-  goalName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF', // White text for dark theme
-    textAlign: 'center',
-    lineHeight: 18,
-    paddingHorizontal: 4,
+  footer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });
-

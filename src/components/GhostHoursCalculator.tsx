@@ -24,7 +24,7 @@ import { NoiseLevelSlider } from './NoiseLevelSlider';
 import { WorkdayCompression } from './WorkdayCompression';
 import { lightColors as colors } from '../constants/colors';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // --- THEMES ---
 const darkTheme = {
@@ -104,7 +104,7 @@ const SwitchTaxInteractive: React.FC<{ onChaosReached: () => void }> = ({ onChao
     rippleScale.value = withTiming(0.8, { duration: 300, easing: Easing.out(Easing.quad) });
     rippleOpacity.value = withTiming(0, { duration: 300 });
 
-    // 3. Shake Effect - Increased intensity multiplier since fewer taps
+    // 3. Shake Effect
     const intensity = newCount * 4; 
     shakeX.value = withSequence(
       withTiming(intensity, { duration: 40 }),
@@ -119,7 +119,7 @@ const SwitchTaxInteractive: React.FC<{ onChaosReached: () => void }> = ({ onChao
       withTiming(0, { duration: 40 })
     );
 
-    // 4. Haptics - Adjusted for new threshold (6)
+    // 4. Haptics
     if (newCount < 3) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } else if (newCount < CHAOS_THRESHOLD) {
@@ -185,10 +185,9 @@ const SwitchTaxInteractive: React.FC<{ onChaosReached: () => void }> = ({ onChao
     ),
   }));
 
-  // Determine Brain Icon Color
   const getBrainColor = () => {
     if (tapCount >= CHAOS_THRESHOLD) return '#EF4444'; // Red
-    if (tapCount >= 3) return '#A855F7'; // Purple (happens sooner)
+    if (tapCount >= 3) return '#A855F7'; // Purple
     return '#00F0FF'; // Neon Blue
   };
 
@@ -196,7 +195,6 @@ const SwitchTaxInteractive: React.FC<{ onChaosReached: () => void }> = ({ onChao
     <View style={styles.interactiveContainer}>
       <Pressable onPress={handleTap} style={styles.touchArea}>
         
-        {/* Status Text */}
         <View style={styles.statusContainer}>
           {showCritical ? (
             <MotiView
@@ -215,12 +213,8 @@ const SwitchTaxInteractive: React.FC<{ onChaosReached: () => void }> = ({ onChao
           )}
         </View>
 
-        {/* The Core */}
         <View style={styles.coreWrapper}>
-          {/* Ripple Effect */}
           <Animated.View style={[styles.rippleRing, rippleStyle]} />
-
-          {/* Brain Container */}
           <Animated.View style={[styles.brainContainer, coreStyle]}>
             <Brain size={80} color={getBrainColor()} strokeWidth={1.5} />
           </Animated.View>
@@ -249,11 +243,9 @@ export const GhostHoursCalculator: React.FC<GhostHoursCalculatorProps> = ({
     try {
       const calculated = calculateGhostHours(workHours, distractionLevel);
       setGhostHours(isFinite(calculated) && calculated >= 0 ? calculated : 0);
-      
       setTimeout(() => {
         setCurrentScreen('verdict');
       }, 100);
-      
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error('Calculation Error', error);
@@ -273,10 +265,7 @@ export const GhostHoursCalculator: React.FC<GhostHoursCalculatorProps> = ({
       <SafeAreaView style={styles.safeAreaContent} edges={[]}>
         <View style={styles.content}>
           {currentScreen === 'mystery' && (
-            <Screen1Mystery 
-              onNext={() => setCurrentScreen('villain')} 
-              onSkip={onSkip}
-            />
+            <Screen1Mystery onNext={() => setCurrentScreen('villain')} onSkip={onSkip} />
           )}
           {currentScreen === 'villain' && (
             <Screen2Villain onNext={() => setCurrentScreen('input')} onSkip={onSkip} />
@@ -305,11 +294,8 @@ export const GhostHoursCalculator: React.FC<GhostHoursCalculatorProps> = ({
   );
 };
 
-// --- SCREEN 1: THE MYSTERY ---
-const Screen1Mystery: React.FC<{ 
-  onNext: () => void; 
-  onSkip?: () => void;
-}> = ({ onNext }) => {
+// --- SCREENS ---
+const Screen1Mystery: React.FC<{ onNext: () => void; onSkip?: () => void }> = ({ onNext }) => {
   return (
     <MotiView
       from={{ opacity: 0 }}
@@ -320,23 +306,17 @@ const Screen1Mystery: React.FC<{
       <View style={styles.chartContainer}>
         <WorkdayCompression height={250} />
       </View>
-
       <View style={styles.textContainer}>
         <Text style={styles.mysteryTitle}>
           Imagine if you could finish an 8-hour workday in just 4 hours... without rushing.
         </Text>
         <Text style={styles.mysterySubtext}>Most people think it's impossible. Science disagrees.</Text>
       </View>
-
       <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            onNext();
-          }}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity style={styles.primaryButton} onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          onNext();
+        }}>
           <Text style={styles.buttonText}>How?</Text>
         </TouchableOpacity>
       </View>
@@ -344,15 +324,9 @@ const Screen1Mystery: React.FC<{
   );
 };
 
-// --- SCREEN 2: THE VILLAIN (INTERACTIVE CORE) ---
-const Screen2Villain: React.FC<{ onNext: () => void; onSkip?: () => void }> = ({
-  onNext,
-}) => {
+const Screen2Villain: React.FC<{ onNext: () => void; onSkip?: () => void }> = ({ onNext }) => {
   const [canProceed, setCanProceed] = useState(false);
-
-  const handleChaos = () => {
-    setCanProceed(true);
-  };
+  const handleChaos = () => setCanProceed(true);
 
   return (
     <MotiView
@@ -361,12 +335,9 @@ const Screen2Villain: React.FC<{ onNext: () => void; onSkip?: () => void }> = ({
       transition={{ type: 'timing', duration: 600 }}
       style={styles.screen}
     >
-      {/* Interactive Core */}
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <SwitchTaxInteractive onChaosReached={handleChaos} />
       </View>
-
-      {/* Description Text */}
       <View style={styles.textContainerInteractive}>
         <Text style={styles.villainTitle}>The Switch Tax</Text>
         <Text style={styles.villainSubtext}>
@@ -374,32 +345,18 @@ const Screen2Villain: React.FC<{ onNext: () => void; onSkip?: () => void }> = ({
           At 10+ interruptions, your brain enters a "critical state" of cognitive debt.
         </Text>
       </View>
-
-      {/* Button fixed at bottom - exactly like other screens */}
       <View style={styles.buttonContainer}>
         {canProceed ? (
-          <MotiView 
-            from={{ opacity: 0, translateY: 10 }} 
-            animate={{ opacity: 1, translateY: 0 }}
-            style={{ width: '100%', alignItems: 'center' }}
-          >
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onNext();
-              }}
-              activeOpacity={0.8}
-            >
+          <MotiView from={{ opacity: 0, translateY: 10 }} animate={{ opacity: 1, translateY: 0 }} style={{ width: '100%', alignItems: 'center' }}>
+            <TouchableOpacity style={styles.primaryButton} onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onNext();
+            }}>
               <Text style={styles.buttonText}>Calculate My Loss</Text>
             </TouchableOpacity>
           </MotiView>
         ) : (
-          <MotiView 
-            from={{ opacity: 0 }} 
-            animate={{ opacity: 1 }}
-            style={styles.hintContainer}
-          >
+          <MotiView from={{ opacity: 0 }} animate={{ opacity: 1 }} style={styles.hintContainer}>
             <Text style={styles.hintText}>Tap the brain to add distractions...</Text>
           </MotiView>
         )}
@@ -408,7 +365,6 @@ const Screen2Villain: React.FC<{ onNext: () => void; onSkip?: () => void }> = ({
   );
 };
 
-// --- SCREEN 3: THE INPUT ---
 const Screen3Input: React.FC<{
   workHours: number;
   setWorkHours: (hours: number) => void;
@@ -427,7 +383,6 @@ const Screen3Input: React.FC<{
       <View style={styles.inputContainer}>
         <Text style={styles.inputTitle}>How many hours are you typically 'at your desk'?</Text>
         <Text style={styles.hoursDisplay}>{workHours.toFixed(1)} hours</Text>
-
         <LinearSlider
           value={(workHours - 4) / 8}
           onValueChange={(normalizedValue) => {
@@ -438,7 +393,6 @@ const Screen3Input: React.FC<{
           leftLabel="4h"
           rightLabel="12h"
         />
-
         <Text style={styles.inputSubtitle}>How noisy is your world?</Text>
         <FocusWave distractionLevel={distractionLevel} />
         <NoiseLevelSlider
@@ -448,13 +402,8 @@ const Screen3Input: React.FC<{
           }}
         />
       </View>
-
       <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={onCalculate}
-          activeOpacity={0.8}
-        >
+        <TouchableOpacity style={styles.primaryButton} onPress={onCalculate}>
           <Text style={styles.buttonText}>Analyze</Text>
         </TouchableOpacity>
       </View>
@@ -462,7 +411,7 @@ const Screen3Input: React.FC<{
   );
 };
 
-// --- SCREEN 4: THE VERDICT ---
+// --- SCREEN 4: THE VERDICT (EXIT ANIMATION UPDATED) ---
 const Screen4Verdict: React.FC<{
   ghostHours: number;
   workHours: number;
@@ -472,13 +421,10 @@ const Screen4Verdict: React.FC<{
   const [step, setStep] = useState<'results' | 'transition'>('results');
   const [isTransitioning, setIsTransitioning] = useState(false);
   
-  // Animation Values
   const contentOpacity = useSharedValue(1);
-  const numberOpacity = useSharedValue(1);
-  const numberTranslateX = useSharedValue(0);
   const numberTranslateY = useSharedValue(0);
-  const numberColor = useSharedValue(0);
-  const backgroundColorProgress = useSharedValue(0);
+  const numberColor = useSharedValue(0); // 0=Orange, 1=Dark
+  const backgroundColorProgress = useSharedValue(0); // 0=Black, 1=White
   const counterValue = useSharedValue(0);
   const ghostTimePulseOpacity = useSharedValue(0.8);
 
@@ -487,7 +433,6 @@ const Screen4Verdict: React.FC<{
   const [ghostTimeDisplayValue, setGhostTimeDisplayValue] = useState('0.0');
   const isMountedRef = useRef(true);
 
-  // Animations Setup
   useEffect(() => {
     isMountedRef.current = true;
     counterValue.value = withTiming(ghostHours, { duration: 2000 });
@@ -516,24 +461,40 @@ const Screen4Verdict: React.FC<{
     setStep('transition');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    // Transition Animations
+    // 1. Fade out the entire UI (except the number, which is rendered separately in transition mode)
     contentOpacity.value = withTiming(0, { duration: 300 });
-    backgroundColorProgress.value = withDelay(500, withTiming(1, { duration: 500 }));
-    numberColor.value = withDelay(500, withTiming(1, { duration: 500 }));
-    numberOpacity.value = withDelay(1500, withTiming(0, { duration: 400 }, (finished) => {
+
+    // 2. Start the EXIT Sequence (Move + Color Change)
+    const ANIMATION_DURATION = 1000;
+    const START_DELAY = 200;
+
+    // Background Black -> White
+    backgroundColorProgress.value = withDelay(START_DELAY, withTiming(1, { duration: ANIMATION_DURATION }));
+
+    // Number Orange -> Dark Grey
+    numberColor.value = withDelay(START_DELAY, withTiming(1, { duration: ANIMATION_DURATION }));
+
+    // Move Number UP and OFF the screen (Accelerating)
+    numberTranslateY.value = withDelay(START_DELAY, withTiming(-SCREEN_HEIGHT, {
+      duration: ANIMATION_DURATION,
+      easing: Easing.in(Easing.cubic), 
+    }, (finished) => {
       if (finished && onComplete) runOnJS(onComplete)(ghostHours, workHours);
     }));
   }, [isTransitioning]);
 
-  // Animated Styles
   const backgroundAnimatedStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(backgroundColorProgress.value, [0, 1], ['#000000', '#FFFBF0']),
+    backgroundColor: interpolateColor(backgroundColorProgress.value, [0, 1], ['#000000', '#FFFFFF']),
   }));
 
   const contentAnimatedStyle = useAnimatedStyle(() => ({ opacity: contentOpacity.value }));
   
   const numberTextColorStyle = useAnimatedStyle(() => ({
     color: interpolateColor(numberColor.value, [0, 1], ['#FFA500', '#1A1A1A']),
+  }));
+
+  const transitionStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: numberTranslateY.value }]
   }));
 
   const actualWorkBarStyle = useAnimatedStyle(() => {
@@ -590,7 +551,7 @@ const Screen4Verdict: React.FC<{
       )}
 
       {step === 'transition' && (
-        <Animated.View style={[StyleSheet.absoluteFill, styles.transitionNumberContainer]}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.transitionNumberContainer, transitionStyle]}>
           <Animated.Text style={[styles.ghostHoursNumber, numberTextColorStyle]}>{displayValue}</Animated.Text>
         </Animated.View>
       )}
@@ -598,296 +559,57 @@ const Screen4Verdict: React.FC<{
   );
 };
 
-// --- STYLES ---
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: darkTheme.background,
-  },
-  safeAreaContent: {
-    flex: 1,
-    backgroundColor: darkTheme.background,
-  },
-  content: {
-    flex: 1,
-    backgroundColor: darkTheme.background,
-  },
-  screen: {
-    flex: 1,
-    padding: 24,
-    paddingBottom: 120,
-    justifyContent: 'flex-start',
-  },
-  screenLies: {
-    padding: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFBF0',
-  },
+  container: { flex: 1, backgroundColor: darkTheme.background },
+  safeAreaContent: { flex: 1, backgroundColor: darkTheme.background },
+  content: { flex: 1, backgroundColor: darkTheme.background },
+  screen: { flex: 1, padding: 24, paddingBottom: 120, justifyContent: 'flex-start' },
+  screenLies: { padding: 0, justifyContent: 'center', alignItems: 'center' },
   
-  // Interactive Core Styles
-  interactiveContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    height: 350,
-  },
-  touchArea: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusContainer: {
-    position: 'absolute',
-    top: 0,
-    alignItems: 'center',
-    width: '100%',
-    zIndex: 10,
-  },
-  promptText: {
-    color: darkTheme.textSecondary,
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  criticalText: {
-    color: darkTheme.error,
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: 2,
-    textShadowColor: 'rgba(239, 68, 68, 0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
-  },
-  criticalSubtext: {
-    color: darkTheme.text,
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  coreWrapper: {
-    width: 200,
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 40,
-  },
-  brainContainer: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 4,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 30,
-    elevation: 20,
-  },
-  rippleRing: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 2,
-    zIndex: 0,
-  },
+  interactiveContainer: { alignItems: 'center', justifyContent: 'center', width: '100%', height: 350 },
+  touchArea: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  statusContainer: { position: 'absolute', top: 0, alignItems: 'center', width: '100%', zIndex: 10 },
+  promptText: { color: darkTheme.textSecondary, fontSize: 16, fontWeight: '500', textAlign: 'center' },
+  criticalText: { color: darkTheme.error, fontSize: 24, fontWeight: '800', letterSpacing: 2, textShadowColor: 'rgba(239, 68, 68, 0.5)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 10 },
+  criticalSubtext: { color: darkTheme.text, fontSize: 16, fontWeight: '600', marginTop: 4, textAlign: 'center' },
+  coreWrapper: { width: 200, height: 200, alignItems: 'center', justifyContent: 'center', marginTop: 40 },
+  brainContainer: { width: 160, height: 160, borderRadius: 80, alignItems: 'center', justifyContent: 'center', borderWidth: 4, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 30, elevation: 20 },
+  rippleRing: { position: 'absolute', width: 200, height: 200, borderRadius: 100, borderWidth: 2, zIndex: 0 },
 
-  // General Text & Buttons
-  textContainer: {
-    alignItems: 'center',
-    marginTop: 0,
-    marginBottom: 0,
-    position: 'absolute',
-    bottom: 140,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 24,
-  },
-  textContainerInteractive: {
-    alignItems: 'center',
-    marginTop: 0,
-    position: 'absolute',
-    bottom: 140,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 24,
-  },
-  chartContainer: {
-    width: '100%',
-    marginTop: 180,
-    paddingHorizontal: 20,
-  },
-  mysteryTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: darkTheme.text,
-    textAlign: 'center',
-    lineHeight: 42,
-    marginBottom: 16,
-  },
-  mysterySubtext: {
-    fontSize: 18,
-    color: darkTheme.textSecondary,
-    textAlign: 'center',
-    lineHeight: 26,
-  },
-  villainTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: darkTheme.text,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  villainSubtext: {
-    fontSize: 18,
-    color: darkTheme.textSecondary,
-    textAlign: 'center',
-    lineHeight: 26,
-  },
+  textContainer: { alignItems: 'center', position: 'absolute', bottom: 140, left: 0, right: 0, paddingHorizontal: 24 },
+  textContainerInteractive: { alignItems: 'center', position: 'absolute', bottom: 140, left: 0, right: 0, paddingHorizontal: 24 },
+  chartContainer: { width: '100%', marginTop: 180, paddingHorizontal: 20 },
+  mysteryTitle: { fontSize: 32, fontWeight: '700', color: darkTheme.text, textAlign: 'center', lineHeight: 42, marginBottom: 16 },
+  mysterySubtext: { fontSize: 18, color: darkTheme.textSecondary, textAlign: 'center', lineHeight: 26 },
+  villainTitle: { fontSize: 32, fontWeight: '700', color: darkTheme.text, textAlign: 'center', marginBottom: 16 },
+  villainSubtext: { fontSize: 18, color: darkTheme.textSecondary, textAlign: 'center', lineHeight: 26 },
   
-  // Standardized Button Container
-  buttonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 24,
-    paddingBottom: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButton: {
-    width: '100%',
-    backgroundColor: darkTheme.primary,
-    borderRadius: 16,
-    paddingVertical: 20,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: darkTheme.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  hintContainer: {
-    width: '100%',
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  hintText: {
-    fontSize: 16,
-    color: darkTheme.textSecondary,
-    opacity: 0.6,
-    textAlign: 'center',
-  },
+  buttonContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, paddingBottom: 40, alignItems: 'center', justifyContent: 'center' },
+  primaryButton: { width: '100%', backgroundColor: darkTheme.primary, borderRadius: 16, paddingVertical: 20, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', shadowColor: darkTheme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  buttonText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
+  hintContainer: { width: '100%', alignItems: 'center', paddingVertical: 20 },
+  hintText: { fontSize: 16, color: darkTheme.textSecondary, opacity: 0.6, textAlign: 'center' },
 
-  // Input Screen
-  inputContainer: {
-    flex: 1,
-    paddingTop: 40,
-    alignItems: 'center',
-  },
-  inputTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: darkTheme.text,
-    textAlign: 'center',
-    marginVertical: 20,
-  },
-  hoursDisplay: {
-    fontSize: 42,
-    fontWeight: '700',
-    color: darkTheme.primary,
-    marginBottom: 32,
-  },
-  inputSubtitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: darkTheme.text,
-    marginTop: 8,
-    marginBottom: 6,
-  },
+  inputContainer: { flex: 1, paddingTop: 40, alignItems: 'center' },
+  inputTitle: { fontSize: 22, fontWeight: '600', color: darkTheme.text, textAlign: 'center', marginVertical: 20 },
+  hoursDisplay: { fontSize: 42, fontWeight: '700', color: darkTheme.primary, marginBottom: 32 },
+  inputSubtitle: { fontSize: 18, fontWeight: '600', color: darkTheme.text, marginTop: 8, marginBottom: 6 },
 
-  // Verdict Screen
-  resultContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  verdictTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: darkTheme.text,
-    marginBottom: 20,
-  },
-  numberContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ghostHoursNumber: {
-    fontSize: 96,
-    fontWeight: '800',
-    color: darkTheme.primary,
-    marginBottom: 16,
-  },
-  verdictSubtext: {
-    fontSize: 20,
-    color: darkTheme.textSecondary,
-    marginBottom: 24,
-  },
-  barsContainer: {
-    width: '100%',
-    marginTop: 32,
-    gap: 20,
-  },
-  barWrapper: {
-    width: '100%',
-    marginBottom: 8,
-  },
-  barHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  barLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: darkTheme.text,
-  },
-  barValue: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
+  resultContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  verdictTitle: { fontSize: 28, fontWeight: '700', color: darkTheme.text, marginBottom: 20 },
+  numberContainer: { alignItems: 'center', justifyContent: 'center' },
+  ghostHoursNumber: { fontSize: 96, fontWeight: '800', color: darkTheme.primary, marginBottom: 16 },
+  verdictSubtext: { fontSize: 20, color: darkTheme.textSecondary, marginBottom: 24 },
+  barsContainer: { width: '100%', marginTop: 32, gap: 20 },
+  barWrapper: { width: '100%', marginBottom: 8 },
+  barHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 4 },
+  barLabel: { fontSize: 16, fontWeight: '600', color: darkTheme.text },
+  barValue: { fontSize: 18, fontWeight: '700' },
   actualWorkValue: { color: '#10B981' },
   ghostTimeValue: { color: '#EF4444' },
-  barTrack: {
-    height: 56,
-    backgroundColor: darkTheme.card,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  barFill: {
-    height: '100%',
-    borderRadius: 16,
-    position: 'absolute',
-    left: 0,
-    top: 0,
-  },
+  barTrack: { height: 56, backgroundColor: darkTheme.card, borderRadius: 16, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 16, position: 'absolute', left: 0, top: 0 },
   actualWorkBarFill: { backgroundColor: '#10B981' },
   ghostTimeBarFill: { backgroundColor: '#EF4444' },
-  transitionNumberContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 999,
-  },
+  transitionNumberContainer: { justifyContent: 'center', alignItems: 'center', zIndex: 999 },
 });
