@@ -517,137 +517,6 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 </file>
 
-<file path="README.md">
-# Productivity AI - Goal-to-Action App
-
-A beautiful, animated React Native productivity app built with Expo SDK 54. Transform high-level goals into actionable tasks with AI-powered breakdowns and productivity tracking.
-
-## Features
-
-- 🎯 **Goal Ingestion**: Enter your main goal and watch it transform into actionable tasks
-- 📋 **Action Plan Dashboard**: View tasks in a beautiful timeline with progress tracking
-- ✨ **Swipe-to-Complete**: Intuitive gesture-based task completion
-- 🎊 **Productivity Reflection**: Rate your productivity after each task with confetti celebrations
-- 🌟 **Smooth Animations**: Powered by React Native Reanimated 3 and Moti
-- 🎨 **Modern UI**: Dark theme with starry background, matching the QUITTR aesthetic
-
-## Tech Stack
-
-- **Expo SDK 54** with TypeScript
-- **Expo Router** for navigation
-- **React Native Reanimated 3** for animations
-- **Moti** for declarative animations
-- **React Native Gesture Handler** for swipe gestures
-- **Lucide React Native** for icons
-- **React Native Confetti Cannon** for celebrations
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js (v18+)
-- Expo Go app on your phone
-- Your phone and computer on the same WiFi network
-
-### Installation
-
-```bash
-# Install dependencies
-npm install
-
-# Start the development server
-npm start
-```
-
-Scan the QR code with Expo Go to run the app on your device.
-
-## Project Structure
-
-```
-productivity.ai/
-├── app/
-│   ├── _layout.tsx          # Root layout with providers
-│   ├── index.tsx            # Goal ingestion screen (Home)
-│   └── action-plan.tsx      # Action plan dashboard
-├── src/
-│   ├── components/
-│   │   ├── GoalCard.tsx     # Goal display card
-│   │   ├── TaskCard.tsx     # Swipeable task card
-│   │   ├── ProgressBar.tsx  # Animated progress indicator
-│   │   ├── ReflectionModal.tsx  # Productivity rating modal
-│   │   └── StarBackground.tsx   # Animated starry background
-│   ├── context/
-│   │   └── AppContext.tsx   # Global app state
-│   ├── data/
-│   │   └── mockData.ts      # Sample goals and tasks
-│   └── types/
-│       └── index.ts         # TypeScript type definitions
-└── backend/                 # Express backend (separate)
-```
-
-## Usage
-
-1. **Enter Your Goal**: On the home screen, type your main goal (e.g., "Launch my dropshipping store")
-2. **AI Breakdown**: The app simulates AI processing and generates actionable tasks
-3. **Complete Tasks**: Swipe right on any task card to mark it as complete
-4. **Rate Productivity**: After completing a task, rate how productive you felt (1-5)
-5. **Track Progress**: Watch your progress bar fill up as you complete tasks
-
-## Key Components
-
-### Goal Ingestion Screen
-- Large, glowing input field
-- Loading animation during AI processing
-- Smooth transitions to action plan
-
-### Action Plan Screen
-- Progress bar showing completion percentage
-- Swipeable task cards with expandable details
-- Time budget badges for each task
-- Empty state when all tasks are complete
-
-### Reflection Modal
-- 5-emoji rating system
-- Confetti celebration for high ratings (4-5)
-- Encouraging feedback messages
-- Smooth modal animations
-
-## Customization
-
-### Colors
-The app uses a dark theme with purple accents. Main colors:
-- Background: `#0A0A0A`
-- Primary: `#6366F1` (Indigo)
-- Text: `#FFFFFF` (White)
-- Secondary Text: `#A0A0A0` (Gray)
-
-### Animations
-All animations use React Native Reanimated 3 with spring physics for natural movement.
-
-## Development
-
-### Adding New Features
-
-1. **New Screen**: Create a new file in `app/` directory
-2. **New Component**: Add to `src/components/`
-3. **State Management**: Use `AppContext` for global state
-4. **Types**: Add to `src/types/index.ts`
-
-### Testing Animations
-
-Animations are optimized for 60fps. Use React Native Debugger or Flipper to monitor performance.
-
-## Notes
-
-- The app currently uses mock data for tasks. Connect to your backend API to fetch real AI-generated tasks.
-- Confetti celebrations require `react-native-confetti-cannon` which may need native configuration for production builds.
-- All animations are designed to feel premium and satisfying.
-
-## License
-
-MIT
-</file>
-
 <file path="src/components/ActiveTaskCard.tsx">
 import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
@@ -903,64 +772,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '500',
-  },
-});
-</file>
-
-<file path="src/components/AnimatedStreakFlame.tsx">
-import React, { useRef } from 'react';
-import { View, StyleSheet, Pressable, Platform } from 'react-native';
-import LottieView from 'lottie-react-native';
-import * as Haptics from 'expo-haptics';
-
-interface AnimatedStreakFlameProps {
-  onPress: () => void;
-}
-
-const FLAME_SIZE = 40; // Header icon size
-
-export const AnimatedStreakFlame: React.FC<AnimatedStreakFlameProps> = ({ onPress }) => {
-  const animationRef = useRef<LottieView>(null);
-
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onPress();
-  };
-
-  return (
-    <Pressable onPress={handlePress} style={styles.container}>
-      <View style={styles.animationContainer}>
-        <LottieView
-          ref={animationRef}
-          source={require('../../assets/animations/streak-flame.json')}
-          autoPlay
-          loop
-          style={styles.animation}
-          colorFilters={[]} // Keep original colors
-        />
-      </View>
-    </Pressable>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    width: FLAME_SIZE + 8,
-    height: FLAME_SIZE + 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 4,
-  },
-  animationContainer: {
-    width: FLAME_SIZE,
-    height: FLAME_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  animation: {
-    width: FLAME_SIZE,
-    height: FLAME_SIZE,
   },
 });
 </file>
@@ -6815,272 +6626,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/TaskCard.tsx">
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  runOnJS,
-  withTiming,
-} from 'react-native-reanimated';
-import { MotiView } from 'moti';
-import { CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react-native';
-import { Task } from '../types';
-import { lightColors as colors } from '../constants/colors';
-
-interface TaskCardProps {
-  task: Task;
-  onComplete: () => void;
-  onPress?: () => void;
-  index: number;
-}
-
-export const TaskCard: React.FC<TaskCardProps> = ({
-  task,
-  onComplete,
-  onPress,
-  index,
-}) => {
-  const [expanded, setExpanded] = useState(false);
-  const translateX = useSharedValue(0);
-  const opacity = useSharedValue(1);
-  const scale = useSharedValue(1);
-
-  const panGesture = Gesture.Pan()
-    .onUpdate((e) => {
-      if (e.translationX > 0) {
-        translateX.value = Math.min(e.translationX, 100);
-      }
-    })
-    .onEnd((e) => {
-      if (e.translationX > 50) {
-        translateX.value = withSpring(100, {}, () => {
-          runOnJS(onComplete)();
-        });
-        opacity.value = withTiming(0, { duration: 200 });
-        scale.value = withTiming(0.8, { duration: 200 });
-      } else {
-        translateX.value = withSpring(0);
-      }
-    });
-
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { scale: scale.value },
-      ],
-      opacity: opacity.value,
-    };
-  });
-
-  const checkmarkStyle = useAnimatedStyle(() => {
-    return {
-      opacity: translateX.value / 100,
-      transform: [{ scale: translateX.value / 100 }],
-    };
-  });
-
-  if (task.completed) {
-    return null;
-  }
-
-  return (
-    <GestureDetector gesture={panGesture}>
-      <Animated.View style={[styles.container, animatedStyle]}>
-        <MotiView
-          from={{ opacity: 0, translateY: 20 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: 'timing', duration: 300, delay: index * 50 }}
-        >
-          <TouchableOpacity
-            style={[styles.card, { 
-              backgroundColor: colors.backgroundCard,
-              borderColor: colors.border,
-              shadowColor: colors.primary,
-            }]}
-            onPress={() => {
-              setExpanded(!expanded);
-              onPress?.();
-            }}
-            activeOpacity={0.8}
-          >
-            <View style={styles.content}>
-              <View style={styles.mainContent}>
-                <View style={styles.textContainer}>
-                  <Text style={[styles.title, { color: colors.text }]}>{task.title}</Text>
-                  {task.description && (
-                    <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={expanded ? undefined : 2}>
-                      {task.description}
-                    </Text>
-                  )}
-                </View>
-                <View style={styles.badges}>
-                  <View style={[styles.timeBadge, { backgroundColor: colors.glow }]}>
-                    <Clock size={14} color={colors.textSecondary} />
-                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{task.timeBudget} mins</Text>
-                  </View>
-                </View>
-              </View>
-
-              {expanded && task.subTasks && task.subTasks.length > 0 && (
-                <View style={[styles.subTasksContainer, { borderTopColor: colors.border }]}>
-                  {task.subTasks.map((subTask) => (
-                    <View key={subTask.id} style={styles.subTask}>
-                      <View
-                        style={[
-                          styles.subTaskCheckbox,
-                          { borderColor: colors.borderLight },
-                          subTask.completed && [styles.subTaskCheckboxCompleted, { 
-                            backgroundColor: colors.primary,
-                            borderColor: colors.primary,
-                          }],
-                        ]}
-                      />
-                      <Text
-                        style={[
-                          styles.subTaskText,
-                          { color: colors.textSecondary },
-                          subTask.completed && [styles.subTaskTextCompleted, { color: colors.primary }],
-                        ]}
-                      >
-                        {subTask.title}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              <View style={styles.footer}>
-                <TouchableOpacity
-                  onPress={() => setExpanded(!expanded)}
-                  style={styles.expandButton}
-                >
-                  {expanded ? (
-                    <ChevronUp size={20} color={colors.textSecondary} />
-                  ) : (
-                    <ChevronDown size={20} color={colors.textSecondary} />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <Animated.View style={[styles.checkmarkContainer, checkmarkStyle]}>
-              <CheckCircle2 size={32} color={colors.primary} />
-              <Text style={[styles.swipeText, { color: colors.primary }]}>Swipe to complete</Text>
-            </Animated.View>
-          </TouchableOpacity>
-        </MotiView>
-      </Animated.View>
-    </GestureDetector>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: 20,
-    marginVertical: 6,
-  },
-  card: {
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    position: 'relative',
-    overflow: 'hidden',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  content: {
-    position: 'relative',
-    zIndex: 1,
-  },
-  mainContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  textContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  description: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  badges: {
-    alignItems: 'flex-end',
-  },
-  timeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    gap: 6,
-  },
-  timeText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  subTasksContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-  },
-  subTask: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  subTaskCheckbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    marginRight: 12,
-  },
-  subTaskCheckboxCompleted: {
-  },
-  subTaskText: {
-    fontSize: 14,
-    flex: 1,
-  },
-  subTaskTextCompleted: {
-    textDecorationLine: 'line-through',
-  },
-  footer: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  expandButton: {
-    padding: 4,
-  },
-  checkmarkContainer: {
-    position: 'absolute',
-    right: 20,
-    top: '50%',
-    transform: [{ translateY: -16 }],
-    alignItems: 'center',
-    zIndex: 0,
-  },
-  swipeText: {
-    fontSize: 10,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-});
-</file>
-
 <file path="src/components/TaskDetailModal.tsx">
 import React, { useState, useEffect } from 'react';
 import {
@@ -7694,493 +7239,6 @@ const styles = StyleSheet.create({
     fontWeight: '800', 
     letterSpacing: 1 
   },
-});
-</file>
-
-<file path="src/components/TaskStagingModal.tsx">
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ScrollView,
-  Dimensions,
-  Platform,
-  TextInput,
-} from 'react-native';
-import Animated, { 
-  FadeInDown, 
-  FadeInRight,
-  FadeOutLeft,
-  ZoomIn,
-  Layout
-} from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { lightColors as colors } from '../constants/colors';
-import { Clock, Play, X, ChevronLeft, Minus, Plus, Info } from 'lucide-react-native';
-
-const { width, height } = Dimensions.get('window');
-
-// --- UPDATED TEST SCENARIOS WITH DESCRIPTIONS ---
-export const TEST_SCENARIOS = {
-  scenario_1: {
-    goal: "Study for Physics Midterm",
-    tasks: [
-      { 
-        id: '1', 
-        title: "Review Kinematics Notes", 
-        duration: 20,
-        description: "Go through chapters 1-3 focusing specifically on projectile motion and relative velocity equations. Highlight key derivations for the exam cheat sheet."
-      },
-      { 
-        id: '2', 
-        title: "Practice Problem Set A", 
-        duration: 45,
-        description: "Solve the remaining 15 problems from last week's worksheet. Focus on energy conservation and work-power calculations."
-      },
-      { 
-        id: '3', 
-        title: "Quick Quiz", 
-        duration: 15, 
-        description: "Take a timed mock quiz on the student portal to test recall speed of common constants and units."
-      },
-    ]
-  },
-  scenario_2: {
-    goal: "Launch Dropshipping Store",
-    tasks: [
-      { 
-        id: 'a', 
-        title: "Competitor Research", 
-        duration: 60,
-        description: "Analyze the top 5 competitors in the niche. Document their pricing strategy, shipping times, and most successful ad creative styles."
-      },
-      { 
-        id: 'b', 
-        title: "Setup Shopify Theme", 
-        duration: 30,
-        description: "Apply the 'Sense' theme. Upload the main logo, set the primary brand colors to amber, and configure the header navigation menu."
-      },
-      { 
-        id: 'c', 
-        title: "Write Product Descriptions", 
-        duration: 45,
-        description: "Craft high-converting copy for 3 hero products. Focus on problem-solution framing and include technical specifications in a bulleted list."
-      },
-    ]
-  }
-};
-
-interface StagingTask {
-  id: string;
-  title: string;
-  duration: number;
-  description: string;
-}
-
-interface TaskStagingModalProps {
-  visible: boolean;
-  goalTitle: string;
-  onConfirm: (finalTasks: StagingTask[]) => void;
-  onClose: () => void;
-}
-
-export const TaskStagingModal: React.FC<TaskStagingModalProps> = ({
-  visible,
-  goalTitle,
-  onConfirm,
-  onClose,
-}) => {
-  const [tasks, setTasks] = useState<StagingTask[]>(TEST_SCENARIOS.scenario_1.tasks);
-  const [editingTask, setEditingTask] = useState<StagingTask | null>(null);
-
-  useEffect(() => {
-    if (visible) {
-      setTasks([...TEST_SCENARIOS.scenario_1.tasks]);
-      setEditingTask(null);
-    }
-  }, [visible]);
-
-  const handleUpdateDuration = (taskId: string, newDuration: number) => {
-    const validDuration = Math.max(5, newDuration);
-    setTasks(prev => prev.map(t => 
-      t.id === taskId ? { ...t, duration: validDuration } : t
-    ));
-    if (editingTask?.id === taskId) {
-      setEditingTask(prev => prev ? { ...prev, duration: validDuration } : null);
-    }
-  };
-
-  const handleInitialize = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onConfirm(tasks);
-  };
-
-  // --- RENDER SUB-VIEWS ---
-
-  const renderEditView = (task: StagingTask) => (
-    <Animated.View 
-      entering={FadeInRight.duration(300)} 
-      exiting={FadeOutLeft.duration(300)}
-      style={styles.editContainer}
-    >
-      <TouchableOpacity 
-        onPress={() => setEditingTask(null)}
-        style={styles.backButton}
-      >
-        <ChevronLeft size={24} color={colors.primary} />
-        <Text style={styles.backText}>Back to List</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.editHeader}>Task Parameters</Text>
-      <Text style={styles.editTitle}>{task.title}</Text>
-      
-      <View style={styles.descriptionBox}>
-        <View style={styles.descHeader}>
-          <Info size={16} color={colors.primary} />
-          <Text style={styles.descLabel}>AI ANALYSIS</Text>
-        </View>
-        <Text style={styles.descriptionText}>{task.description}</Text>
-      </View>
-
-      <View style={styles.durationEditor}>
-        <Text style={styles.durationLabel}>ADJUST FOCUS TIME</Text>
-        <View style={styles.stepper}>
-          <TouchableOpacity 
-            style={styles.stepBtn}
-            onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                handleUpdateDuration(task.id, task.duration - 5);
-            }}
-          >
-            <Minus size={24} color={colors.text} />
-          </TouchableOpacity>
-          
-          <View style={styles.durationValueContainer}>
-            <Text style={styles.durationValue}>{task.duration}</Text>
-            <Text style={styles.minLabel}>MINS</Text>
-          </View>
-
-          <TouchableOpacity 
-            style={styles.stepBtn}
-            onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                handleUpdateDuration(task.id, task.duration + 5);
-            }}
-          >
-            <Plus size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <TouchableOpacity 
-        style={styles.saveButton}
-        onPress={() => setEditingTask(null)}
-      >
-        <Text style={styles.saveButtonText}>SAVE PARAMETERS</Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-
-  const renderListView = () => (
-    <Animated.View 
-      entering={FadeInRight.duration(300)} 
-      exiting={FadeOutLeft.duration(300)}
-      style={{ flex: 1 }}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.topLabel}>MISSION STAGING</Text>
-          <Text style={styles.goalTitle} numberOfLines={2}>
-            {goalTitle || TEST_SCENARIOS.scenario_1.goal}
-          </Text>
-        </View>
-        <TouchableOpacity onPress={onClose} style={styles.closeCircle}>
-          <X size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView 
-        style={styles.list} 
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {tasks.map((task, index) => (
-          <Animated.View 
-            key={task.id}
-            entering={FadeInDown.delay(index * 100).duration(500)}
-            layout={Layout.springify()}
-          >
-            <TouchableOpacity 
-              style={styles.taskRow}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                setEditingTask(task);
-              }}
-            >
-              <View style={styles.taskInfo}>
-                <Text style={styles.taskTitle}>{task.title}</Text>
-                <Text style={styles.tapToEdit}>Tap to view details</Text>
-              </View>
-              
-              <View style={styles.timeBadge}>
-                <Text style={styles.timeText}>{task.duration}m</Text>
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
-        ))}
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.primaryButton}
-          onPress={handleInitialize}
-          activeOpacity={0.9}
-        >
-          <Text style={styles.buttonText}>INITIALIZE SEQUENCE</Text>
-          <Play size={18} color="#FFFFFF" fill="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
-  );
-
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.overlay}>
-        <Animated.View 
-          entering={ZoomIn.duration(400)} 
-          style={styles.modalContainer}
-        >
-          {editingTask ? renderEditView(editingTask) : renderListView()}
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-};
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: colors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContainer: {
-    width: '100%',
-    height: height * 0.8,
-    backgroundColor: colors.backgroundCard,
-    borderRadius: 32,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: colors.border,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 24,
-  },
-  topLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 2,
-    marginBottom: 4,
-  },
-  goalTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    lineHeight: 30,
-    maxWidth: '85%',
-  },
-  closeCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.backgroundLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  list: {
-    flex: 1,
-    marginBottom: 20,
-  },
-  listContent: {
-    paddingBottom: 10,
-  },
-  taskRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  taskInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  taskTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  tapToEdit: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  timeBadge: {
-    backgroundColor: colors.glow,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  timeText: {
-    color: colors.primary,
-    fontWeight: '800',
-    fontSize: 15,
-  },
-  footer: {
-    marginTop: 10,
-  },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    paddingVertical: 20,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-
-  // Edit View Styles
-  editContainer: {
-    flex: 1,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-    marginLeft: -4,
-  },
-  backText: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  editHeader: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    letterSpacing: 2,
-    marginBottom: 8,
-  },
-  editTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 20,
-  },
-  descriptionBox: {
-    backgroundColor: colors.backgroundLight,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 30,
-  },
-  descHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  descLabel: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: colors.primary,
-    letterSpacing: 1,
-  },
-  descriptionText: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 22,
-  },
-  durationEditor: {
-    marginBottom: 40,
-  },
-  durationLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    textAlign: 'center',
-    letterSpacing: 2,
-    marginBottom: 20,
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 30,
-  },
-  stepBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.backgroundLight,
-    borderWidth: 2,
-    borderColor: colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  durationValueContainer: {
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  durationValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  minLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    marginTop: -4,
-  },
-  saveButton: {
-    backgroundColor: colors.text,
-    paddingVertical: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 'auto',
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 1,
-  }
 });
 </file>
 
@@ -10618,6 +9676,10 @@ docker-compose down
 ```
 </file>
 
+<file path="README.md">
+
+</file>
+
 <file path="scripts/get-local-ip.js">
 /**
  * Helper script to find your local IP address
@@ -10942,6 +10004,65 @@ productivity.ai/
 - ✅ Database is set up with a test user
 - ✅ Frontend can fetch and display users
 - 🎉 You're ready to build your app!
+</file>
+
+<file path="src/components/AnimatedStreakFlame.tsx">
+import React, { useRef } from 'react';
+import { View, StyleSheet, Pressable } from 'react-native';
+import LottieView from 'lottie-react-native';
+import * as Haptics from 'expo-haptics';
+
+interface AnimatedStreakFlameProps {
+  onPress: () => void;
+}
+
+const FLAME_SIZE = 40;
+
+const AnimatedStreakFlame: React.FC<AnimatedStreakFlameProps> = ({ onPress }) => {
+  const animationRef = useRef<LottieView>(null);
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
+
+  return (
+    <Pressable onPress={handlePress} style={styles.container}>
+      <View style={styles.animationContainer}>
+        <LottieView
+          ref={animationRef}
+          source={require('../../assets/animations/streak-flame.json')}
+          autoPlay
+          loop
+          style={styles.animation}
+        />
+      </View>
+    </Pressable>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    width: FLAME_SIZE + 8,
+    height: FLAME_SIZE + 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 4,
+  },
+  animationContainer: {
+    width: FLAME_SIZE,
+    height: FLAME_SIZE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  animation: {
+    width: FLAME_SIZE,
+    height: FLAME_SIZE,
+  },
+});
+
+export default AnimatedStreakFlame;
 </file>
 
 <file path="src/components/HabitProfiler.tsx">
@@ -12216,210 +11337,756 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/TaskReactorCircle.tsx">
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+<file path="src/components/TaskCard.tsx">
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  useSharedValue,
-  useAnimatedProps,
-  withTiming,
   useAnimatedStyle,
+  useSharedValue,
   withSpring,
+  runOnJS,
+  withTiming,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import { MotiView } from 'moti';
+import { CheckCircle2, Clock, ChevronDown, ChevronUp, Circle } from 'lucide-react-native';
+import { Task } from '../types';
+import { lightColors as colors } from '../constants/colors';
 
-// Create animated SVG component
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+interface TaskCardProps {
+  task: Task;
+  onComplete: () => void;
+  onPress?: () => void;
+  index: number;
+}
 
-const CIRCLE_SIZE = 140;
-const STROKE_WIDTH = 12; 
-const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-
-// 270-degree arc (Speedometer style - 3/4 circle)
-const ARC_ANGLE = 270; 
-const ARC_LENGTH = (ARC_ANGLE / 360) * CIRCUMFERENCE;
-// Rotation to center the opening at the bottom
-// 90 (start at bottom center) + (360 - 270) / 2 = 90 + 45 = 135 degrees
-const ROTATION = 135;
-
-export const TaskReactorCircle = ({ taskGoal, onPress }: any) => {
-  const animatedProgress = useSharedValue(0);
+export const TaskCard: React.FC<TaskCardProps> = ({
+  task,
+  onComplete,
+  onPress,
+  index,
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const translateX = useSharedValue(0);
+  const opacity = useSharedValue(1);
   const scale = useSharedValue(1);
-  
-  const completedCount = taskGoal.subTasks ? taskGoal.subTasks.filter((st: any) => st.isCompleted).length : 0;
-  const totalCount = taskGoal.subTasks ? taskGoal.subTasks.length : 1;
-  const percentage = totalCount > 0 ? completedCount / totalCount : 0;
 
-  useEffect(() => {
-    animatedProgress.value = withTiming(percentage, { duration: 1200 });
-  }, [percentage]);
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      if (e.translationX > 0) {
+        translateX.value = Math.min(e.translationX, 100);
+      }
+    })
+    .onEnd((e) => {
+      if (e.translationX > 50) {
+        translateX.value = withSpring(100, {}, () => {
+          runOnJS(onComplete)();
+        });
+        opacity.value = withTiming(0, { duration: 200 });
+        scale.value = withTiming(0.8, { duration: 200 });
+      } else {
+        translateX.value = withSpring(0);
+      }
+    });
 
-  const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15 });
-    Haptics.selectionAsync();
-  };
-
-  const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15 });
-  };
-
-  const animatedCircleProps = useAnimatedProps(() => {
-    // Stroke Dash Offset: Start at full circumference (empty), animate to ARC_LENGTH
-    // Visible dash = ARC_LENGTH * percentage
-    // Offset = Circumference - Visible dash
-    const strokeDashoffset = CIRCUMFERENCE - (ARC_LENGTH * animatedProgress.value);
+  const animatedStyle = useAnimatedStyle(() => {
     return {
-      strokeDashoffset,
+      transform: [
+        { translateX: translateX.value },
+        { scale: scale.value },
+      ],
+      opacity: opacity.value,
     };
   });
 
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  const checkmarkStyle = useAnimatedStyle(() => {
+    return {
+      opacity: translateX.value / 100,
+      transform: [{ scale: translateX.value / 100 }],
+    };
+  });
 
-  const gradientId = `neon-grad-${taskGoal.id}`;
+  if (task.completed) {
+    return null;
+  }
 
   return (
-    <Animated.View style={[styles.container, cardStyle]}>
-      <Pressable 
-        onPress={() => onPress(taskGoal)}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        style={styles.card}
-      >
-        <View style={styles.gaugeWrapper}>
-          <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
-            <Defs>
-              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-                <Stop offset="0%" stopColor="#00F0FF" /> {/* Neon Cyan */}
-                <Stop offset="100%" stopColor="#2563EB" /> {/* Electric Blue */}
-              </LinearGradient>
-            </Defs>
+    <GestureDetector gesture={panGesture}>
+      <Animated.View style={[styles.container, animatedStyle]}>
+        <MotiView
+          from={{ opacity: 0, translateY: 20 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'timing', duration: 300, delay: index * 50 }}
+        >
+          <TouchableOpacity
+            style={[styles.card, { 
+              backgroundColor: colors.backgroundCard,
+              borderColor: colors.border,
+              shadowColor: colors.primary,
+            }]}
+            onPress={() => {
+              setExpanded(!expanded);
+              onPress?.();
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={styles.content}>
+              <View style={styles.mainContent}>
+                <View style={styles.textContainer}>
+                  <Text style={[styles.title, { color: colors.text }]}>{task.title}</Text>
+                  {task.description && (
+                    <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={expanded ? undefined : 2}>
+                      {task.description}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.badges}>
+                  <View style={[styles.timeBadge, { backgroundColor: colors.glow }]}>
+                    <Clock size={14} color={colors.textSecondary} />
+                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{task.timeBudget} mins</Text>
+                  </View>
+                </View>
+              </View>
 
-            {/* Background Track - Dark Navy (Like reference image) */}
-            <Circle
-              cx={CIRCLE_SIZE / 2}
-              cy={CIRCLE_SIZE / 2}
-              r={RADIUS}
-              stroke="#1E293B" // Dark Navy Blue/Grey for 0%
-              strokeWidth={STROKE_WIDTH}
-              fill="transparent"
-              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
-              strokeLinecap="round"
-              rotation={ROTATION}
-              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
-            />
+              {expanded && task.subTasks && task.subTasks.length > 0 && (
+                <View style={[styles.subTasksContainer, { borderTopColor: colors.border }]}>
+                  {task.subTasks.map((subTask) => (
+                    <View key={subTask.id} style={styles.subTask}>
+                      <View
+                        style={[
+                          styles.subTaskCheckbox,
+                          { borderColor: colors.borderLight },
+                          subTask.completed && [styles.subTaskCheckboxCompleted, { 
+                            backgroundColor: colors.primary,
+                            borderColor: colors.primary,
+                          }],
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.subTaskText,
+                          { color: colors.textSecondary },
+                          subTask.completed && [styles.subTaskTextCompleted, { color: colors.primary }],
+                        ]}
+                      >
+                        {subTask.title}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
 
-            {/* Active Progress Bar - Neon Gradient */}
-            <AnimatedCircle
-              cx={CIRCLE_SIZE / 2}
-              cy={CIRCLE_SIZE / 2}
-              r={RADIUS}
-              stroke={`url(#${gradientId})`}
-              strokeWidth={STROKE_WIDTH}
-              fill="transparent"
-              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
-              strokeLinecap="round"
-              rotation={ROTATION}
-              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
-              animatedProps={animatedCircleProps}
-            />
-          </Svg>
-          
-          <View style={styles.centerContent}>
-            <Text style={styles.percentText}>{Math.round(percentage * 100)}</Text>
-            <Text style={styles.percentSymbol}>%</Text>
-          </View>
-          <Text style={styles.percentLabel}>COMPLETED</Text>
-        </View>
+              <View style={styles.footer}>
+                <TouchableOpacity
+                  onPress={() => setExpanded(!expanded)}
+                  style={styles.expandButton}
+                >
+                  {expanded ? (
+                    <ChevronUp size={20} color={colors.textSecondary} />
+                  ) : (
+                    <ChevronDown size={20} color={colors.textSecondary} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
 
-        <View style={styles.infoContainer}>
-          <Text style={styles.title} numberOfLines={1}>{taskGoal.title}</Text>
-          <Text style={styles.description}>
-            {completedCount} / {totalCount} Steps
-          </Text>
-        </View>
-      </Pressable>
-    </Animated.View>
+            <Animated.View style={[styles.checkmarkContainer, checkmarkStyle]}>
+              <CheckCircle2 size={32} color={colors.primary} />
+              <Text style={[styles.swipeText, { color: colors.primary }]}>Swipe to complete</Text>
+            </Animated.View>
+          </TouchableOpacity>
+        </MotiView>
+      </Animated.View>
+    </GestureDetector>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { width: '48%', marginBottom: 16 },
+  container: {
+    marginHorizontal: 20,
+    marginVertical: 6,
+  },
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 28,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    alignItems: 'center',
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
-    borderColor: '#F0F4F8',
-    shadowColor: '#00F0FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-    justifyContent: 'center',
-  },
-  gaugeWrapper: {
     position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: CIRCLE_SIZE - 20, // Crop bottom gap
-    marginBottom: 0,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  centerContent: {
-    position: 'absolute',
+  content: {
+    position: 'relative',
+    zIndex: 1,
+  },
+  mainContent: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    top: '35%',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  percentText: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#1A1A1A',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    letterSpacing: -1,
-  },
-  percentSymbol: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#9CA3AF',
-    marginLeft: 1,
-  },
-  percentLabel: {
-    position: 'absolute',
-    bottom: '22%',
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#9CA3AF',
-    letterSpacing: 1.5,
-  },
-  infoContainer: {
-    alignItems: 'center',
-    marginTop: 0, 
-    width: '100%',
-    paddingHorizontal: 4,
+  textContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   title: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1F2937',
-    textAlign: 'center',
-    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 6,
   },
   description: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#6B7280',
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    overflow: 'hidden',
+    fontSize: 14,
+    lineHeight: 20,
   },
+  badges: {
+    alignItems: 'flex-end',
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+  },
+  timeText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  subTasksContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  subTask: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  subTaskCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    marginRight: 12,
+  },
+  subTaskCheckboxCompleted: {
+  },
+  subTaskText: {
+    fontSize: 14,
+    flex: 1,
+  },
+  subTaskTextCompleted: {
+    textDecorationLine: 'line-through',
+  },
+  footer: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  expandButton: {
+    padding: 4,
+  },
+  checkmarkContainer: {
+    position: 'absolute',
+    right: 20,
+    top: '50%',
+    transform: [{ translateY: -16 }],
+    alignItems: 'center',
+    zIndex: 0,
+  },
+  swipeText: {
+    fontSize: 10,
+    marginTop: 4,
+    fontWeight: '600',
+  },
+});
+</file>
+
+<file path="src/components/TaskStagingModal.tsx">
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  Dimensions,
+  Platform,
+  TextInput,
+} from 'react-native';
+import Animated, { 
+  FadeInDown, 
+  FadeInRight,
+  FadeOutLeft,
+  ZoomIn,
+  LinearTransition // FIXED: Changed from Layout to LinearTransition
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { lightColors as colors } from '../constants/colors';
+import { Clock, Play, X, ChevronLeft, Minus, Plus, Info } from 'lucide-react-native';
+
+const { width, height } = Dimensions.get('window');
+
+// --- UPDATED TEST SCENARIOS WITH DESCRIPTIONS ---
+export const TEST_SCENARIOS = {
+  scenario_1: {
+    goal: "Study for Physics Midterm",
+    tasks: [
+      { 
+        id: '1', 
+        title: "Review Kinematics Notes", 
+        duration: 20,
+        description: "Go through chapters 1-3 focusing specifically on projectile motion and relative velocity equations. Highlight key derivations for the exam cheat sheet."
+      },
+      { 
+        id: '2', 
+        title: "Practice Problem Set A", 
+        duration: 45,
+        description: "Solve the remaining 15 problems from last week's worksheet. Focus on energy conservation and work-power calculations."
+      },
+      { 
+        id: '3', 
+        title: "Quick Quiz", 
+        duration: 15, 
+        description: "Take a timed mock quiz on the student portal to test recall speed of common constants and units."
+      },
+    ]
+  },
+  scenario_2: {
+    goal: "Launch Dropshipping Store",
+    tasks: [
+      { 
+        id: 'a', 
+        title: "Competitor Research", 
+        duration: 60,
+        description: "Analyze the top 5 competitors in the niche. Document their pricing strategy, shipping times, and most successful ad creative styles."
+      },
+      { 
+        id: 'b', 
+        title: "Setup Shopify Theme", 
+        duration: 30,
+        description: "Apply the 'Sense' theme. Upload the main logo, set the primary brand colors to amber, and configure the header navigation menu."
+      },
+      { 
+        id: 'c', 
+        title: "Write Product Descriptions", 
+        duration: 45,
+        description: "Craft high-converting copy for 3 hero products. Focus on problem-solution framing and include technical specifications in a bulleted list."
+      },
+    ]
+  }
+};
+
+interface StagingTask {
+  id: string;
+  title: string;
+  duration: number;
+  description: string;
+}
+
+interface TaskStagingModalProps {
+  visible: boolean;
+  goalTitle: string;
+  onConfirm: (finalTasks: StagingTask[]) => void;
+  onClose: () => void;
+}
+
+export const TaskStagingModal: React.FC<TaskStagingModalProps> = ({
+  visible,
+  goalTitle,
+  onConfirm,
+  onClose,
+}) => {
+  const [tasks, setTasks] = useState<StagingTask[]>(TEST_SCENARIOS.scenario_1.tasks);
+  const [editingTask, setEditingTask] = useState<StagingTask | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setTasks([...TEST_SCENARIOS.scenario_1.tasks]);
+      setEditingTask(null);
+    }
+  }, [visible]);
+
+  const handleUpdateDuration = (taskId: string, newDuration: number) => {
+    const validDuration = Math.max(5, newDuration);
+    setTasks(prev => prev.map(t => 
+      t.id === taskId ? { ...t, duration: validDuration } : t
+    ));
+    if (editingTask?.id === taskId) {
+      setEditingTask(prev => prev ? { ...prev, duration: validDuration } : null);
+    }
+  };
+
+  const handleInitialize = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onConfirm(tasks);
+  };
+
+  // --- RENDER SUB-VIEWS ---
+
+  const renderEditView = (task: StagingTask) => (
+    <Animated.View 
+      entering={FadeInRight.duration(300)} 
+      exiting={FadeOutLeft.duration(300)}
+      style={styles.editContainer}
+    >
+      <TouchableOpacity 
+        onPress={() => setEditingTask(null)}
+        style={styles.backButton}
+      >
+        <ChevronLeft size={24} color={colors.primary} />
+        <Text style={styles.backText}>Back to List</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.editHeader}>Task Parameters</Text>
+      <Text style={styles.editTitle}>{task.title}</Text>
+      
+      <View style={styles.descriptionBox}>
+        <View style={styles.descHeader}>
+          <Info size={16} color={colors.primary} />
+          <Text style={styles.descLabel}>AI ANALYSIS</Text>
+        </View>
+        <Text style={styles.descriptionText}>{task.description}</Text>
+      </View>
+
+      <View style={styles.durationEditor}>
+        <Text style={styles.durationLabel}>ADJUST FOCUS TIME</Text>
+        <View style={styles.stepper}>
+          <TouchableOpacity 
+            style={styles.stepBtn}
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleUpdateDuration(task.id, task.duration - 5);
+            }}
+          >
+            <Minus size={24} color={colors.text} />
+          </TouchableOpacity>
+          
+          <View style={styles.durationValueContainer}>
+            <Text style={styles.durationValue}>{task.duration}</Text>
+            <Text style={styles.minLabel}>MINS</Text>
+          </View>
+
+          <TouchableOpacity 
+            style={styles.stepBtn}
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleUpdateDuration(task.id, task.duration + 5);
+            }}
+          >
+            <Plus size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <TouchableOpacity 
+        style={styles.saveButton}
+        onPress={() => setEditingTask(null)}
+      >
+        <Text style={styles.saveButtonText}>SAVE PARAMETERS</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+
+  const renderListView = () => (
+    <Animated.View 
+      entering={FadeInRight.duration(300)} 
+      exiting={FadeOutLeft.duration(300)}
+      style={{ flex: 1 }}
+    >
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.topLabel}>MISSION STAGING</Text>
+          <Text style={styles.goalTitle} numberOfLines={2}>
+            {goalTitle || TEST_SCENARIOS.scenario_1.goal}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={onClose} style={styles.closeCircle}>
+          <X size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView 
+        style={styles.list} 
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {tasks.map((task, index) => (
+          <Animated.View 
+            key={task.id}
+            entering={FadeInDown.delay(index * 100).duration(500)}
+            layout={LinearTransition.springify()} // FIXED: Using LinearTransition
+          >
+            <TouchableOpacity 
+              style={styles.taskRow}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setEditingTask(task);
+              }}
+            >
+              <View style={styles.taskInfo}>
+                <Text style={styles.taskTitle}>{task.title}</Text>
+                <Text style={styles.tapToEdit}>Tap to view details</Text>
+              </View>
+              
+              <View style={styles.timeBadge}>
+                <Text style={styles.timeText}>{task.duration}m</Text>
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+        ))}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <TouchableOpacity 
+          style={styles.primaryButton}
+          onPress={handleInitialize}
+          activeOpacity={0.9}
+        >
+          <Text style={styles.buttonText}>INITIALIZE SEQUENCE</Text>
+          <Play size={18} color="#FFFFFF" fill="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.overlay}>
+        <Animated.View 
+          entering={ZoomIn.duration(400)} 
+          style={styles.modalContainer}
+        >
+          {editingTask ? renderEditView(editingTask) : renderListView()}
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    height: height * 0.8,
+    backgroundColor: colors.backgroundCard,
+    borderRadius: 32,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: colors.border,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 24,
+  },
+  topLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  goalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    lineHeight: 30,
+    maxWidth: '85%',
+  },
+  closeCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.backgroundLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  list: {
+    flex: 1,
+    marginBottom: 20,
+  },
+  listContent: {
+    paddingBottom: 10,
+  },
+  taskRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  taskInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  taskTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  tapToEdit: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  timeBadge: {
+    backgroundColor: colors.glow,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  timeText: {
+    color: colors.primary,
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  footer: {
+    marginTop: 10,
+  },
+  primaryButton: {
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
+    paddingVertical: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+
+  // Edit View Styles
+  editContainer: {
+    flex: 1,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    marginLeft: -4,
+  },
+  backText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  editHeader: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textSecondary,
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  editTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 20,
+  },
+  descriptionBox: {
+    backgroundColor: colors.backgroundLight,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 30,
+  },
+  descHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  descLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: colors.primary,
+    letterSpacing: 1,
+  },
+  descriptionText: {
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 22,
+  },
+  durationEditor: {
+    marginBottom: 40,
+  },
+  durationLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    letterSpacing: 2,
+    marginBottom: 20,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 30,
+  },
+  stepBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.backgroundLight,
+    borderWidth: 2,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  durationValueContainer: {
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  durationValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  minLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginTop: -4,
+  },
+  saveButton: {
+    backgroundColor: colors.text,
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginTop: 'auto',
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1,
+  }
 });
 </file>
 
@@ -13118,206 +12785,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
     fontWeight: '500',
-  },
-});
-</file>
-
-<file path="app/home.tsx">
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Home as HomeIcon, Brain, User, Plus } from 'lucide-react-native';
-import { AnimatedStreakFlame } from '../src/components/AnimatedStreakFlame';
-import { TaskReactorCircle } from '../src/components/TaskReactorCircle';
-import { lightColors as colors } from '../src/constants/colors';
-import { useApp } from '../src/context/AppContext';
-import { StatusBar } from 'expo-status-bar';
-
-const { width } = Dimensions.get('window');
-
-export default function HomeScreen() {
-  const router = useRouter();
-  const { goals, tasks } = useApp();
-  const [activeTab, setActiveTab] = useState('Home');
-
-  const reactorGoals = useMemo(() => {
-    return goals.map(goal => {
-      const goalTasks = tasks.filter(t => t.goalId === goal.id);
-      return {
-        id: goal.id,
-        title: goal.title,
-        subTasks: goalTasks.map(t => ({
-          id: t.id,
-          isCompleted: t.status === 'completed'
-        }))
-      };
-    });
-  }, [goals, tasks]);
-
-  const formatDate = () => {
-    const today = new Date();
-    const dayName = today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
-    const dateNum = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return { dayName, dateNum };
-  };
-
-  const { dayName, dateNum } = formatDate();
-
-  return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
-      <SafeAreaView style={styles.container} edges={['top']}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.dateBox}>
-            <Text style={styles.dayLabel}>{dayName}</Text>
-            <Text style={styles.dateLabel}>{dateNum}</Text>
-          </View>
-          <AnimatedStreakFlame onPress={() => {}} />
-        </View>
-
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent} 
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.sectionHeader}>Operational Goals</Text>
-          
-          {reactorGoals.length === 0 ? (
-            <TouchableOpacity 
-              style={styles.emptyPrompt}
-              onPress={() => router.push('/goal-input')}
-            >
-              <View style={styles.plusIcon}>
-                <Plus size={24} color={colors.primary} />
-              </View>
-              <Text style={styles.emptyText}>Start a new sequence</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.grid}>
-              {reactorGoals.map((reactor) => (
-                <TaskReactorCircle
-                  key={reactor.id}
-                  taskGoal={reactor}
-                  onPress={(g: any) => router.push({ pathname: '/goal-detail', params: { goalId: g.id }})}
-                />
-              ))}
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Floating White Pill Navigation */}
-        <View style={styles.navContainer}>
-          <View style={styles.pill}>
-            <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Home')}>
-              <HomeIcon size={22} color={activeTab === 'Home' ? colors.primary : '#D1D1D1'} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.pillCenter} 
-              onPress={() => router.push('/goal-input')}
-            >
-              <Brain size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Profile')}>
-              <User size={22} color={activeTab === 'Profile' ? colors.primary : '#D1D1D1'} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </SafeAreaView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
-  container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 28,
-    paddingVertical: 20,
-  },
-  dateBox: { flexDirection: 'column' },
-  dayLabel: { fontSize: 11, fontWeight: '800', color: '#BDBDBD', letterSpacing: 1.5 },
-  dateLabel: { fontSize: 24, fontWeight: '900', color: '#1A1A1A', marginTop: 2 },
-  
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 150 },
-  sectionHeader: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#1A1A1A',
-    marginTop: 25,
-    marginBottom: 20,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  
-  emptyPrompt: {
-    width: '100%',
-    height: 140,
-    borderRadius: 35,
-    backgroundColor: '#FBFBFB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    borderStyle: 'dashed',
-  },
-  plusIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  emptyText: { fontSize: 15, fontWeight: '700', color: '#BDBDBD' },
-
-  navContainer: {
-    position: 'absolute',
-    bottom: 40,
-    width: '100%',
-    alignItems: 'center',
-  },
-  pill: {
-    width: width * 0.6,
-    height: 68,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 34,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 15,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-  },
-  pillItem: { flex: 1, alignItems: 'center' },
-  pillCenter: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
   },
 });
 </file>
@@ -14329,6 +13796,215 @@ const styles = StyleSheet.create({
 });
 </file>
 
+<file path="src/components/TaskReactorCircle.tsx">
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  useAnimatedStyle,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+
+export interface TaskGoal {
+  id: string;
+  title: string;
+  color: string;
+  totalTime: number;
+  subTasks: {
+    id: string;
+    title: string;
+    duration: number;
+    isCompleted: boolean;
+  }[];
+}
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+const CIRCLE_SIZE = 160; 
+const STROKE_WIDTH = 14;
+const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+const ARC_ANGLE = 270;
+const ARC_LENGTH = (ARC_ANGLE / 360) * CIRCUMFERENCE;
+const ROTATION = 135;
+
+const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress: (g: TaskGoal) => void }) => {
+  const animatedProgress = useSharedValue(0);
+  const scale = useSharedValue(1);
+
+  const completedCount = taskGoal.subTasks ? taskGoal.subTasks.filter((st) => st.isCompleted).length : 0;
+  const totalCount = taskGoal.subTasks ? taskGoal.subTasks.length : 1;
+  const percentage = totalCount > 0 ? completedCount / totalCount : 0;
+
+  useEffect(() => {
+    animatedProgress.value = withTiming(percentage, {
+      duration: 1200,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [percentage]);
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.96, { damping: 15 });
+    Haptics.selectionAsync();
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15 });
+  };
+
+  const animatedCircleProps = useAnimatedProps(() => {
+    const targetOffset = CIRCUMFERENCE - (ARC_LENGTH * animatedProgress.value);
+    return {
+      strokeDashoffset: targetOffset,
+    };
+  });
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const gradientId = `neon-blue-${taskGoal.id}`;
+
+  return (
+    <Animated.View style={[styles.container, cardStyle]}>
+      <Pressable 
+        onPress={() => onPress(taskGoal)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={styles.card}
+      >
+        <View style={styles.gaugeContainer}>
+          <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
+            <Defs>
+              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                <Stop offset="0%" stopColor="#00F0FF" />
+                <Stop offset="100%" stopColor="#2563EB" />
+              </LinearGradient>
+            </Defs>
+
+            <Circle
+              cx={CIRCLE_SIZE / 2}
+              cy={CIRCLE_SIZE / 2}
+              r={RADIUS}
+              stroke="#F1F5F9"
+              strokeWidth={STROKE_WIDTH}
+              fill="transparent"
+              strokeLinecap="round"
+              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
+              rotation={ROTATION}
+              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
+            />
+
+            <AnimatedCircle
+              cx={CIRCLE_SIZE / 2}
+              cy={CIRCLE_SIZE / 2}
+              r={RADIUS}
+              stroke={`url(#${gradientId})`}
+              strokeWidth={STROKE_WIDTH}
+              fill="transparent"
+              strokeLinecap="round"
+              strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+              rotation={ROTATION}
+              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
+              animatedProps={animatedCircleProps}
+            />
+          </Svg>
+          
+          <View style={styles.centerContent}>
+            <Text style={styles.percentText}>{Math.round(percentage * 100)}%</Text>
+            {percentage === 1 && (
+               <Text style={styles.completedLabel}>DONE</Text>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Text style={styles.title} numberOfLines={1}>{taskGoal.title}</Text>
+          <Text style={styles.description}>
+            {completedCount} / {totalCount} Steps
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { width: '48%', marginBottom: 16 },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  gaugeContainer: {
+    position: 'relative',
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE - 25,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginBottom: 4,
+  },
+  centerContent: {
+    position: 'absolute',
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 10,
+  },
+  percentText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: -1,
+  },
+  completedLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#10B981',
+    marginTop: 2,
+    letterSpacing: 1,
+  },
+  infoContainer: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 4,
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  description: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+});
+
+export default TaskReactorCircle;
+</file>
+
 <file path="src/context/AppContext.tsx">
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Goal, Task } from '../types';
@@ -14428,6 +14104,211 @@ export const useApp = () => {
   if (!context) throw new Error('useApp must be used within AppProvider');
   return context;
 };
+</file>
+
+<file path="app/home.tsx">
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Home as HomeIcon, Brain, User, Plus } from 'lucide-react-native';
+// CHANGED: Using Default Imports (no curly braces) to match the exports
+import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
+import TaskReactorCircle from '../src/components/TaskReactorCircle';
+import { lightColors as colors } from '../src/constants/colors';
+import { useApp } from '../src/context/AppContext';
+import { StatusBar } from 'expo-status-bar';
+
+const { width } = Dimensions.get('window');
+
+export default function HomeScreen() {
+  const router = useRouter();
+  const { goals, tasks } = useApp();
+  const [activeTab, setActiveTab] = useState('Home');
+
+  const reactorGoals = useMemo(() => {
+    return goals.map(goal => {
+      const goalTasks = tasks.filter(t => t.goalId === goal.id);
+      return {
+        id: goal.id,
+        title: goal.title,
+        color: '#FF4500', // Default color if missing
+        totalTime: goalTasks.reduce((sum, t) => sum + t.duration, 0),
+        subTasks: goalTasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          duration: t.duration,
+          isCompleted: t.status === 'completed'
+        }))
+      };
+    });
+  }, [goals, tasks]);
+
+  const formatDate = () => {
+    const today = new Date();
+    const dayName = today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+    const dateNum = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return { dayName, dateNum };
+  };
+
+  const { dayName, dateNum } = formatDate();
+
+  return (
+    <View style={styles.root}>
+      <StatusBar style="dark" />
+      <SafeAreaView style={styles.container} edges={['top']}>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.dateBox}>
+            <Text style={styles.dayLabel}>{dayName}</Text>
+            <Text style={styles.dateLabel}>{dateNum}</Text>
+          </View>
+          <AnimatedStreakFlame onPress={() => {}} />
+        </View>
+
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.sectionHeader}>Operational Goals</Text>
+          
+          {reactorGoals.length === 0 ? (
+            <TouchableOpacity 
+              style={styles.emptyPrompt}
+              onPress={() => router.push('/goal-input')}
+            >
+              <View style={styles.plusIcon}>
+                <Plus size={24} color={colors.primary} />
+              </View>
+              <Text style={styles.emptyText}>Start a new sequence</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.grid}>
+              {reactorGoals.map((reactor) => (
+                <TaskReactorCircle
+                  key={reactor.id}
+                  taskGoal={reactor}
+                  onPress={(g: any) => router.push({ pathname: '/goal-detail', params: { goalId: g.id }})}
+                />
+              ))}
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Floating White Pill Navigation */}
+        <View style={styles.navContainer}>
+          <View style={styles.pill}>
+            <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Home')}>
+              <HomeIcon size={22} color={activeTab === 'Home' ? colors.primary : '#D1D1D1'} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.pillCenter} 
+              onPress={() => router.push('/goal-input')}
+            >
+              <Brain size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Profile')}>
+              <User size={22} color={activeTab === 'Profile' ? colors.primary : '#D1D1D1'} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    paddingVertical: 20,
+  },
+  dateBox: { flexDirection: 'column' },
+  dayLabel: { fontSize: 11, fontWeight: '800', color: '#BDBDBD', letterSpacing: 1.5 },
+  dateLabel: { fontSize: 24, fontWeight: '900', color: '#1A1A1A', marginTop: 2 },
+  
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 150 },
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#1A1A1A',
+    marginTop: 25,
+    marginBottom: 20,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  
+  emptyPrompt: {
+    width: '100%',
+    height: 140,
+    borderRadius: 35,
+    backgroundColor: '#FBFBFB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    borderStyle: 'dashed',
+  },
+  plusIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  emptyText: { fontSize: 15, fontWeight: '700', color: '#BDBDBD' },
+
+  navContainer: {
+    position: 'absolute',
+    bottom: 40,
+    width: '100%',
+    alignItems: 'center',
+  },
+  pill: {
+    width: width * 0.6,
+    height: 68,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 34,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 15,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  pillItem: { flex: 1, alignItems: 'center' },
+  pillCenter: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+});
 </file>
 
 </files>

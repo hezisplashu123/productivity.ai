@@ -1,51 +1,67 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface Props {
   children: ReactNode;
+  name?: string;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: ErrorInfo | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, errorInfo: null };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('=== ERROR BOUNDARY CAUGHT ERROR ===');
-    console.error('Error type:', error?.constructor?.name);
-    console.error('Error message:', error?.message);
-    console.error('Error stack:', error?.stack);
-    console.error('Component stack:', errorInfo.componentStack);
-    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-    console.error('Error info:', JSON.stringify(errorInfo, Object.getOwnPropertyNames(errorInfo)));
+    console.error(`[ErrorBoundary ${this.props.name || 'Global'}] Caught error:`, error);
+    this.setState({ errorInfo });
   }
 
   handleReset = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, errorInfo: null });
   };
 
   render() {
     if (this.state.hasError) {
       return (
-        <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.message}>
-            {this.state.error?.message || 'An unexpected error occurred'}
-          </Text>
-          <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-            <Text style={styles.buttonText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
+        <SafeAreaView style={styles.container}>
+          <ScrollView contentContainerStyle={styles.content}>
+            <Text style={styles.icon}>⚠️</Text>
+            <Text style={styles.title}>Crash Detected</Text>
+            <Text style={styles.subtitle}>
+              Location: {this.props.name || 'Unknown Component'}
+            </Text>
+            
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>
+                {this.state.error?.toString()}
+              </Text>
+            </View>
+
+            {this.state.errorInfo && (
+              <View style={styles.stackBox}>
+                <Text style={styles.stackText}>
+                  {this.state.errorInfo.componentStack}
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity style={styles.button} onPress={this.handleReset}>
+              <Text style={styles.buttonText}>Try Again</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
       );
     }
 
@@ -56,22 +72,52 @@ export class ErrorBoundary extends Component<Props, State> {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
     backgroundColor: '#FFF8E7',
+  },
+  content: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  icon: {
+    fontSize: 48,
+    marginBottom: 10,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#2D2D2D',
+    marginBottom: 5,
+    color: '#EF4444',
   },
-  message: {
+  subtitle: {
     fontSize: 16,
-    textAlign: 'center',
     marginBottom: 20,
-    color: '#6B6B6B',
+    color: '#666',
+  },
+  errorBox: {
+    backgroundColor: '#FFEBEB',
+    padding: 15,
+    borderRadius: 8,
+    width: '100%',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#EF4444',
+  },
+  errorText: {
+    color: '#D8000C',
+    fontFamily: 'monospace',
+    fontSize: 14,
+  },
+  stackBox: {
+    backgroundColor: '#E5E7EB',
+    padding: 15,
+    borderRadius: 8,
+    width: '100%',
+    marginBottom: 20,
+  },
+  stackText: {
+    color: '#374151',
+    fontFamily: 'monospace',
+    fontSize: 10,
   },
   button: {
     backgroundColor: '#F59E0B',
@@ -85,4 +131,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

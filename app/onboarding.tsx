@@ -1,28 +1,28 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { View } from 'react-native';
 import { OnboardingWizard, OnboardingData } from '../src/components/OnboardingWizard';
 import { useRouter } from 'expo-router';
 
 export default function OnboardingScreen() {
   const router = useRouter();
 
+  useEffect(() => {
+    console.log("OnboardingScreen: Mounted");
+  }, []);
+
   const handleComplete = async (data: OnboardingData) => {
-    try {
-      // TESTING MODE: Don't save onboarding data, just log it
-      console.log('Onboarding data (not saved):', data);
-      
-      // Small delay to ensure UI finishes rendering before navigation
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // Navigate to home after onboarding
-      router.replace('/home');
-    } catch (error) {
-      console.error('Error completing onboarding:', error);
-      // Fallback navigation
-      router.replace('/home');
-    }
+    console.log("OnboardingScreen: handleComplete triggered", data);
+    
+    // Safety delay
+    setTimeout(() => {
+        console.log("OnboardingScreen: Attempting navigation to /home");
+        try {
+            router.replace('/home');
+        } catch (e) {
+            console.error("OnboardingScreen: Navigation failed", e);
+        }
+    }, 500);
   };
 
   return <OnboardingWizard onComplete={handleComplete} />;
 }
-
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,16 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  SafeAreaView,
 } from 'react-native';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
+  FadeIn,
+  FadeOut,
+  ZoomIn,
+  ZoomOut,
 } from 'react-native-reanimated';
 import { X, Trophy, Flame } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 
 const { height } = Dimensions.get('window');
 
@@ -36,10 +38,6 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   onClose,
   currentStreak = 12,
 }) => {
-  const [showContent, setShowContent] = useState(false);
-  const scale = useSharedValue(0);
-  const opacity = useSharedValue(0);
-
   // Dummy leaderboard data
   const leaderboardData: LeaderboardEntry[] = [
     { rank: 1, name: 'Alex', streak: 45 },
@@ -51,34 +49,10 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
     { rank: 7, name: 'Morgan', streak: 5 },
   ];
 
-  useEffect(() => {
-    if (visible) {
-      setShowContent(true);
-      scale.value = withSpring(1, { damping: 15, stiffness: 100 });
-      opacity.value = withTiming(1, { duration: 200 });
-    } else {
-      scale.value = withTiming(0, { duration: 200 }, () => {
-        'worklet';
-        if (!visible) {
-          setShowContent(false);
-        }
-      });
-      opacity.value = withTiming(0, { duration: 200 });
-    }
-  }, [visible]);
-
-  const modalStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scale.value }],
-      opacity: opacity.value,
-    };
-  });
-
-  const overlayStyle = useAnimatedStyle(() => {
-    return {
-      opacity: opacity.value * 0.9,
-    };
-  });
+  const handleClose = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onClose();
+  };
 
   const getRankIcon = (rank: number) => {
     if (rank === 1) return '🥇';
@@ -87,32 +61,45 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
     return null;
   };
 
-  if (!showContent) {
-    return null;
-  }
+  // Ensure we don't render anything if not visible to save resources
+  if (!visible) return null;
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="none"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
+      statusBarTranslucent
     >
-      <Animated.View style={[styles.overlay, overlayStyle]}>
-        <TouchableOpacity
-          style={StyleSheet.absoluteFill}
-          activeOpacity={1}
-          onPress={onClose}
-        />
-        <Animated.View style={[styles.modalContainer, modalStyle]}>
+      <View style={styles.overlayContainer}>
+        {/* Dark Overlay Background */}
+        <Animated.View 
+          entering={FadeIn.duration(200)} 
+          exiting={FadeOut.duration(200)}
+          style={styles.backdrop} 
+        >
+          <TouchableOpacity 
+            style={StyleSheet.absoluteFill} 
+            onPress={handleClose} 
+            activeOpacity={1} 
+          />
+        </Animated.View>
+
+        {/* Modal Content */}
+        <Animated.View 
+          entering={ZoomIn.duration(300).damping(15)} 
+          exiting={ZoomOut.duration(200)}
+          style={styles.modalContainer}
+        >
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Flame size={24} color="#FF4500" />
-              <Text style={styles.headerTitle}>Streak Leaderboard</Text>
+              <Flame size={24} color="#FF4500" fill="#FF4500" />
+              <Text style={styles.headerTitle}>Global Streak</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={24} color="#FFFFFF" />
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+              <X size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
@@ -122,7 +109,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {leaderboardData.map((entry, index) => (
+            {leaderboardData.map((entry) => (
               <View
                 key={entry.rank}
                 style={[
@@ -153,66 +140,74 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                 </View>
 
                 <View style={styles.streakContainer}>
-                  <Flame size={16} color="#FF4500" />
+                  <Flame size={14} color="#FF4500" />
                   <Text style={styles.streakNumber}>{entry.streak}</Text>
-                  <Text style={styles.streakLabel}>days</Text>
                 </View>
               </View>
             ))}
           </ScrollView>
 
-          {/* Your current streak highlight */}
+          {/* Footer */}
           <View style={styles.footer}>
-            <View style={styles.footerContent}>
-              <Flame size={20} color="#FF4500" />
-              <Text style={styles.footerText}>
-                Your current streak: <Text style={styles.footerHighlight}>{currentStreak} days</Text>
-              </Text>
-            </View>
+            <Text style={styles.footerText}>
+              🔥 Keep your streak alive to climb the ranks!
+            </Text>
           </View>
         </Animated.View>
-      </Animated.View>
+      </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
+  overlayContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
     justifyContent: 'flex-end',
+    // On Android, we want the modal to sit at the bottom but not cover the whole screen
+    zIndex: 1000,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   modalContainer: {
-    backgroundColor: '#121212',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: height * 0.7,
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    height: height * 0.75, // Take up 75% of screen
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 20,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -222,95 +217,78 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingTop: 12,
   },
   leaderboardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
     marginBottom: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
   },
   currentUserRow: {
-    backgroundColor: 'rgba(255, 69, 0, 0.15)',
+    backgroundColor: 'rgba(255, 69, 0, 0.1)', // Orange tint
     borderWidth: 1,
     borderColor: 'rgba(255, 69, 0, 0.3)',
   },
   rankContainer: {
-    width: 40,
+    width: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
   rankIcon: {
-    fontSize: 24,
+    fontSize: 20,
   },
   rankNumber: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: '#6B7280',
     fontFamily: 'monospace',
   },
   nameContainer: {
     flex: 1,
-    marginLeft: 12,
   },
   nameText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#E5E7EB',
   },
   currentUserName: {
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   currentUserLabel: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 10,
+    fontWeight: '600',
     color: '#FF4500',
     marginTop: 2,
+    textTransform: 'uppercase',
   },
   streakContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
   streakNumber: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#FF4500',
     fontFamily: 'monospace',
   },
-  streakLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.5)',
-  },
   footer: {
-    padding: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 69, 0, 0.05)',
-  },
-  footerContent: {
-    flexDirection: 'row',
+    padding: 24,
+    backgroundColor: 'rgba(0,0,0,0.2)',
     alignItems: 'center',
-    gap: 8,
-    justifyContent: 'center',
   },
   footerText: {
-    fontSize: 14,
+    color: '#9CA3AF',
+    fontSize: 13,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  footerHighlight: {
-    fontWeight: '700',
-    color: '#FF4500',
   },
 });
-
-
-
-
-

@@ -1,112 +1,144 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Home as HomeIcon, Brain, User, Plus } from 'lucide-react-native';
-// CHANGED: Using Default Imports (no curly braces) to match the exports
+import { StatusBar } from 'expo-status-bar';
+
+// Components
 import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
 import TaskReactorCircle from '../src/components/TaskReactorCircle';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
+
+// Context & Constants
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
-import { StatusBar } from 'expo-status-bar';
 
 const { width } = Dimensions.get('window');
 
-export default function HomeScreen() {
+const HomeContent = () => {
   const router = useRouter();
-  const { goals, tasks } = useApp();
+  const context = useApp();
+  
+  const goals = context?.goals || [];
+  const tasks = context?.tasks || [];
+  
   const [activeTab, setActiveTab] = useState('Home');
 
   const reactorGoals = useMemo(() => {
+    if (!Array.isArray(goals)) return [];
+    
     return goals.map(goal => {
-      const goalTasks = tasks.filter(t => t.goalId === goal.id);
+      const goalTasks = Array.isArray(tasks) ? tasks.filter(t => t.goalId === goal.id) : [];
+      
+      const totalTime = goalTasks.reduce((sum, t) => {
+        const duration = (t && typeof t.duration === 'number') ? t.duration : 0;
+        return sum + duration;
+      }, 0);
+
       return {
         id: goal.id,
-        title: goal.title,
-        color: '#FF4500', // Default color if missing
-        totalTime: goalTasks.reduce((sum, t) => sum + t.duration, 0),
+        title: goal.title || 'Untitled Mission',
+        color: '#FF4500', 
+        totalTime,
         subTasks: goalTasks.map(t => ({
           id: t.id,
-          title: t.title,
-          duration: t.duration,
-          isCompleted: t.status === 'completed'
+          title: t.title || 'Untitled Task',
+          duration: (t && typeof t.duration === 'number') ? t.duration : 0,
+          isCompleted: t?.status === 'completed'
         }))
       };
     });
   }, [goals, tasks]);
 
   const formatDate = () => {
-    const today = new Date();
-    const dayName = today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
-    const dateNum = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return { dayName, dateNum };
+    try {
+        const today = new Date();
+        const dayName = today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+        const dateNum = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return { dayName, dateNum };
+    } catch (e) {
+        return { dayName: 'TODAY', dateNum: new Date().getDate().toString() };
+    }
   };
 
   const { dayName, dateNum } = formatDate();
 
+  // CHANGED: Now navigates to the new screen
+  const handleFlamePress = () => {
+    router.push('/leaderboard');
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <View style={styles.dateBox}>
+          <Text style={styles.dayLabel}>{dayName}</Text>
+          <Text style={styles.dateLabel}>{dateNum}</Text>
+        </View>
+        <AnimatedStreakFlame onPress={handleFlamePress} />
+      </View>
+
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.sectionHeader}>Operational Goals</Text>
+        
+        {reactorGoals.length === 0 ? (
+          <TouchableOpacity 
+            style={styles.emptyPrompt}
+            onPress={() => router.push('/goal-input')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.plusIcon}>
+              <Plus size={24} color={colors.primary} />
+            </View>
+            <Text style={styles.emptyText}>Start a new sequence</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.grid}>
+            {reactorGoals.map((reactor) => (
+              <TaskReactorCircle
+                key={reactor.id}
+                taskGoal={reactor}
+                onPress={(g: any) => router.push({ pathname: '/goal-detail', params: { goalId: g.id }})}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      <View style={styles.navContainer}>
+        <View style={styles.pill}>
+          <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Home')}>
+            <HomeIcon size={22} color={activeTab === 'Home' ? colors.primary : '#D1D1D1'} />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.pillCenter} 
+            onPress={() => router.push('/goal-input')}
+            activeOpacity={0.9}
+          >
+            <Brain size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Profile')}>
+            <User size={22} color={activeTab === 'Profile' ? colors.primary : '#D1D1D1'} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+export default function HomeScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
-      <SafeAreaView style={styles.container} edges={['top']}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.dateBox}>
-            <Text style={styles.dayLabel}>{dayName}</Text>
-            <Text style={styles.dateLabel}>{dateNum}</Text>
-          </View>
-          <AnimatedStreakFlame onPress={() => {}} />
-        </View>
-
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent} 
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={styles.sectionHeader}>Operational Goals</Text>
-          
-          {reactorGoals.length === 0 ? (
-            <TouchableOpacity 
-              style={styles.emptyPrompt}
-              onPress={() => router.push('/goal-input')}
-            >
-              <View style={styles.plusIcon}>
-                <Plus size={24} color={colors.primary} />
-              </View>
-              <Text style={styles.emptyText}>Start a new sequence</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.grid}>
-              {reactorGoals.map((reactor) => (
-                <TaskReactorCircle
-                  key={reactor.id}
-                  taskGoal={reactor}
-                  onPress={(g: any) => router.push({ pathname: '/goal-detail', params: { goalId: g.id }})}
-                />
-              ))}
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Floating White Pill Navigation */}
-        <View style={styles.navContainer}>
-          <View style={styles.pill}>
-            <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Home')}>
-              <HomeIcon size={22} color={activeTab === 'Home' ? colors.primary : '#D1D1D1'} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.pillCenter} 
-              onPress={() => router.push('/goal-input')}
-            >
-              <Brain size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.pillItem} onPress={() => setActiveTab('Profile')}>
-              <User size={22} color={activeTab === 'Profile' ? colors.primary : '#D1D1D1'} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </SafeAreaView>
+      <ErrorBoundary name="HomeScreen">
+        <HomeContent />
+      </ErrorBoundary>
     </View>
   );
 }

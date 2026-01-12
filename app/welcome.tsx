@@ -19,12 +19,11 @@ import Animated, {
   interpolate,
   runOnJS,
 } from 'react-native-reanimated';
-import { Brain, CheckCircle, TrendingUp, Sparkles } from 'lucide-react-native';
+import { Brain, CheckCircle, TrendingUp } from 'lucide-react-native';
 import { lightColors as colors } from '../src/constants/colors';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-// Messages to rotate through in the tagline area
 const TAGLINES = [
   "Stop managing tasks. Start finishing them.",
   "Get a personalized plan to crush procrastination.",
@@ -66,7 +65,6 @@ export default function WelcomeScreen() {
       true
     );
 
-    // Subtle rotation
     card1Rotation.value = withRepeat(
       withTiming(3, { duration: 3000 }),
       -1,
@@ -79,12 +77,9 @@ export default function WelcomeScreen() {
     );
   }, [pulseScale, card1Y, card2Y, card1Rotation, card2Rotation]);
 
-  // Handle fade-in when tagline index changes
   useEffect(() => {
     if (isTransitioningRef.current) {
-      // Reset position below (for fade in from bottom)
       taglineTranslateY.value = 20;
-      // Fade in new tagline and move to center
       taglineOpacity.value = withTiming(1, { duration: 500 });
       
       const finishTransition = () => {
@@ -101,33 +96,27 @@ export default function WelcomeScreen() {
     }
   }, [currentTaglineIndex]);
 
-  // Tagline rotation animation - continuous cycle (only if auto-rotate is enabled)
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
     let isMounted = true;
     
     const updateTaglineIndex = () => {
       if (isMounted && autoRotateRef.current) {
-        // Mark that we're transitioning
         isTransitioningRef.current = true;
-        // Change tagline index - this will trigger the fade-in via useEffect
         setCurrentTaglineIndex((prev) => (prev + 1) % TAGLINES.length);
       }
     };
     
     const cycleTagline = () => {
       if (!isMounted || !autoRotateRef.current) return;
-      // Fade out current and move up
       taglineOpacity.value = withTiming(0, { duration: 500 });
       taglineTranslateY.value = withTiming(-20, { duration: 500 }, (finished) => {
         if (finished) {
-          // Use runOnJS to safely update React state from UI thread
           runOnJS(updateTaglineIndex)();
         }
       });
     };
 
-    // Start cycling after initial 3 seconds, then repeat every 3 seconds
     const timeout = setTimeout(() => {
       if (isMounted && autoRotateRef.current) {
         cycleTagline();
@@ -148,17 +137,10 @@ export default function WelcomeScreen() {
     };
   }, []);
 
-  // Handle manual dot navigation
   const handleDotPress = useCallback((index: number) => {
     if (index === currentTaglineIndex) return;
-    
-    // Disable auto-rotate when user manually navigates
     autoRotateRef.current = false;
-    
-    // Mark that we're transitioning
     isTransitioningRef.current = true;
-    
-    // Fade out current
     taglineOpacity.value = withTiming(0, { duration: 300 });
     taglineTranslateY.value = withTiming(-20, { duration: 300 }, (finished) => {
       if (finished) {
@@ -217,8 +199,37 @@ export default function WelcomeScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#FFFFFF' }]}>
       <StatusBar style="dark" />
+
+      {/* ========================================================= */}
+      {/* 🛠️ TEMPORARY DEV BUTTON: SKIP TO DASHBOARD 🛠️ */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          top: 60,
+          left: 20,
+          zIndex: 999,
+          backgroundColor: '#EF4444', // Red for visibility
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          borderRadius: 8,
+          opacity: 0.9,
+          borderWidth: 1,
+          borderColor: 'white',
+          shadowColor: '#000',
+          shadowOpacity: 0.3,
+          shadowRadius: 4,
+          elevation: 10,
+        }}
+        onPress={() => router.replace('/home')}
+        activeOpacity={0.7}
+      >
+        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 10 }}>
+          ⚡ [DEV] SKIP TO DASH
+        </Text>
+      </TouchableOpacity>
+      {/* ========================================================= */}
       
-      {/* Hero Section - 50-60% of screen */}
+      {/* Hero Section */}
       <View style={styles.heroSection}>
         {/* Floating Cards */}
         <Animated.View style={[styles.floatingCard, styles.card1, card1Style]}>
@@ -241,11 +252,9 @@ export default function WelcomeScreen() {
 
         {/* Central Icon with Ripple Effect */}
         <View style={styles.iconContainer}>
-          {/* Ripple rings */}
           <Animated.View style={[styles.ripple, styles.ripple1, rippleStyle1]} />
           <Animated.View style={[styles.ripple, styles.ripple2, rippleStyle2]} />
           
-          {/* Central Brain Icon */}
           <Animated.View style={[styles.centralIcon, pulseStyle]}>
             <View style={[styles.iconCircle, { backgroundColor: colors.primary }]}>
               <Brain size={48} color={colors.background} strokeWidth={2.5} />
@@ -505,4 +514,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
