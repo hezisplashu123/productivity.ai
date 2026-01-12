@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import LottieView from 'lottie-react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -7,9 +7,9 @@ interface AnimatedStreakFlameProps {
   onPress: () => void;
 }
 
-const FLAME_SIZE = 40; // Header icon size
+const FLAME_SIZE = 40;
 
-export const AnimatedStreakFlame: React.FC<AnimatedStreakFlameProps> = ({ onPress }) => {
+const AnimatedStreakFlame: React.FC<AnimatedStreakFlameProps> = ({ onPress }) => {
   const animationRef = useRef<LottieView>(null);
 
   const handlePress = () => {
@@ -26,7 +26,6 @@ export const AnimatedStreakFlame: React.FC<AnimatedStreakFlameProps> = ({ onPres
           autoPlay
           loop
           style={styles.animation}
-          colorFilters={[]} // Keep original colors
         />
       </View>
     </Pressable>
@@ -53,3 +52,5 @@ const styles = StyleSheet.create({
     height: FLAME_SIZE,
   },
 });
+
+export default AnimatedStreakFlame;

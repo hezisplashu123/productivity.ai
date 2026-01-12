@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Home as HomeIcon, Brain, User, Plus } from 'lucide-react-native';
-import { AnimatedStreakFlame } from '../src/components/AnimatedStreakFlame';
-import { TaskReactorCircle } from '../src/components/TaskReactorCircle';
+// CHANGED: Using Default Imports (no curly braces) to match the exports
+import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
+import TaskReactorCircle from '../src/components/TaskReactorCircle';
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
 import { StatusBar } from 'expo-status-bar';
@@ -22,8 +23,12 @@ export default function HomeScreen() {
       return {
         id: goal.id,
         title: goal.title,
+        color: '#FF4500', // Default color if missing
+        totalTime: goalTasks.reduce((sum, t) => sum + t.duration, 0),
         subTasks: goalTasks.map(t => ({
           id: t.id,
+          title: t.title,
+          duration: t.duration,
           isCompleted: t.status === 'completed'
         }))
       };
@@ -113,39 +118,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingVertical: 20,
   },
   dateBox: { flexDirection: 'column' },
   dayLabel: { fontSize: 11, fontWeight: '800', color: '#BDBDBD', letterSpacing: 1.5 },
   dateLabel: { fontSize: 24, fontWeight: '900', color: '#1A1A1A', marginTop: 2 },
   
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 150 },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 150 },
   sectionHeader: {
     fontSize: 14,
     fontWeight: '900',
     color: '#1A1A1A',
-    marginTop: 16,
+    marginTop: 25,
     marginBottom: 20,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
-    marginLeft: 4,
   },
-  grid: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    justifyContent: 'space-between',
-  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   
   emptyPrompt: {
     width: '100%',
     height: 140,
-    borderRadius: 24,
-    backgroundColor: '#F9FAFB',
+    borderRadius: 35,
+    backgroundColor: '#FBFBFB',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: '#F0F0F0',
     borderStyle: 'dashed',
   },
   plusIcon: {
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-  emptyText: { fontSize: 15, fontWeight: '600', color: '#9CA3AF' },
+  emptyText: { fontSize: 15, fontWeight: '700', color: '#BDBDBD' },
 
   navContainer: {
     position: 'absolute',
@@ -171,32 +171,32 @@ const styles = StyleSheet.create({
   },
   pill: {
     width: width * 0.6,
-    height: 64,
+    height: 68,
     backgroundColor: '#FFFFFF',
-    borderRadius: 32,
+    borderRadius: 34,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.1,
     shadowRadius: 20,
-    elevation: 10,
+    elevation: 15,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: '#F0F0F0',
   },
   pillItem: { flex: 1, alignItems: 'center' },
   pillCenter: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
   },
 });

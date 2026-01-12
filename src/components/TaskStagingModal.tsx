@@ -15,7 +15,7 @@ import Animated, {
   FadeInRight,
   FadeOutLeft,
   ZoomIn,
-  Layout
+  LinearTransition // FIXED: Changed from Layout to LinearTransition
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { lightColors as colors } from '../constants/colors';
@@ -211,7 +211,7 @@ export const TaskStagingModal: React.FC<TaskStagingModalProps> = ({
           <Animated.View 
             key={task.id}
             entering={FadeInDown.delay(index * 100).duration(500)}
-            layout={Layout.springify()}
+            layout={LinearTransition.springify()} // FIXED: Using LinearTransition
           >
             <TouchableOpacity 
               style={styles.taskRow}

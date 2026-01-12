@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { MotiView } from 'moti';
-import { CheckCircle2, Clock, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { CheckCircle2, Clock, ChevronDown, ChevronUp, Circle } from 'lucide-react-native';
 import { Task } from '../types';
 import { lightColors as colors } from '../constants/colors';
 
@@ -261,4 +261,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

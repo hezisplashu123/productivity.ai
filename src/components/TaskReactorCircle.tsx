@@ -7,34 +7,47 @@ import Animated, {
   withTiming,
   useAnimatedStyle,
   withSpring,
-  interpolateColor,
+  Easing,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-const AnimatedView = Animated.createAnimatedComponent(View);
+export interface TaskGoal {
+  id: string;
+  title: string;
+  color: string;
+  totalTime: number;
+  subTasks: {
+    id: string;
+    title: string;
+    duration: number;
+    isCompleted: boolean;
+  }[];
+}
 
-const CIRCLE_SIZE = 120;
-const STROKE_WIDTH = 10;
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+const CIRCLE_SIZE = 160; 
+const STROKE_WIDTH = 14;
 const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-// A 260-degree arc (open at the bottom)
-const ARC_ANGLE = 260;
+const ARC_ANGLE = 270;
 const ARC_LENGTH = (ARC_ANGLE / 360) * CIRCUMFERENCE;
-// Rotate to center the opening at the bottom
-const ROTATION = 90 + (360 - ARC_ANGLE) / 2; 
+const ROTATION = 135;
 
-export const TaskReactorCircle = ({ taskGoal, onPress }: any) => {
+const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress: (g: TaskGoal) => void }) => {
   const animatedProgress = useSharedValue(0);
   const scale = useSharedValue(1);
-  
-  const completedCount = taskGoal.subTasks.filter((st: any) => st.isCompleted).length;
-  const totalCount = taskGoal.subTasks.length || 1;
-  const percentage = completedCount / totalCount;
+
+  const completedCount = taskGoal.subTasks ? taskGoal.subTasks.filter((st) => st.isCompleted).length : 0;
+  const totalCount = taskGoal.subTasks ? taskGoal.subTasks.length : 1;
+  const percentage = totalCount > 0 ? completedCount / totalCount : 0;
 
   useEffect(() => {
-    animatedProgress.value = withTiming(percentage, { duration: 1000 });
+    animatedProgress.value = withTiming(percentage, {
+      duration: 1200,
+      easing: Easing.out(Easing.cubic),
+    });
   }, [percentage]);
 
   const handlePressIn = () => {
@@ -47,10 +60,9 @@ export const TaskReactorCircle = ({ taskGoal, onPress }: any) => {
   };
 
   const animatedCircleProps = useAnimatedProps(() => {
-    // Map 0-1 to the full arc length
-    const strokeDashoffset = CIRCUMFERENCE - (ARC_LENGTH * animatedProgress.value);
+    const targetOffset = CIRCUMFERENCE - (ARC_LENGTH * animatedProgress.value);
     return {
-      strokeDashoffset,
+      strokeDashoffset: targetOffset,
     };
   });
 
@@ -58,46 +70,38 @@ export const TaskReactorCircle = ({ taskGoal, onPress }: any) => {
     transform: [{ scale: scale.value }],
   }));
 
-  // Unique Gradient ID based on task ID to prevent caching issues
-  const gradientId = `grad-${taskGoal.id}`;
+  const gradientId = `neon-blue-${taskGoal.id}`;
 
   return (
-    <AnimatedView style={[styles.container, cardStyle]}>
+    <Animated.View style={[styles.container, cardStyle]}>
       <Pressable 
         onPress={() => onPress(taskGoal)}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         style={styles.card}
       >
-        <View style={styles.header}>
-          <Text style={styles.title} numberOfLines={1}>{taskGoal.title}</Text>
-          <Text style={styles.subtitle}>{totalCount} Steps</Text>
-        </View>
-
         <View style={styles.gaugeContainer}>
           <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
             <Defs>
-              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#00F0FF" /> {/* Neon Cyan */}
-                <Stop offset="100%" stopColor="#007AFF" /> {/* Electric Blue */}
+              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                <Stop offset="0%" stopColor="#00F0FF" />
+                <Stop offset="100%" stopColor="#2563EB" />
               </LinearGradient>
             </Defs>
 
-            {/* Background Track (Subtle Grey) */}
             <Circle
               cx={CIRCLE_SIZE / 2}
               cy={CIRCLE_SIZE / 2}
               r={RADIUS}
-              stroke="#F3F4F6"
+              stroke="#F1F5F9"
               strokeWidth={STROKE_WIDTH}
               fill="transparent"
-              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
               strokeLinecap="round"
+              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
               rotation={ROTATION}
               origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
             />
 
-            {/* Active Progress Gradient Bar */}
             <AnimatedCircle
               cx={CIRCLE_SIZE / 2}
               cy={CIRCLE_SIZE / 2}
@@ -105,107 +109,98 @@ export const TaskReactorCircle = ({ taskGoal, onPress }: any) => {
               stroke={`url(#${gradientId})`}
               strokeWidth={STROKE_WIDTH}
               fill="transparent"
-              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
               strokeLinecap="round"
+              strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
               rotation={ROTATION}
               origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
               animatedProps={animatedCircleProps}
             />
           </Svg>
-
-          {/* Centered Percentage */}
+          
           <View style={styles.centerContent}>
             <Text style={styles.percentText}>{Math.round(percentage * 100)}%</Text>
+            {percentage === 1 && (
+               <Text style={styles.completedLabel}>DONE</Text>
+            )}
           </View>
         </View>
 
-        <View style={styles.footer}>
-          <View style={[
-            styles.statusBadge, 
-            { backgroundColor: percentage === 1 ? '#E6FFFA' : '#F0F9FF' }
-          ]}>
-            <Text style={[
-              styles.statusText,
-              { color: percentage === 1 ? '#059669' : '#0284C7' }
-            ]}>
-              {percentage === 1 ? 'Complete' : percentage === 0 ? 'Not Started' : 'In Progress'}
-            </Text>
-          </View>
+        <View style={styles.infoContainer}>
+          <Text style={styles.title} numberOfLines={1}>{taskGoal.title}</Text>
+          <Text style={styles.description}>
+            {completedCount} / {totalCount} Steps
+          </Text>
         </View>
       </Pressable>
-    </AnimatedView>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { 
-    width: '48%', 
-    marginBottom: 16 
-  },
+  container: { width: '48%', marginBottom: 16 },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#F0F0F0',
-    // Soft, luxurious shadow
-    shadowColor: '#0047FF',
-    shadowOffset: { width: 0, height: 8 },
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
-    height: 230, // Fixed height for uniformity
-    justifyContent: 'space-between',
-  },
-  header: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  subtitle: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#9CA3AF',
+    shadowRadius: 10,
+    elevation: 3,
   },
   gaugeContainer: {
     position: 'relative',
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE - 25,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 4,
+    justifyContent: 'flex-start',
+    marginBottom: 4,
   },
   centerContent: {
     position: 'absolute',
-    alignItems: 'center',
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0,
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 10,
   },
   percentText: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '800',
     color: '#1A1A1A',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     letterSpacing: -1,
   },
-  footer: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 11,
+  completedLabel: {
+    fontSize: 10,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: '#10B981',
+    marginTop: 2,
+    letterSpacing: 1,
+  },
+  infoContainer: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 4,
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  description: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748B',
   },
 });
+
+export default TaskReactorCircle;
