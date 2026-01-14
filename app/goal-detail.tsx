@@ -1,10 +1,29 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  Dimensions, 
+  Modal, 
+  TouchableWithoutFeedback,
+  Alert
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, CheckCircle2, Circle, Clock, Target, MoreHorizontal } from 'lucide-react-native';
+import { 
+  ChevronLeft, 
+  CheckCircle2, 
+  Circle, 
+  Clock, 
+  Target, 
+  MoreHorizontal, 
+  Trash2, 
+  Edit3
+} from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeIn, Layout } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { useApp } from '../src/context/AppContext';
@@ -16,8 +35,11 @@ const { width } = Dimensions.get('window');
 export default function GoalDetailScreen() {
   const { goalId } = useLocalSearchParams();
   const router = useRouter();
-  const { goals, tasks, updateTask } = useApp();
+  const { goals, tasks, updateTask, deleteGoal } = useApp();
+  
+  // State
   const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   // Safe data retrieval
   const goal = useMemo(() => goals.find(g => g.id === goalId), [goals, goalId]);
@@ -33,6 +55,70 @@ export default function GoalDetailScreen() {
   }, [goalTasks]);
 
   if (!goal) return null;
+
+  // --- Actions ---
+
+  const handleMenuPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMenuVisible(true);
+  };
+
+  const closeMenu = () => {
+    setMenuVisible(false);
+  };
+
+  const handleRefine = () => {
+    setMenuVisible(false);
+    // Navigate to Input Screen with 'Edit Mode' parameters
+    router.push({
+      pathname: '/goal-input',
+      params: { 
+        initialText: goal.title, 
+        editingGoalId: goal.id 
+      }
+    });
+  };
+
+  const handleDelete = () => {
+    setMenuVisible(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    
+    Alert.alert(
+      "Abort Mission?",
+      "This will permanently delete the mission and all associated tasks. This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Abort", 
+          style: "destructive", 
+          onPress: () => {
+            deleteGoal(goal.id);
+            router.back();
+          }
+        }
+      ]
+    );
+  };
+
+  const handleStartSession = () => {
+    if (goalTasks.length > 0) {
+      // Find the first uncompleted task, or default to the first task if all are done (for replay)
+      const nextTask = goalTasks.find(t => t.status !== 'completed') || goalTasks[0];
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // Navigate to the Sentinel Focus Session
+      router.push({
+        pathname: '/focus-session',
+        params: { 
+          taskId: nextTask.id,
+          duration: nextTask.duration
+        }
+      });
+    } else {
+      Alert.alert("Mission Complete", "All tasks are already finished! Add more steps to continue.");
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -50,7 +136,11 @@ export default function GoalDetailScreen() {
           </TouchableOpacity>
           
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.iconButton}>
+            <TouchableOpacity 
+              style={styles.iconButton} 
+              onPress={handleMenuPress}
+              activeOpacity={0.7}
+            >
                 <MoreHorizontal size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
@@ -137,12 +227,16 @@ export default function GoalDetailScreen() {
 
         {/* Floating Action Button */}
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.primaryBtn} activeOpacity={0.9}>
+          <TouchableOpacity 
+            style={styles.primaryBtn} 
+            activeOpacity={0.9}
+            onPress={handleStartSession}
+          >
             <Text style={styles.primaryBtnText}>START SESSION</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Task Edit Modal (Existing Component) */}
+        {/* Task Edit Modal */}
         <TaskEditModal 
           visible={!!selectedTask}
           task={selectedTask}
@@ -152,6 +246,34 @@ export default function GoalDetailScreen() {
             setSelectedTask((prev: any) => ({ ...prev, ...updates }));
           }}
         />
+
+        {/* --- Dropdown Menu Modal --- */}
+        <Modal
+          visible={menuVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeMenu}
+        >
+          <TouchableWithoutFeedback onPress={closeMenu}>
+            <View style={styles.menuOverlay}>
+              <Animated.View 
+                entering={FadeIn.duration(200)}
+                style={styles.menuContainer}
+              >
+                <TouchableOpacity style={styles.menuItem} onPress={handleRefine}>
+                  <Edit3 size={18} color={colors.text} />
+                  <Text style={styles.menuText}>Refine Directive</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
+                  <Trash2 size={18} color={colors.error} />
+                  <Text style={[styles.menuText, { color: colors.error }]}>Abort Mission</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+
       </SafeAreaView>
     </View>
   );
@@ -165,7 +287,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', 
     alignItems: 'center', 
     paddingHorizontal: 20, 
-    paddingVertical: 12 
+    paddingVertical: 12,
+    zIndex: 10,
   },
   backButton: {
     width: 44,
@@ -183,6 +306,10 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 22,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   scrollContent: { paddingHorizontal: 24, paddingBottom: 120 },
   
@@ -240,7 +367,7 @@ const styles = StyleSheet.create({
   },
   taskCard: { 
     flexDirection: 'row', 
-    alignItems: 'center',
+    alignItems: 'center', 
     padding: 16, 
     borderRadius: 16, 
     backgroundColor: '#FFFFFF', 
@@ -286,5 +413,44 @@ const styles = StyleSheet.create({
     fontSize: 16, 
     fontWeight: '700', 
     letterSpacing: 1 
+  },
+
+  // --- Menu Styles ---
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  menuContainer: {
+    position: 'absolute',
+    top: 110,
+    right: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 8,
+    width: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  menuText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginHorizontal: 16,
   },
 });

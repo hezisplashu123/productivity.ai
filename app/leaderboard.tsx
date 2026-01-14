@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,9 +14,16 @@ import { ChevronLeft, Flame, Trophy } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { lightColors as colors } from '../src/constants/colors';
-import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame'; // Import the animation
+import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
 
-const { height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+// --- THEME COLORS FOR TOP 3 ---
+const TOP_RANK_COLORS = {
+  1: { number: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' }, // Goldish
+  2: { number: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' }, // Silverish
+  3: { number: '#B45309', bg: '#FFF7ED', border: '#FFEDD5' }, // Bronzish
+};
 
 interface LeaderboardEntry {
   rank: number;
@@ -27,117 +35,96 @@ interface LeaderboardEntry {
 export default function LeaderboardScreen() {
   const router = useRouter();
 
-  // Dummy data
   const leaderboardData: LeaderboardEntry[] = [
-    { rank: 1, name: 'Alex', streak: 45 },
-    { rank: 2, name: 'Sam', streak: 32 },
-    { rank: 3, name: 'Jordan', streak: 28 },
+    { rank: 1, name: 'Alex Vance', streak: 45 },
+    { rank: 2, name: 'Sam Kovalsky', streak: 32 },
+    { rank: 3, name: 'Jordan Mendoza', streak: 28 },
     { rank: 4, name: 'You', streak: 12, isCurrentUser: true },
-    { rank: 5, name: 'Taylor', streak: 10 },
-    { rank: 6, name: 'Casey', streak: 8 },
-    { rank: 7, name: 'Morgan', streak: 5 },
-    { rank: 8, name: 'Riley', streak: 3 },
-    { rank: 9, name: 'Jamie', streak: 2 },
-    { rank: 10, name: 'Quinn', streak: 1 },
+    { rank: 5, name: 'Taylor Higgins', streak: 10 },
+    { rank: 6, name: 'Casey Miller', streak: 8 },
+    { rank: 7, name: 'Morgan Ross', streak: 5 },
+    { rank: 8, name: 'Riley Smith', streak: 3 },
+    { rank: 9, name: 'Jamie Doe', streak: 2 },
+    { rank: 10, name: 'Quinn T.', streak: 1 },
   ];
-
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return '🥇';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
-    return null;
-  };
 
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         
-        {/* Header */}
+        {/* Header - Line removed */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => router.back()} 
-            style={styles.backButton}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ChevronLeft size={28} color={colors.text} />
           </TouchableOpacity>
-          
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Global Streak</Text>
-            {/* Replaced static icon with AnimatedStreakFlame */}
-            <View style={styles.animationWrapper}>
-                <AnimatedStreakFlame onPress={() => {}} />
-            </View>
+          <Text style={styles.headerTitle}>Global Streak</Text>
+          <View style={styles.flameContainer}>
+            <AnimatedStreakFlame onPress={() => {}} />
           </View>
-          
-          <View style={{ width: 44 }} /> 
         </View>
 
-        {/* Top 3 Podium Graphic */}
-        <View style={styles.podiumContainer}>
-            <Trophy size={40} color={colors.primary} />
-            <Text style={styles.podiumText}>Keep the fire burning!</Text>
-        </View>
-
-        {/* List */}
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {leaderboardData.map((entry, index) => (
-            <Animated.View 
-              key={entry.rank}
-              entering={FadeInDown.delay(index * 50).springify()}
-              style={[
-                styles.leaderboardRow,
-                entry.isCurrentUser && styles.currentUserRow,
-              ]}
-            >
-              {/* Rank Column */}
-              <View style={styles.rankContainer}>
-                {getRankIcon(entry.rank) ? (
-                  <Text style={styles.rankIcon}>{getRankIcon(entry.rank)}</Text>
-                ) : (
-                  <Text style={styles.rankNumber}>#{entry.rank}</Text>
-                )}
-              </View>
+          {/* Original Podium Text */}
+          <View style={styles.podiumContainer}>
+            <Trophy size={40} color={colors.primary} strokeWidth={1.5} />
+            <Text style={styles.podiumText}>Keep the fire burning!</Text>
+          </View>
 
-              {/* Name Column */}
-              <View style={styles.nameContainer}>
-                <Text
-                  style={[
+          {leaderboardData.map((entry, index) => {
+            const isTop3 = entry.rank <= 3;
+            const rankTheme = isTop3 ? TOP_RANK_COLORS[entry.rank as keyof typeof TOP_RANK_COLORS] : null;
+            
+            return (
+              <Animated.View 
+                key={entry.rank}
+                entering={FadeInDown.delay(index * 50).springify()}
+                style={[
+                  styles.leaderboardRow,
+                  isTop3 && { backgroundColor: rankTheme?.bg, borderColor: rankTheme?.border },
+                  entry.isCurrentUser && styles.currentUserRow
+                ]}
+              >
+                {/* Rank Number with # */}
+                <View style={styles.rankContainer}>
+                  <Text style={[
+                    styles.rankNumber,
+                    isTop3 && { color: rankTheme?.number, fontWeight: '900' }
+                  ]}>
+                    #{entry.rank}
+                  </Text>
+                </View>
+
+                {/* Name */}
+                <View style={styles.nameContainer}>
+                  <Text style={[
                     styles.nameText,
-                    entry.isCurrentUser && styles.currentUserName,
-                  ]}
-                >
-                  {entry.name}
-                </Text>
-                {entry.isCurrentUser && (
-                  <View style={styles.youBadge}>
-                    <Text style={styles.youBadgeText}>YOU</Text>
-                  </View>
-                )}
-              </View>
+                    entry.isCurrentUser && { color: colors.primary, fontWeight: '800' }
+                  ]}>
+                    {entry.name}
+                  </Text>
+                  {entry.isCurrentUser && (
+                    <View style={styles.youBadge}>
+                      <Text style={styles.youBadgeText}>YOU</Text>
+                    </View>
+                  )}
+                </View>
 
-              {/* Streak Column */}
-              <View style={[
-                  styles.streakContainer, 
-                  entry.isCurrentUser && styles.currentUserStreakContainer
-                ]}>
-                <Flame size={14} color={entry.isCurrentUser ? colors.primary : colors.textSecondary} fill={entry.isCurrentUser ? colors.primary : "transparent"} />
-                <Text style={[
-                    styles.streakNumber,
-                    entry.isCurrentUser && { color: colors.primary }
-                ]}>
+                {/* Streak Metric - High contrast */}
+                <View style={styles.streakContainer}>
+                  <Flame size={14} color={colors.textSecondary} />
+                  <Text style={styles.streakNumber}>
                     {entry.streak}
-                </Text>
-              </View>
-            </Animated.View>
-          ))}
+                  </Text>
+                </View>
+              </Animated.View>
+            );
+          })}
         </ScrollView>
-
       </SafeAreaView>
     </View>
   );
@@ -152,41 +139,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    // Removed borderBottomWidth to remove the line
   },
   backButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    // Removed gap to let animation wrapper handle spacing
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1A1A1A',
   },
-  animationWrapper: {
-    transform: [{ scale: 0.8 }], // Scale down slightly to fit header
-    marginLeft: 0, 
+  flameContainer: {
+    width: 44,
+    alignItems: 'flex-end',
   },
   podiumContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    marginBottom: 8,
+    paddingVertical: 20,
+    marginBottom: 10,
   },
   podiumText: {
     fontSize: 14,
@@ -198,7 +181,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    paddingHorizontal: 24,
     paddingBottom: 40,
   },
   leaderboardRow: {
@@ -213,30 +196,25 @@ const styles = StyleSheet.create({
     borderColor: '#F3F4F6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.02,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 1,
   },
   currentUserRow: {
     borderColor: colors.primary,
-    backgroundColor: '#FFFBF0',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.1,
+    backgroundColor: '#FFFBF0', // Very subtle orange tint for user
+    borderWidth: 1,
   },
   rankContainer: {
-    width: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 45,
     marginRight: 12,
-  },
-  rankIcon: {
-    fontSize: 24,
+    alignItems: 'center',
   },
   rankNumber: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textLight,
-    fontFamily: 'monospace',
+    color: '#9CA3AF',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   nameContainer: {
     flex: 1,
@@ -248,10 +226,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1A1A1A',
-  },
-  currentUserName: {
-    fontWeight: '800',
-    color: colors.primary,
   },
   youBadge: {
     backgroundColor: colors.primary,
@@ -272,16 +246,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-  },
-  currentUserStreakContainer: {
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.2)',
+    borderColor: '#F3F4F6',
   },
   streakNumber: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textSecondary,
-    fontFamily: 'monospace',
+    color: '#1A1A1A', // Dark for visibility
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });

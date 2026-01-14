@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MotiView } from 'moti';
 import Animated, {
   useAnimatedStyle,
@@ -19,25 +19,46 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { Sparkles, ArrowRight } from 'lucide-react-native';
+import { Sparkles, ArrowRight, Save } from 'lucide-react-native';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
 import { TaskStagingModal } from '../src/components/TaskStagingModal';
+import { BottomNav } from '../src/components/BottomNav'; 
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
 
 export default function GoalInputScreen() {
-  const [goal, setGoal] = useState('');
+  const { initialText, editingGoalId } = useLocalSearchParams();
+  const isEditing = !!editingGoalId;
+
+  const [goal, setGoal] = useState(initialText ? (initialText as string) : '');
   const [isLoading, setIsLoading] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isStagingVisible, setIsStagingVisible] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   
   const router = useRouter();
-  const { addGoal, addTasks, setCurrentGoal } = useApp();
+  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks } = useApp();
   
   const borderOpacity = useSharedValue(0);
   const submitButtonOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (initialText) {
+      setGoal(initialText as string);
+      submitButtonOpacity.value = withSpring(1);
+    }
+  }, [initialText]);
 
   const borderAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -59,7 +80,6 @@ export default function GoalInputScreen() {
     setIsLoading(true);
     Keyboard.dismiss();
 
-    // Simulate AI Generation phase
     setTimeout(() => {
       setIsLoading(false);
       setIsStagingVisible(true);
@@ -69,15 +89,23 @@ export default function GoalInputScreen() {
   const handleFinalConfirm = (finalTasks: any[]) => {
     setIsStagingVisible(false);
     
-    // 1. Create the mission first
-    const newGoal = addGoal(goal.trim());
-    
-    // 2. Link the verified tasks to that mission ID
-    addTasks(newGoal.id, finalTasks);
-    
-    // 3. Set as current and go home
-    setCurrentGoal(newGoal);
-    router.replace('/home');
+    if (isEditing) {
+      const id = editingGoalId as string;
+      updateGoal(id, { title: goal.trim() });
+      overrideTasks(id, finalTasks);
+      router.back();
+    } else {
+      const newGoal = addGoal(goal.trim());
+      addTasks(newGoal.id, finalTasks);
+      setCurrentGoal(newGoal);
+      
+      // Use back() to reverse the entry animation
+      if (router.canGoBack()) {
+        router.back(); 
+      } else {
+        router.replace('/home');
+      }
+    }
   };
 
   const handleInputFocus = () => {
@@ -97,7 +125,7 @@ export default function GoalInputScreen() {
   return (
     <View style={styles.root}>
       <KeyboardAvoidingView
-        style={[styles.container, { backgroundColor: '#FFFFFF' }]} // FIXED: Background set to White
+        style={[styles.container, { backgroundColor: '#FFFFFF' }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <StatusBar style="dark" />
@@ -108,9 +136,13 @@ export default function GoalInputScreen() {
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 600 }}
           >
-            <Text style={[styles.title, { color: colors.text }]}>What is your main goal right now?</Text>
+            <Text style={[styles.title, { color: colors.text }]}>
+              {isEditing ? "Refine Mission Directive" : "What is your main goal right now?"}
+            </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Enter a goal and we'll break it down into actionable steps
+              {isEditing 
+                ? "Update your objective to re-calculate optimal tasks." 
+                : "Enter a goal and we'll break it down into actionable steps"}
             </Text>
           </MotiView>
 
@@ -155,7 +187,11 @@ export default function GoalInputScreen() {
                   disabled={!goal.trim() || isLoading}
                   activeOpacity={0.8}
                 >
-                  <ArrowRight size={20} color="#FFFFFF" />
+                  {isEditing ? (
+                    <Save size={20} color="#FFFFFF" />
+                  ) : (
+                    <ArrowRight size={20} color="#FFFFFF" />
+                  )}
                 </TouchableOpacity>
               </Animated.View>
             </Animated.View>
@@ -176,7 +212,7 @@ export default function GoalInputScreen() {
                 <Sparkles size={32} color={colors.primary} />
               </MotiView>
               <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                Analyzing mission parameters...
+                {isEditing ? "Recalculating mission parameters..." : "Analyzing mission parameters..."}
               </Text>
             </MotiView>
           )}
@@ -189,6 +225,9 @@ export default function GoalInputScreen() {
         onConfirm={handleFinalConfirm}
         onClose={() => setIsStagingVisible(false)}
       />
+
+      {/* Pill Dashboard Navigation - Shows when keyboard is hidden */}
+      {!isKeyboardVisible && <BottomNav activeTab="GoalInput" />}
     </View>
   );
 }
@@ -207,6 +246,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     width: '100%',
+    paddingBottom: 100,
   },
   title: {
     fontSize: 30,
@@ -226,8 +266,8 @@ const styles = StyleSheet.create({
     width: INPUT_CARD_WIDTH,
     borderRadius: 24,
     borderWidth: 2,
-    borderColor: 'rgba(245, 158, 11, 0.2)', // Light amber border
-    backgroundColor: '#F9F9F9', // Very light grey to separate from pure white bg
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+    backgroundColor: '#F9F9F9',
     position: 'relative',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,

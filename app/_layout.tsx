@@ -12,13 +12,23 @@ export default function RootLayout() {
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: '#FFFFFF' }, 
-              animation: 'slide_from_right', // Standard page transition
+              animation: 'slide_from_right', // Default slide animation
             }}
           >
             <Stack.Screen name="home" />
-            {/* Removed presentation: 'modal' to make it a full page */}
             <Stack.Screen name="goal-detail" />
             <Stack.Screen name="leaderboard" />
+            <Stack.Screen name="goal-input" />
+            <Stack.Screen name="profile" />
+            
+            {/* Focus Session - Uses Fade for "Mode Entry" feel */}
+            <Stack.Screen 
+              name="focus-session" 
+              options={{ 
+                animation: 'fade',
+                gestureEnabled: false // Prevent swipe back to enforce the "lock"
+              }} 
+            />
           </Stack>
         </AppProvider>
       </GestureHandlerRootView>
