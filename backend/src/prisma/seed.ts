@@ -12,6 +12,7 @@ async function main() {
     create: {
       email: 'test@example.com',
       name: 'Test User',
+      password: 'password123', // <--- We added this!
     },
   });
 
@@ -27,15 +28,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-
-
-
-
-
-
-
-
-
-
-
