@@ -9,6 +9,7 @@ import {
   Platform,
   Keyboard,
   Dimensions,
+  Alert
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -86,25 +87,40 @@ export default function GoalInputScreen() {
     }, 1500);
   };
 
-  const handleFinalConfirm = (finalTasks: any[]) => {
+  // --- FIX: Added async/await here ---
+  const handleFinalConfirm = async (finalTasks: any[]) => {
     setIsStagingVisible(false);
+    setIsLoading(true); // Show loading while saving to DB
     
-    if (isEditing) {
-      const id = editingGoalId as string;
-      updateGoal(id, { title: goal.trim() });
-      overrideTasks(id, finalTasks);
-      router.back();
-    } else {
-      const newGoal = addGoal(goal.trim());
-      addTasks(newGoal.id, finalTasks);
-      setCurrentGoal(newGoal);
-      
-      // Use back() to reverse the entry animation
-      if (router.canGoBack()) {
-        router.back(); 
+    try {
+      if (isEditing) {
+        const id = editingGoalId as string;
+        updateGoal(id, { title: goal.trim() });
+        overrideTasks(id, finalTasks);
+        router.back();
       } else {
-        router.replace('/home');
+        // 1. Wait for the goal to be created in the database
+        const newGoal = await addGoal(goal.trim());
+        
+        if (newGoal && newGoal.id) {
+          // 2. Wait for tasks to be added to that specific goal ID
+          await addTasks(newGoal.id, finalTasks);
+          setCurrentGoal(newGoal);
+          
+          if (router.canGoBack()) {
+            router.back(); 
+          } else {
+            router.replace('/home');
+          }
+        } else {
+          throw new Error("Failed to create goal");
+        }
       }
+    } catch (error) {
+      console.error("Save Error:", error);
+      Alert.alert("Error", "Could not save your mission. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -212,7 +228,7 @@ export default function GoalInputScreen() {
                 <Sparkles size={32} color={colors.primary} />
               </MotiView>
               <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                {isEditing ? "Recalculating mission parameters..." : "Analyzing mission parameters..."}
+                {isEditing ? "Recalculating mission parameters..." : "Syncing with HQ..."}
               </Text>
             </MotiView>
           )}

@@ -1,43 +1,53 @@
 import { API_BASE_URL } from '../config/api';
 
-// 1. ROBUST HEADERS (To bypass Ngrok warning)
+// 1. HEADERS
 const getHeaders = () => {
   return {
     'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true', // The standard bypass
-    'User-Agent': 'ProductivityAI-Mobile', // Custom agent helps bypass browser detection
+    'ngrok-skip-browser-warning': 'true',
+    'User-Agent': 'ProductivityAI-Mobile',
   };
 };
 
-// 2. SAFETY VALVE ERROR HANDLER
+// 2. IMPROVED RESPONSE HANDLER
 const handleResponse = async (response: Response) => {
   const text = await response.text();
 
-  // CHECK: If the response looks like HTML (starts with <), it's an error page or Ngrok warning
+  // Check for HTML response (Ngrok error page, 404 page, etc.)
   if (text.trim().startsWith('<')) {
-    console.log('🛑 BLOCKED HTML RESPONSE (Likely Ngrok Warning):');
-    // We throw a clean error instead of the raw HTML
-    throw new Error('Connection Error: The server sent a warning page. Check your terminal URL.');
-  }
-
-  if (!response.ok) {
-    let errorMessage = text;
-    try {
-      const json = JSON.parse(text);
-      errorMessage = json.error || text;
-    } catch (e) {
-      // It wasn't JSON, use the raw text
+    // Log the first 200 characters of the HTML to help debug
+    console.log('🛑 BLOCKED HTML RESPONSE. Preview:', text.substring(0, 200));
+    
+    // Throw a clear error
+    if (text.includes('ngrok')) {
+        throw new Error('Ngrok Tunnel Error. The URL in src/config/api.ts might be expired.');
     }
-    throw new Error(errorMessage || `Request failed: ${response.status}`);
+    
+    throw new Error(`API Error: Endpoint returned HTML instead of JSON. Check API_BASE_URL. Status: ${response.status}`);
   }
 
-  // If it's empty, return null, otherwise parse JSON
+  // If response is NOT ok (like 400, 401, 500)
+  if (!response.ok) {
+    let errorMessage = `Request failed: ${response.status}`;
+    try {
+      // Try to parse the backend JSON error: { error: "Invalid email..." }
+      const json = JSON.parse(text);
+      if (json.error) {
+        errorMessage = json.error; // Use the specific message from backend
+      }
+    } catch (e) {
+      // If parsing fails, use the raw text or status code
+      errorMessage = text || errorMessage;
+    }
+    throw new Error(errorMessage);
+  }
+
   return text ? JSON.parse(text) : null;
 };
 
 export const apiService = {
-  // 1. Auth
-  async register(userData: { email: string; name: string; password: string; onboardingData?: any }) {
+  // Auth
+  async register(userData: any) {
     return fetch(`${API_BASE_URL}/register`, {
       method: 'POST',
       headers: getHeaders(),
@@ -45,7 +55,7 @@ export const apiService = {
     }).then(handleResponse);
   },
 
-  async login(credentials: { email: string; password: string }) {
+  async login(credentials: any) {
     return fetch(`${API_BASE_URL}/login`, {
       method: 'POST',
       headers: getHeaders(),
@@ -53,7 +63,15 @@ export const apiService = {
     }).then(handleResponse);
   },
 
-  // 2. Goals
+  // User Profile
+  async getUserProfile(email: string) {
+    return fetch(`${API_BASE_URL}/users/${email}`, {
+      method: 'GET',
+      headers: getHeaders(),
+    }).then(handleResponse);
+  },
+
+  // Goals
   async createGoal(email: string, title: string) {
     return fetch(`${API_BASE_URL}/goals`, {
       method: 'POST',
@@ -69,7 +87,7 @@ export const apiService = {
     }).then(handleResponse);
   },
 
-  // 3. Tasks
+  // Tasks
   async addTasksToGoal(goalId: string, tasks: any[]) {
     return fetch(`${API_BASE_URL}/goals/${goalId}/tasks`, {
       method: 'POST',
@@ -83,6 +101,14 @@ export const apiService = {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify(updates),
+    }).then(handleResponse);
+  },
+
+  // Leaderboard
+  async getLeaderboard() {
+    return fetch(`${API_BASE_URL}/leaderboard`, {
+      method: 'GET',
+      headers: getHeaders(),
     }).then(handleResponse);
   }
 };

@@ -196,6 +196,14 @@ export default function WelcomeScreen() {
     router.replace('/ghost-hours');
   };
 
+  const handleLogin = () => {
+    // Navigate to Auth screen with login mode parameter
+    router.push({
+      pathname: '/auth',
+      params: { mode: 'login' }
+    });
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#FFFFFF' }]}>
       <StatusBar style="dark" />
@@ -334,7 +342,11 @@ export default function WelcomeScreen() {
             <Text style={[styles.loginText, { color: colors.textSecondary }]}>
               Already have an account?{' '}
             </Text>
-            <TouchableOpacity onPress={handleGetStarted}>
+            <TouchableOpacity 
+              onPress={handleLogin}
+              activeOpacity={0.6}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Text style={[styles.loginLinkText, { color: colors.primary }]}>
                 Log in
               </Text>

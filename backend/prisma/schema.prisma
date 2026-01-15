@@ -11,13 +11,20 @@ model User {
   id             String   @id @default(uuid())
   email          String   @unique
   name           String?
-  password       String   // Added password field
+  password       String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  onboardingData Json?    // Stores the wizard answers
+  
+  // --- NEW FIELDS FOR LEADERBOARD ---
+  currentStreak  Int      @default(0)
+  lastActiveDate DateTime? 
+  // ----------------------------------
+
+  onboardingData Json?
   goals          Goal[]
 }
 
+// ... Keep Goal and Task models exactly the same
 model Goal {
   id        String   @id @default(uuid())
   title     String
@@ -35,6 +42,7 @@ model Task {
   description String?
   duration    Int
   status      String   @default("queued")
+  order       Int      @default(0) // Added this back if missing, good for sorting
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   goalId      String

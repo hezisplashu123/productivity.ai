@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Switch } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -9,35 +9,58 @@ import {
   Settings, 
   Zap, 
   Clock, 
-  Target, 
+  Target, // <--- Added missing import
   Trophy, 
   Moon, 
-  ChevronRight,
-  LogOut,
-  User,
-  Bell
+  ChevronRight, 
+  LogOut, 
+  User, 
+  Bell, 
+  Sunrise, 
+  Coffee
 } from 'lucide-react-native';
 import { lightColors as colors } from '../src/constants/colors';
-// Removed BottomNav import
+import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { user, setUser } = useApp();
+  const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Mock User Data
-  const userData = {
-    name: "Operative One",
-    level: "Level 4 Strategist",
-    archetype: "The Juggler",
-    streak: 12,
-    hoursFocused: 48.5,
-    tasksCrushed: 142
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user?.email) {
+        try {
+          const data = await apiService.getUserProfile(user.email);
+          setProfileData(data);
+        } catch (error) {
+          console.error("Failed to load profile", error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  const handleLogout = () => {
+    setUser(null);
+    router.replace('/auth');
   };
 
-  const DNA_TAGS = [
-    { label: 'Night Owl', icon: Moon, color: '#1E3A5F' },
-    { label: 'High Focus', icon: Zap, color: colors.primary },
-    { label: 'Visual Learner', icon: Target, color: '#10B981' }
-  ];
+  // Helper to map onboarding data to icons
+  const getArchetypeIcon = () => {
+    const arch = profileData?.onboardingData?.workArchetype;
+    if (arch === 'night-owl') return Moon;
+    if (arch === 'early-bird') return Sunrise;
+    return Coffee; // Default
+  };
+
+  const ArchetypeIcon = getArchetypeIcon();
 
   const StatBox = ({ label, value, icon: Icon, delay }: any) => (
     <Animated.View 
@@ -52,8 +75,8 @@ export default function ProfileScreen() {
     </Animated.View>
   );
 
-  const MenuRow = ({ label, icon: Icon, isDestructive = false, hasToggle = false }: any) => (
-    <TouchableOpacity style={styles.menuRow} activeOpacity={0.7}>
+  const MenuRow = ({ label, icon: Icon, isDestructive = false, hasToggle = false, onPress }: any) => (
+    <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={onPress}>
       <View style={styles.menuRowLeft}>
         <View style={[styles.menuIconBg, isDestructive && { backgroundColor: '#FEE2E2' }]}>
           <Icon size={20} color={isDestructive ? colors.error : colors.text} />
@@ -71,6 +94,14 @@ export default function ProfileScreen() {
       )}
     </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -99,35 +130,63 @@ export default function ProfileScreen() {
               <User size={40} color={colors.primary} />
             </View>
             <View style={styles.identityText}>
-              <Text style={styles.userName}>{userData.name}</Text>
-              <Text style={styles.userLevel}>{userData.level}</Text>
+              <Text style={styles.userName}>{profileData?.name || "Unknown Agent"}</Text>
+              <Text style={styles.userLevel}>
+                Level {profileData?.stats?.level || 1} Strategist
+              </Text>
             </View>
             <View style={styles.archetypeBadge}>
-              <Text style={styles.archetypeText}>{userData.archetype}</Text>
+              <Text style={styles.archetypeText}>
+                {profileData?.onboardingData?.workArchetype || "Recruit"}
+              </Text>
             </View>
           </Animated.View>
 
           {/* Efficiency Metrics */}
           <Text style={styles.sectionHeader}>Efficiency Metrics</Text>
           <View style={styles.statsGrid}>
-            <StatBox label="Current Streak" value={`${userData.streak} Days`} icon={Zap} delay={200} />
-            <StatBox label="Hours Focused" value={`${userData.hoursFocused}h`} icon={Clock} delay={300} />
-            <StatBox label="Tasks Crushed" value={userData.tasksCrushed} icon={Trophy} delay={400} />
+            <StatBox 
+              label="Current Streak" 
+              value={`${profileData?.stats?.streak || 0} Days`} 
+              icon={Zap} 
+              delay={200} 
+            />
+            <StatBox 
+              label="Hours Focused" 
+              value={`${profileData?.stats?.hoursFocused || 0}h`} 
+              icon={Clock} 
+              delay={300} 
+            />
+            <StatBox 
+              label="Tasks Crushed" 
+              value={profileData?.stats?.tasksCrushed || 0} 
+              icon={Trophy} 
+              delay={400} 
+            />
           </View>
 
           {/* Cognitive DNA */}
           <Text style={styles.sectionHeader}>Cognitive DNA</Text>
           <View style={styles.dnaContainer}>
-            {DNA_TAGS.map((tag, index) => (
-              <Animated.View 
-                key={index}
-                entering={FadeInRight.delay(500 + (index * 100))}
-                style={styles.dnaTag}
-              >
-                <tag.icon size={14} color={tag.color} style={{ marginRight: 6 }} />
-                <Text style={[styles.dnaText, { color: tag.color }]}>{tag.label}</Text>
-              </Animated.View>
-            ))}
+            {/* Primary Focus Window */}
+            {profileData?.onboardingData?.focusWindow && (
+                <Animated.View entering={FadeInRight.delay(500)} style={styles.dnaTag}>
+                    <ArchetypeIcon size={14} color={colors.primary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: colors.primary }]}>
+                        {profileData.onboardingData.focusWindow.replace('-', ' ').toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
+            
+            {/* Distraction Type */}
+            {profileData?.onboardingData?.distraction && (
+                <Animated.View entering={FadeInRight.delay(600)} style={styles.dnaTag}>
+                    <Target size={14} color="#10B981" style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: "#10B981" }]}>
+                        FIGHTING: {profileData.onboardingData.distraction.toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
           </View>
 
           {/* Settings & Preferences */}
@@ -137,12 +196,10 @@ export default function ProfileScreen() {
             <View style={styles.divider} />
             <MenuRow label="Account Details" icon={User} />
             <View style={styles.divider} />
-            <MenuRow label="Log Out" icon={LogOut} isDestructive />
+            <MenuRow label="Log Out" icon={LogOut} isDestructive onPress={handleLogout} />
           </View>
 
           <Text style={styles.versionText}>Productivity AI v1.0.0 (Beta)</Text>
-          
-          {/* Bottom padding reduced since nav pill is gone */}
           <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
@@ -177,8 +234,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 24,
   },
-  
-  // Identity Card
   identityCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -229,9 +284,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: colors.textSecondary,
+    textTransform: 'capitalize',
   },
-
-  // Headers
   sectionHeader: {
     fontSize: 14,
     fontWeight: '800',
@@ -241,8 +295,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     marginLeft: 4,
   },
-
-  // Stats Grid
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -285,8 +337,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
   },
-
-  // DNA Section
   dnaContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -307,8 +357,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-
-  // Menu List
   menuContainer: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,

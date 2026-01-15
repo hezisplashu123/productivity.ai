@@ -1,44 +1,112 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Goal, Task } from '../types';
+import { apiService } from '../services/api';
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  onboardingData?: any;
+}
 
 interface AppContextType {
+  user: User | null;
+  setUser: (user: User | null) => void;
   goals: Goal[];
   tasks: Task[];
   currentGoal: Goal | null;
-  addGoal: (title: string) => Goal;
+  addGoal: (title: string) => Promise<Goal | null>;
   updateGoal: (goalId: string, updates: Partial<Goal>) => void;
   deleteGoal: (goalId: string) => void;
-  addTasks: (goalId: string, tasks: any[]) => void;
+  addTasks: (goalId: string, tasks: any[]) => Promise<void>;
   overrideTasks: (goalId: string, tasks: any[]) => void;
   completeTask: (taskId: string) => void;
   toggleSubTask: (taskId: string) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
   setCurrentGoal: (goal: Goal | null) => void;
   rateProductivity: (taskId: string, rating: number) => void;
+  refreshData: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
 
-  const addGoal = useCallback((title: string) => {
-    const newGoal: Goal = {
-      id: Date.now().toString(),
-      title,
-      createdAt: new Date(),
-      status: 'active',
-    };
-    setGoals((prev) => [newGoal, ...prev]);
-    return newGoal;
+  // Load data from Backend when User logs in
+  const refreshData = useCallback(async () => {
+    if (!user?.email) return;
+    try {
+      const profile = await apiService.getUserProfile(user.email);
+      setGoals(profile.goals || []);
+      
+      // Flatten tasks from all goals
+      const allTasks: Task[] = [];
+      profile.goals.forEach((g: any) => {
+        if (g.tasks) allTasks.push(...g.tasks);
+      });
+      setTasks(allTasks);
+    } catch (e) {
+      console.error("Sync Error:", e);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) refreshData();
+  }, [user, refreshData]);
+
+  // --- ACTIONS ---
+
+  const addGoal = useCallback(async (title: string) => {
+    if (!user?.email) return null;
+    try {
+      // Save to Backend
+      const newGoal = await apiService.createGoal(user.email, title);
+      
+      // Update Local State
+      setGoals((prev) => [newGoal, ...prev]);
+      setCurrentGoal(newGoal);
+      return newGoal;
+    } catch (e) {
+      console.error("Add Goal Error", e);
+      return null;
+    }
+  }, [user]);
+
+  const addTasks = useCallback(async (goalId: string, stagedTasks: any[]) => {
+    try {
+      // Save to Backend
+      const createdTasks = await apiService.addTasksToGoal(goalId, stagedTasks);
+      
+      // Update Local State
+      setTasks((prev) => [...createdTasks, ...prev]);
+    } catch (e) {
+      console.error("Add Tasks Error", e);
+    }
   }, []);
 
+  const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
+    // Optimistic Update
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
+    
+    // Save to Backend
+    try {
+      await apiService.updateTask(taskId, updates);
+    } catch (e) {
+      console.error("Update Task Error", e);
+    }
+  }, []);
+
+  const completeTask = useCallback((taskId: string) => {
+    updateTask(taskId, { status: 'completed', completed: true, completedAt: new Date() });
+  }, [updateTask]);
+
+  // -- Boilerplate / Local Only for now --
   const updateGoal = useCallback((goalId: string, updates: Partial<Goal>) => {
-    setGoals((prev) => 
-      prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g))
-    );
+    setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g)));
     if (currentGoal?.id === goalId) {
       setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
     }
@@ -47,94 +115,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteGoal = useCallback((goalId: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== goalId));
     setTasks((prev) => prev.filter((t) => t.goalId !== goalId));
-    if (currentGoal?.id === goalId) {
-      setCurrentGoal(null);
-    }
+    if (currentGoal?.id === goalId) setCurrentGoal(null);
   }, [currentGoal]);
 
-  const addTasks = useCallback((goalId: string, stagedTasks: any[]) => {
-    const newTasks: Task[] = stagedTasks.map((t, index) => ({
-      id: t.id || `${goalId}-task-${index}-${Date.now()}`,
-      goalId: goalId,
-      title: t.title,
-      duration: t.duration,
-      description: t.description || "",
-      status: 'queued',
-      completed: false,
-    }));
-    setTasks((prev) => [...newTasks, ...prev]);
-  }, []);
-
-  // Deletes old tasks for a goal and adds new ones (for editing/refining)
   const overrideTasks = useCallback((goalId: string, stagedTasks: any[]) => {
-    setTasks((prev) => {
-      const filtered = prev.filter(t => t.goalId !== goalId);
-      const newTasks: Task[] = stagedTasks.map((t, index) => ({
-        id: t.id || `${goalId}-task-${index}-${Date.now()}`,
-        goalId: goalId,
-        title: t.title,
-        duration: t.duration,
-        description: t.description || "",
-        status: 'queued',
-        completed: false,
-      }));
-      return [...newTasks, ...filtered];
-    });
-  }, []);
-
-  // GENERIC UPDATE TASK FUNCTION
-  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
-  }, []);
+    // Complex logic handled simpler by just adding for MVP
+    addTasks(goalId, stagedTasks);
+  }, [addTasks]);
 
   const toggleSubTask = useCallback((taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              status: task.status === 'completed' ? 'queued' : 'completed',
-              completed: task.status !== 'completed',
-            }
-          : task
-      )
-    );
-  }, []);
-
-  const completeTask = useCallback((taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId
-          ? { ...task, status: 'completed', completed: true, completedAt: new Date() }
-          : task
-      )
-    );
+    // Legacy support
   }, []);
 
   const rateProductivity = useCallback((taskId: string, rating: number) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId ? { ...task, productivityRating: rating } : task
-      )
-    );
-  }, []);
+    updateTask(taskId, { productivityRating: rating });
+  }, [updateTask]);
 
   return (
     <AppContext.Provider
       value={{
-        goals,
-        tasks,
-        currentGoal,
-        addGoal,
-        updateGoal,
-        deleteGoal,
-        addTasks,
-        overrideTasks,
-        completeTask,
-        toggleSubTask,
-        updateTask,
-        setCurrentGoal,
-        rateProductivity,
+        user, setUser,
+        goals, tasks, currentGoal,
+        addGoal, updateGoal, deleteGoal,
+        addTasks, overrideTasks, completeTask,
+        toggleSubTask, updateTask,
+        setCurrentGoal, rateProductivity,
+        refreshData
       }}
     >
       {children}

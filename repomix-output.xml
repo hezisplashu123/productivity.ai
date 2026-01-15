@@ -44,6 +44,7 @@ The content is organized as follows:
 app.json
 app/_layout.tsx
 app/action-plan.tsx
+app/auth.tsx
 app/focus-session.tsx
 app/ghost-hours.tsx
 app/goal-detail.tsx
@@ -52,6 +53,7 @@ app/habit-profiler.tsx
 app/home.tsx
 app/index.tsx
 app/leaderboard.tsx
+app/lock-screen.tsx
 app/onboarding.tsx
 app/profile.tsx
 app/welcome.tsx
@@ -61,6 +63,9 @@ babel.config.js
 backend/.gitignore
 backend/docker-compose.yml
 backend/package.json
+backend/prisma/migrations/20260114220654_init_db/migration.sql
+backend/prisma/migrations/20260115212653_add_streak_fields/migration.sql
+backend/prisma/migrations/migration_lock.toml
 backend/prisma/schema.prisma
 backend/README.md
 backend/src/index.ts
@@ -141,6 +146,329 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="backend/prisma/migrations/20260115212653_add_streak_fields/migration.sql">
+-- AlterTable
+ALTER TABLE "Task" ADD COLUMN     "order" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "currentStreak" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "lastActiveDate" TIMESTAMP(3);
+</file>
+
+<file path="app.json">
+{
+  "expo": {
+    "name": "productivity-ai",
+    "slug": "productivity-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF8E7"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF8E7"
+      }
+    },
+    "scheme": "productivity-ai",
+    "plugins": [
+      "expo-router"
+    ],
+    "sdkVersion": "54.0.0"
+  }
+}
+</file>
+
+<file path="app/auth.tsx">
+import React, { useState } from 'react';
+import { 
+  View, Text, StyleSheet, TextInput, TouchableOpacity, 
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert 
+} from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { apiService } from '../src/services/api';
+import { useApp } from '../src/context/AppContext';
+import { lightColors as colors } from '../src/constants/colors';
+import { ArrowRight, Lock, Mail, User, HelpCircle } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+
+export default function AuthScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const { setUser } = useApp();
+  
+  const onboardingDataString = params.onboardingData as string;
+  const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
+
+  const [isLogin, setIsLogin] = useState(params.mode === 'login');
+  
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  // Track failed attempts
+  const [failedAttempts, setFailedAttempts] = useState(0);
+
+  const handleForgotPassword = () => {
+    // In a real app, this would call an API to send a reset email
+    Alert.alert(
+      "Reset Password",
+      "We've sent a temporary password to your email.\n(Dev Note: Check your database manually or create a new account)",
+      [{ text: "OK" }]
+    );
+  };
+
+  const handleSubmit = async () => {
+    if (!email || !password || (!isLogin && !name)) {
+      Alert.alert('Missing Fields', 'Please fill in all fields.');
+      return;
+    }
+
+    setLoading(true);
+    Haptics.selectionAsync();
+
+    try {
+      let responseUser;
+      
+      if (isLogin) {
+        responseUser = await apiService.login({ email, password });
+      } else {
+        responseUser = await apiService.register({
+          email,
+          name,
+          password,
+          onboardingData 
+        });
+      }
+
+      // Success! Reset attempts
+      setFailedAttempts(0);
+      setUser(responseUser);
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/home');
+      
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      
+      // Increment failed attempts
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+
+      // INDUSTRY STANDARD: Trigger popup after 3rd failure
+      if (isLogin && newAttempts >= 3) {
+        Alert.alert(
+          "Trouble Logging In?",
+          "It looks like you're having trouble. Would you like to reset your password?",
+          [
+            { text: "Try Again", style: "cancel" },
+            { text: "Reset Password", onPress: handleForgotPassword }
+          ]
+        );
+      } else {
+        // Show specific error message
+        Alert.alert('Login Failed', error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <StatusBar style="dark" />
+      
+      <View style={styles.content}>
+        <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
+        <Text style={styles.subtitle}>
+          {isLogin 
+            ? 'Sign in to access your dashboard.' 
+            : 'Create an account to save your productivity plan.'}
+        </Text>
+
+        <View style={styles.form}>
+          {!isLogin && (
+            <View style={styles.inputContainer}>
+              <User size={20} color={colors.textSecondary} style={styles.icon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Full Name"
+                value={name}
+                onChangeText={setName}
+                placeholderTextColor={colors.textLight}
+              />
+            </View>
+          )}
+
+          <View style={styles.inputContainer}>
+            <Mail size={20} color={colors.textSecondary} style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholderTextColor={colors.textLight}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Lock size={20} color={colors.textSecondary} style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholderTextColor={colors.textLight}
+            />
+          </View>
+
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.buttonText}>
+                  {isLogin ? 'Log In' : 'Complete Setup'}
+                </Text>
+                <ArrowRight size={20} color="#FFFFFF" />
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.switchButton} 
+            onPress={() => {
+              setIsLogin(!isLogin);
+              setFailedAttempts(0); // Reset attempts when switching modes
+            }}
+          >
+            <Text style={styles.switchText}>
+              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Subtle UX: Show link after 1 fail, but Popup only after 3 fails */}
+          {isLogin && failedAttempts > 0 && (
+            <TouchableOpacity 
+              style={styles.forgotButton}
+              onPress={handleForgotPassword}
+            >
+              <HelpCircle size={14} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  content: {
+    flex: 1,
+    padding: 30,
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginBottom: 40,
+  },
+  form: {
+    gap: 16,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    height: 56,
+    paddingHorizontal: 16,
+  },
+  icon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    height: 56,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+  switchButton: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  switchText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  forgotButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    padding: 10,
+  },
+  forgotText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  }
+});
+</file>
 
 <file path="app/focus-session.tsx">
 import React, { useState, useEffect, useRef } from 'react';
@@ -500,872 +828,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="app/profile.tsx">
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Switch } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
-import { 
-  ChevronLeft, 
-  Settings, 
-  Zap, 
-  Clock, 
-  Target, 
-  Trophy, 
-  Moon, 
-  ChevronRight,
-  LogOut,
-  User,
-  Bell
-} from 'lucide-react-native';
-import { lightColors as colors } from '../src/constants/colors';
-// Removed BottomNav import
-
-export default function ProfileScreen() {
-  const router = useRouter();
-
-  // Mock User Data
-  const userData = {
-    name: "Operative One",
-    level: "Level 4 Strategist",
-    archetype: "The Juggler",
-    streak: 12,
-    hoursFocused: 48.5,
-    tasksCrushed: 142
-  };
-
-  const DNA_TAGS = [
-    { label: 'Night Owl', icon: Moon, color: '#1E3A5F' },
-    { label: 'High Focus', icon: Zap, color: colors.primary },
-    { label: 'Visual Learner', icon: Target, color: '#10B981' }
-  ];
-
-  const StatBox = ({ label, value, icon: Icon, delay }: any) => (
-    <Animated.View 
-      entering={FadeInDown.delay(delay).springify()}
-      style={styles.statBox}
-    >
-      <View style={styles.statIconBg}>
-        <Icon size={20} color={colors.primary} />
-      </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </Animated.View>
-  );
-
-  const MenuRow = ({ label, icon: Icon, isDestructive = false, hasToggle = false }: any) => (
-    <TouchableOpacity style={styles.menuRow} activeOpacity={0.7}>
-      <View style={styles.menuRowLeft}>
-        <View style={[styles.menuIconBg, isDestructive && { backgroundColor: '#FEE2E2' }]}>
-          <Icon size={20} color={isDestructive ? colors.error : colors.text} />
-        </View>
-        <Text style={[styles.menuText, isDestructive && { color: colors.error }]}>{label}</Text>
-      </View>
-      {hasToggle ? (
-        <Switch 
-          trackColor={{ false: "#E5E7EB", true: colors.primary }}
-          thumbColor={"#FFFFFF"}
-          value={true}
-        />
-      ) : (
-        <ChevronRight size={20} color={colors.textLight} />
-      )}
-    </TouchableOpacity>
-  );
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-            <ChevronLeft size={28} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Operative Profile</Text>
-          <TouchableOpacity style={styles.iconBtn}>
-            <Settings size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
-          {/* User Identity Card */}
-          <Animated.View 
-            entering={FadeInDown.delay(100).springify()}
-            style={styles.identityCard}
-          >
-            <View style={styles.avatarContainer}>
-              <User size={40} color={colors.primary} />
-            </View>
-            <View style={styles.identityText}>
-              <Text style={styles.userName}>{userData.name}</Text>
-              <Text style={styles.userLevel}>{userData.level}</Text>
-            </View>
-            <View style={styles.archetypeBadge}>
-              <Text style={styles.archetypeText}>{userData.archetype}</Text>
-            </View>
-          </Animated.View>
-
-          {/* Efficiency Metrics */}
-          <Text style={styles.sectionHeader}>Efficiency Metrics</Text>
-          <View style={styles.statsGrid}>
-            <StatBox label="Current Streak" value={`${userData.streak} Days`} icon={Zap} delay={200} />
-            <StatBox label="Hours Focused" value={`${userData.hoursFocused}h`} icon={Clock} delay={300} />
-            <StatBox label="Tasks Crushed" value={userData.tasksCrushed} icon={Trophy} delay={400} />
-          </View>
-
-          {/* Cognitive DNA */}
-          <Text style={styles.sectionHeader}>Cognitive DNA</Text>
-          <View style={styles.dnaContainer}>
-            {DNA_TAGS.map((tag, index) => (
-              <Animated.View 
-                key={index}
-                entering={FadeInRight.delay(500 + (index * 100))}
-                style={styles.dnaTag}
-              >
-                <tag.icon size={14} color={tag.color} style={{ marginRight: 6 }} />
-                <Text style={[styles.dnaText, { color: tag.color }]}>{tag.label}</Text>
-              </Animated.View>
-            ))}
-          </View>
-
-          {/* Settings & Preferences */}
-          <Text style={styles.sectionHeader}>System Preferences</Text>
-          <View style={styles.menuContainer}>
-            <MenuRow label="Push Notifications" icon={Bell} hasToggle />
-            <View style={styles.divider} />
-            <MenuRow label="Account Details" icon={User} />
-            <View style={styles.divider} />
-            <MenuRow label="Log Out" icon={LogOut} isDestructive />
-          </View>
-
-          <Text style={styles.versionText}>Productivity AI v1.0.0 (Beta)</Text>
-          
-          {/* Bottom padding reduced since nav pill is gone */}
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </SafeAreaView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FAFAFA',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  iconBtn: {
-    padding: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  scrollContent: {
-    padding: 24,
-  },
-  
-  // Identity Card
-  identityCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 32,
-  },
-  avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  identityText: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  userLevel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  archetypeBadge: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  archetypeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-
-  // Headers
-  sectionHeader: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textLight,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 16,
-    marginLeft: 4,
-  },
-
-  // Stats Grid
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 32,
-    gap: 12,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  statIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-
-  // DNA Section
-  dnaContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 32,
-  },
-  dnaTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dnaText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-
-  // Menu List
-  menuContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 32,
-  },
-  menuRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  menuRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  menuIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#F9FAFB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  menuText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginLeft: 70, 
-  },
-  versionText: {
-    textAlign: 'center',
-    color: colors.textLight,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-});
-</file>
-
-<file path="src/components/BottomNav.tsx">
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Home as HomeIcon, Brain, User } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import * as Haptics from 'expo-haptics';
-
-const { width } = Dimensions.get('window');
-
-type TabType = 'Home' | 'GoalInput' | 'Profile';
-
-interface BottomNavProps {
-  activeTab: TabType;
-}
-
-export const BottomNav: React.FC<BottomNavProps> = ({ activeTab }) => {
-  const router = useRouter();
-
-  const handleNav = (route: string, tab: TabType) => {
-    if (activeTab === tab) return;
-    
-    Haptics.selectionAsync();
-    
-    if (route === '/home') {
-      // If we are deep in the stack, we want to pop back to root (Home)
-      if (router.canGoBack()) {
-        router.dismissAll(); // This pops to the very first screen (Home)
-      } else {
-        router.replace('/home');
-      }
-    } else {
-      // Push new screen onto stack (slides in from right)
-      // @ts-ignore
-      router.push(route);
-    }
-  };
-
-  return (
-    <View style={styles.navContainer}>
-      <View style={styles.pill}>
-        {/* HOME BUTTON */}
-        <TouchableOpacity 
-          style={styles.pillItem} 
-          onPress={() => handleNav('/home', 'Home')}
-          activeOpacity={0.7}
-        >
-          <HomeIcon 
-            size={22} 
-            color={activeTab === 'Home' ? colors.primary : '#D1D1D1'} 
-            strokeWidth={activeTab === 'Home' ? 2.5 : 2}
-          />
-        </TouchableOpacity>
-
-        {/* CENTER BUTTON - Goal Input */}
-        <TouchableOpacity 
-          style={styles.pillCenter} 
-          onPress={() => handleNav('/goal-input', 'GoalInput')}
-          activeOpacity={0.9}
-        >
-          <Brain size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        {/* PROFILE BUTTON */}
-        <TouchableOpacity 
-          style={styles.pillItem} 
-          onPress={() => handleNav('/profile', 'Profile')}
-          activeOpacity={0.7}
-        >
-          <User 
-            size={22} 
-            color={activeTab === 'Profile' ? colors.primary : '#D1D1D1'} 
-            strokeWidth={activeTab === 'Profile' ? 2.5 : 2}
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
-
-const styles = StyleSheet.create({
-  navContainer: {
-    position: 'absolute',
-    bottom: 40,
-    width: '100%',
-    alignItems: 'center',
-    zIndex: 100,
-  },
-  pill: {
-    width: width * 0.6,
-    height: 68,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 34,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 15,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-  },
-  pillItem: { 
-    flex: 1, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    height: '100%' 
-  },
-  pillCenter: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-});
-</file>
-
-<file path="src/components/SessionDebrief.tsx">
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInDown, Layout } from 'react-native-reanimated';
-import { Check, X, Clock, AlertTriangle, ArrowRight, Plus, Minus } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import * as Haptics from 'expo-haptics';
-
-const { width } = Dimensions.get('window');
-
-interface SessionData {
-  completed: boolean;
-  distraction?: string;
-  addedMinutes?: number;
-}
-
-interface SessionDebriefProps {
-  visible: boolean;
-  onComplete: (data: SessionData) => void;
-}
-
-const FRICTION_POINTS = [
-  { id: 'distraction', label: 'Distractions', icon: '🔔' },
-  { id: 'estimation', label: 'Bad Estimate', icon: '⏱️' },
-  { id: 'energy', label: 'Low Energy', icon: '🔋' },
-  { id: 'blocked', label: 'Blocked', icon: '🚧' },
-];
-
-export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onComplete }) => {
-  const [step, setStep] = useState<'outcome' | 'analysis' | 'recovery'>('outcome');
-  const [outcome, setOutcome] = useState<boolean | null>(null);
-  const [friction, setFriction] = useState<string | null>(null);
-  const [addedTime, setAddedTime] = useState(15);
-
-  if (!visible) return null;
-
-  const handleSuccess = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setOutcome(true);
-    // Slight delay for animation before closing
-    setTimeout(() => {
-        onComplete({ completed: true });
-    }, 500);
-  };
-
-  const handleFailure = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setOutcome(false);
-    setStep('analysis');
-  };
-
-  const handleFrictionSelect = (id: string) => {
-    Haptics.selectionAsync();
-    setFriction(id);
-    setTimeout(() => setStep('recovery'), 250);
-  };
-
-  const adjustTime = (delta: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setAddedTime(prev => Math.max(5, prev + delta));
-  };
-
-  const handleExtension = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onComplete({ 
-        completed: false, 
-        distraction: friction || 'unknown',
-        addedMinutes: addedTime
-    });
-  };
-
-  // --- RENDER STEPS ---
-
-  const renderOutcome = () => (
-    <Animated.View entering={FadeIn.duration(400)} style={styles.contentContainer}>
-      <Text style={styles.headerTitle}>MISSION REPORT</Text>
-      <Text style={styles.headerSubtitle}>Did you complete the objective?</Text>
-
-      <View style={styles.outcomeRow}>
-        <TouchableOpacity 
-            style={[styles.outcomeBtn, styles.successBtn]} 
-            onPress={handleSuccess}
-            activeOpacity={0.8}
-        >
-            <View style={styles.iconCircleSuccess}>
-                <Check size={32} color="#FFFFFF" strokeWidth={3} />
-            </View>
-            <Text style={styles.successText}>MISSION ACCOMPLISHED</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-            style={[styles.outcomeBtn, styles.failBtn]} 
-            onPress={handleFailure}
-            activeOpacity={0.8}
-        >
-            <View style={styles.iconCircleFail}>
-                <X size={32} color="#EF4444" strokeWidth={3} />
-            </View>
-            <Text style={styles.failText}>NOT YET</Text>
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
-  );
-
-  const renderAnalysis = () => (
-    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
-      <Text style={styles.headerTitle}>DEBRIEF</Text>
-      <Text style={styles.headerSubtitle}>What was the primary obstacle?</Text>
-
-      <View style={styles.grid}>
-        {FRICTION_POINTS.map((item) => (
-            <TouchableOpacity 
-                key={item.id}
-                style={[styles.gridItem, friction === item.id && styles.gridItemSelected]}
-                onPress={() => handleFrictionSelect(item.id)}
-            >
-                <Text style={styles.gridIcon}>{item.icon}</Text>
-                <Text style={[styles.gridLabel, friction === item.id && styles.gridLabelSelected]}>
-                    {item.label}
-                </Text>
-            </TouchableOpacity>
-        ))}
-      </View>
-    </Animated.View>
-  );
-
-  const renderRecovery = () => (
-    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
-      <Text style={styles.headerTitle}>RECOVERY PROTOCOL</Text>
-      <Text style={styles.headerSubtitle}>How much more time do you need?</Text>
-
-      <View style={styles.timeControl}>
-        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(-5)}>
-            <Minus size={24} color={colors.text} />
-        </TouchableOpacity>
-        <View style={styles.timeDisplay}>
-            <Text style={styles.timeValue}>{addedTime}</Text>
-            <Text style={styles.timeUnit}>MINUTES</Text>
-        </View>
-        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(5)}>
-            <Plus size={24} color={colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity style={styles.confirmBtn} onPress={handleExtension}>
-        <Text style={styles.confirmText}>UPDATE MISSION PARAMETERS</Text>
-        <ArrowRight size={20} color="#FFFFFF" />
-      </TouchableOpacity>
-    </Animated.View>
-  );
-
-  return (
-    <View style={styles.container}>
-      {/* White Background Fade In */}
-      <Animated.View entering={FadeIn.duration(500)} style={styles.whiteBackground} />
-      
-      <View style={styles.safeArea}>
-        {step === 'outcome' && renderOutcome()}
-        {step === 'analysis' && renderAnalysis()}
-        {step === 'recovery' && renderRecovery()}
-      </View>
-    </View>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 999,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  whiteBackground: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF',
-  },
-  safeArea: {
-    width: '100%',
-    padding: 24,
-    alignItems: 'center',
-  },
-  contentContainer: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 2,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  headerSubtitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  
-  // Outcome Step
-  outcomeRow: {
-    gap: 16,
-    width: '100%',
-  },
-  outcomeBtn: {
-    width: '100%',
-    paddingVertical: 24,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  successBtn: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#DCFCE7',
-  },
-  failBtn: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FEE2E2',
-  },
-  iconCircleSuccess: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#10B981',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#10B981',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  iconCircleFail: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#EF4444',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  successText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#15803D',
-    letterSpacing: 0.5,
-  },
-  failText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#B91C1C',
-    letterSpacing: 0.5,
-  },
-
-  // Analysis Step
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    justifyContent: 'center',
-  },
-  gridItem: {
-    width: '47%',
-    aspectRatio: 1.2,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  gridItemSelected: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFFBEB',
-  },
-  gridIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  gridLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  gridLabelSelected: {
-    color: colors.primaryDark,
-  },
-
-  // Recovery Step
-  timeControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 20,
-    marginBottom: 40,
-  },
-  timeBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timeDisplay: {
-    alignItems: 'center',
-  },
-  timeValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  timeUnit: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: 1,
-  },
-  confirmBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    width: '100%',
-    paddingVertical: 18,
-    borderRadius: 24,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
-    gap: 8,
-  },
-  confirmText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-});
-</file>
-
-<file path="app.json">
-{
-  "expo": {
-    "name": "productivity-ai",
-    "slug": "productivity-ai",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#FFF8E7"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#FFF8E7"
-      }
-    },
-    "scheme": "productivity-ai",
-    "plugins": [
-      "expo-router"
-    ],
-    "sdkVersion": "54.0.0"
-  }
-}
-</file>
-
 <file path="app/ghost-hours.tsx">
 import React from 'react';
 import { GhostHoursCalculator } from '../src/components/GhostHoursCalculator';
@@ -1466,143 +928,456 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="app/index.tsx">
-import React from 'react';
-import { Redirect } from 'expo-router';
-
-export default function IndexScreen() {
-  // Show welcome screen first, then redirect to onboarding
-  return <Redirect href="/welcome" />;
-}
-</file>
-
-<file path="app/leaderboard.tsx">
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  Platform,
-} from 'react-native';
+<file path="app/lock-screen.tsx">
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Flame, Trophy } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSequence, 
+  withTiming, 
+  withSpring 
+} from 'react-native-reanimated';
+import { Lock, Delete } from 'lucide-react-native';
 import { lightColors as colors } from '../src/constants/colors';
-import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
 
 const { width } = Dimensions.get('window');
+const PIN_LENGTH = 4;
+const CORRECT_PIN = "5858";
 
-// --- THEME COLORS FOR TOP 3 ---
-const TOP_RANK_COLORS = {
-  1: { number: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' }, // Goldish
-  2: { number: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' }, // Silverish
-  3: { number: '#B45309', bg: '#FFF7ED', border: '#FFEDD5' }, // Bronzish
-};
+export default function LockScreen() {
+  const router = useRouter();
+  const [pin, setPin] = useState<string[]>([]);
+  const [error, setError] = useState(false);
+  
+  // Animation values
+  const shake = useSharedValue(0);
+  const iconScale = useSharedValue(1);
 
-interface LeaderboardEntry {
-  rank: number;
-  name: string;
-  streak: number;
-  isCurrentUser?: boolean;
+  const handlePress = (num: string) => {
+    if (pin.length >= PIN_LENGTH) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const newPin = [...pin, num];
+    setPin(newPin);
+
+    // Check PIN when length is reached
+    if (newPin.length === PIN_LENGTH) {
+      const pinString = newPin.join('');
+      if (pinString === CORRECT_PIN) {
+        handleSuccess();
+      } else {
+        handleError();
+      }
+    }
+  };
+
+  const handleDelete = () => {
+    if (pin.length > 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setPin(pin.slice(0, -1));
+      setError(false);
+    }
+  };
+
+  const handleSuccess = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    iconScale.value = withSequence(withTiming(1.2, { duration: 100 }), withTiming(1));
+    
+    // Slight delay for visual feedback before navigation
+    setTimeout(() => {
+      // Navigate to the original entry point (Welcome)
+      router.replace('/welcome');
+    }, 200);
+  };
+
+  const handleError = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    setError(true);
+    
+    // Shake Animation
+    shake.value = withSequence(
+      withTiming(-10, { duration: 50 }),
+      withTiming(10, { duration: 50 }),
+      withTiming(-10, { duration: 50 }),
+      withTiming(10, { duration: 50 }),
+      withTiming(0, { duration: 50 })
+    );
+
+    // Clear PIN after delay
+    setTimeout(() => {
+      setPin([]);
+      setError(false);
+    }, 500);
+  };
+
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shake.value }]
+  }));
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: iconScale.value }]
+  }));
+
+  const renderDot = (index: number) => {
+    const isFilled = index < pin.length;
+    return (
+      <View 
+        key={index} 
+        style={[
+          styles.dot, 
+          isFilled && styles.dotFilled,
+          error && isFilled && styles.dotError
+        ]} 
+      />
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="dark" />
+      
+      <View style={styles.content}>
+        {/* Header Icon */}
+        <Animated.View style={[styles.iconContainer, iconStyle]}>
+          <Lock size={40} color={error ? colors.error : colors.primary} />
+        </Animated.View>
+        
+        <Text style={styles.title}>Dev Access</Text>
+        <Text style={styles.subtitle}>Enter Passcode</Text>
+
+        {/* PIN Dots */}
+        <Animated.View style={[styles.dotsContainer, shakeStyle]}>
+          {[...Array(PIN_LENGTH)].map((_, i) => renderDot(i))}
+        </Animated.View>
+      </View>
+
+      {/* Number Pad */}
+      <View style={styles.numpad}>
+        <View style={styles.row}>
+          <NumberButton number="1" onPress={handlePress} />
+          <NumberButton number="2" onPress={handlePress} />
+          <NumberButton number="3" onPress={handlePress} />
+        </View>
+        <View style={styles.row}>
+          <NumberButton number="4" onPress={handlePress} />
+          <NumberButton number="5" onPress={handlePress} />
+          <NumberButton number="6" onPress={handlePress} />
+        </View>
+        <View style={styles.row}>
+          <NumberButton number="7" onPress={handlePress} />
+          <NumberButton number="8" onPress={handlePress} />
+          <NumberButton number="9" onPress={handlePress} />
+        </View>
+        <View style={styles.row}>
+          <View style={styles.buttonPlaceholder} />
+          <NumberButton number="0" onPress={handlePress} />
+          <TouchableOpacity style={styles.button} onPress={handleDelete}>
+            <Delete size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
 }
 
-export default function LeaderboardScreen() {
-  const router = useRouter();
+const NumberButton = ({ number, onPress }: { number: string, onPress: (n: string) => void }) => (
+  <TouchableOpacity 
+    style={styles.button} 
+    onPress={() => onPress(number)}
+    activeOpacity={0.7}
+  >
+    <Text style={styles.number}>{number}</Text>
+  </TouchableOpacity>
+);
 
-  const leaderboardData: LeaderboardEntry[] = [
-    { rank: 1, name: 'Alex Vance', streak: 45 },
-    { rank: 2, name: 'Sam Kovalsky', streak: 32 },
-    { rank: 3, name: 'Jordan Mendoza', streak: 28 },
-    { rank: 4, name: 'You', streak: 12, isCurrentUser: true },
-    { rank: 5, name: 'Taylor Higgins', streak: 10 },
-    { rank: 6, name: 'Casey Miller', streak: 8 },
-    { rank: 7, name: 'Morgan Ross', streak: 5 },
-    { rank: 8, name: 'Riley Smith', streak: 3 },
-    { rank: 9, name: 'Jamie Doe', streak: 2 },
-    { rank: 10, name: 'Quinn T.', streak: 1 },
-  ];
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 40,
+  },
+  iconContainer: {
+    marginBottom: 20,
+    padding: 20,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: 40,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginBottom: 40,
+  },
+  dotsContainer: {
+    flexDirection: 'row',
+    gap: 20,
+    height: 20,
+    alignItems: 'center',
+  },
+  dot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.textLight,
+    backgroundColor: 'transparent',
+  },
+  dotFilled: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  dotError: {
+    backgroundColor: colors.error,
+    borderColor: colors.error,
+  },
+  numpad: {
+    paddingHorizontal: 40,
+    paddingBottom: 40,
+    gap: 20,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  button: {
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
+    backgroundColor: colors.backgroundLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonPlaceholder: {
+    width: 75,
+    height: 75,
+  },
+  number: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: colors.text,
+  },
+});
+</file>
+
+<file path="app/profile.tsx">
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
+import { 
+  ChevronLeft, 
+  Settings, 
+  Zap, 
+  Clock, 
+  Target, // <--- Added missing import
+  Trophy, 
+  Moon, 
+  ChevronRight, 
+  LogOut, 
+  User, 
+  Bell, 
+  Sunrise, 
+  Coffee
+} from 'lucide-react-native';
+import { lightColors as colors } from '../src/constants/colors';
+import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
+
+export default function ProfileScreen() {
+  const router = useRouter();
+  const { user, setUser } = useApp();
+  const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user?.email) {
+        try {
+          const data = await apiService.getUserProfile(user.email);
+          setProfileData(data);
+        } catch (error) {
+          console.error("Failed to load profile", error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  const handleLogout = () => {
+    setUser(null);
+    router.replace('/auth');
+  };
+
+  // Helper to map onboarding data to icons
+  const getArchetypeIcon = () => {
+    const arch = profileData?.onboardingData?.workArchetype;
+    if (arch === 'night-owl') return Moon;
+    if (arch === 'early-bird') return Sunrise;
+    return Coffee; // Default
+  };
+
+  const ArchetypeIcon = getArchetypeIcon();
+
+  const StatBox = ({ label, value, icon: Icon, delay }: any) => (
+    <Animated.View 
+      entering={FadeInDown.delay(delay).springify()}
+      style={styles.statBox}
+    >
+      <View style={styles.statIconBg}>
+        <Icon size={20} color={colors.primary} />
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </Animated.View>
+  );
+
+  const MenuRow = ({ label, icon: Icon, isDestructive = false, hasToggle = false, onPress }: any) => (
+    <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={onPress}>
+      <View style={styles.menuRowLeft}>
+        <View style={[styles.menuIconBg, isDestructive && { backgroundColor: '#FEE2E2' }]}>
+          <Icon size={20} color={isDestructive ? colors.error : colors.text} />
+        </View>
+        <Text style={[styles.menuText, isDestructive && { color: colors.error }]}>{label}</Text>
+      </View>
+      {hasToggle ? (
+        <Switch 
+          trackColor={{ false: "#E5E7EB", true: colors.primary }}
+          thumbColor={"#FFFFFF"}
+          value={true}
+        />
+      ) : (
+        <ChevronRight size={20} color={colors.textLight} />
+      )}
+    </TouchableOpacity>
+  );
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         
-        {/* Header - Line removed */}
+        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <ChevronLeft size={28} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Global Streak</Text>
-          <View style={styles.flameContainer}>
-            <AnimatedStreakFlame onPress={() => {}} />
-          </View>
+          <Text style={styles.headerTitle}>Operative Profile</Text>
+          <TouchableOpacity style={styles.iconBtn}>
+            <Settings size={24} color={colors.text} />
+          </TouchableOpacity>
         </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Original Podium Text */}
-          <View style={styles.podiumContainer}>
-            <Trophy size={40} color={colors.primary} strokeWidth={1.5} />
-            <Text style={styles.podiumText}>Keep the fire burning!</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          
+          {/* User Identity Card */}
+          <Animated.View 
+            entering={FadeInDown.delay(100).springify()}
+            style={styles.identityCard}
+          >
+            <View style={styles.avatarContainer}>
+              <User size={40} color={colors.primary} />
+            </View>
+            <View style={styles.identityText}>
+              <Text style={styles.userName}>{profileData?.name || "Unknown Agent"}</Text>
+              <Text style={styles.userLevel}>
+                Level {profileData?.stats?.level || 1} Strategist
+              </Text>
+            </View>
+            <View style={styles.archetypeBadge}>
+              <Text style={styles.archetypeText}>
+                {profileData?.onboardingData?.workArchetype || "Recruit"}
+              </Text>
+            </View>
+          </Animated.View>
+
+          {/* Efficiency Metrics */}
+          <Text style={styles.sectionHeader}>Efficiency Metrics</Text>
+          <View style={styles.statsGrid}>
+            <StatBox 
+              label="Current Streak" 
+              value={`${profileData?.stats?.streak || 0} Days`} 
+              icon={Zap} 
+              delay={200} 
+            />
+            <StatBox 
+              label="Hours Focused" 
+              value={`${profileData?.stats?.hoursFocused || 0}h`} 
+              icon={Clock} 
+              delay={300} 
+            />
+            <StatBox 
+              label="Tasks Crushed" 
+              value={profileData?.stats?.tasksCrushed || 0} 
+              icon={Trophy} 
+              delay={400} 
+            />
           </View>
 
-          {leaderboardData.map((entry, index) => {
-            const isTop3 = entry.rank <= 3;
-            const rankTheme = isTop3 ? TOP_RANK_COLORS[entry.rank as keyof typeof TOP_RANK_COLORS] : null;
+          {/* Cognitive DNA */}
+          <Text style={styles.sectionHeader}>Cognitive DNA</Text>
+          <View style={styles.dnaContainer}>
+            {/* Primary Focus Window */}
+            {profileData?.onboardingData?.focusWindow && (
+                <Animated.View entering={FadeInRight.delay(500)} style={styles.dnaTag}>
+                    <ArchetypeIcon size={14} color={colors.primary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: colors.primary }]}>
+                        {profileData.onboardingData.focusWindow.replace('-', ' ').toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
             
-            return (
-              <Animated.View 
-                key={entry.rank}
-                entering={FadeInDown.delay(index * 50).springify()}
-                style={[
-                  styles.leaderboardRow,
-                  isTop3 && { backgroundColor: rankTheme?.bg, borderColor: rankTheme?.border },
-                  entry.isCurrentUser && styles.currentUserRow
-                ]}
-              >
-                {/* Rank Number with # */}
-                <View style={styles.rankContainer}>
-                  <Text style={[
-                    styles.rankNumber,
-                    isTop3 && { color: rankTheme?.number, fontWeight: '900' }
-                  ]}>
-                    #{entry.rank}
-                  </Text>
-                </View>
+            {/* Distraction Type */}
+            {profileData?.onboardingData?.distraction && (
+                <Animated.View entering={FadeInRight.delay(600)} style={styles.dnaTag}>
+                    <Target size={14} color="#10B981" style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: "#10B981" }]}>
+                        FIGHTING: {profileData.onboardingData.distraction.toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
+          </View>
 
-                {/* Name */}
-                <View style={styles.nameContainer}>
-                  <Text style={[
-                    styles.nameText,
-                    entry.isCurrentUser && { color: colors.primary, fontWeight: '800' }
-                  ]}>
-                    {entry.name}
-                  </Text>
-                  {entry.isCurrentUser && (
-                    <View style={styles.youBadge}>
-                      <Text style={styles.youBadgeText}>YOU</Text>
-                    </View>
-                  )}
-                </View>
+          {/* Settings & Preferences */}
+          <Text style={styles.sectionHeader}>System Preferences</Text>
+          <View style={styles.menuContainer}>
+            <MenuRow label="Push Notifications" icon={Bell} hasToggle />
+            <View style={styles.divider} />
+            <MenuRow label="Account Details" icon={User} />
+            <View style={styles.divider} />
+            <MenuRow label="Log Out" icon={LogOut} isDestructive onPress={handleLogout} />
+          </View>
 
-                {/* Streak Metric - High contrast */}
-                <View style={styles.streakContainer}>
-                  <Flame size={14} color={colors.textSecondary} />
-                  <Text style={styles.streakNumber}>
-                    {entry.streak}
-                  </Text>
-                </View>
-              </Animated.View>
-            );
-          })}
+          <Text style={styles.versionText}>Productivity AI v1.0.0 (Beta)</Text>
+          <View style={{ height: 40 }} />
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -1612,127 +1387,196 @@ export default function LeaderboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  safeArea: {
-    flex: 1,
+    backgroundColor: '#FAFAFA',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  iconBtn: {
+    padding: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  scrollContent: {
+    padding: 24,
+  },
+  identityCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 32,
+  },
+  avatarContainer: {
+    width: 60,
     height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  identityText: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  userLevel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  archetypeBadge: {
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  archetypeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textTransform: 'capitalize',
+  },
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textLight,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 16,
+    marginLeft: 4,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+    gap: 12,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  dnaContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 32,
+  },
+  dnaTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dnaText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  menuContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 32,
+  },
+  menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    // Removed borderBottomWidth to remove the line
+    paddingVertical: 16,
   },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  menuRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     backgroundColor: '#F9FAFB',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
+    marginRight: 14,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  flameContainer: {
-    width: 44,
-    alignItems: 'flex-end',
-  },
-  podiumContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-    marginBottom: 10,
-  },
-  podiumText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    marginTop: 8,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
-  leaderboardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginBottom: 12,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  currentUserRow: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFFBF0', // Very subtle orange tint for user
-    borderWidth: 1,
-  },
-  rankContainer: {
-    width: 45,
-    marginRight: 12,
-    alignItems: 'center',
-  },
-  rankNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#9CA3AF',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  nameContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  nameText: {
+  menuText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: colors.text,
   },
-  youBadge: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginLeft: 70, 
   },
-  youBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  streakContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  streakNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1A1A1A', // Dark for visibility
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  versionText: {
+    textAlign: 'center',
+    color: colors.textLight,
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
 </file>
@@ -1794,45 +1638,60 @@ module.exports = function(api) {
 }
 </file>
 
-<file path="backend/src/index.ts">
-import express, { Request, Response } from 'express';
-import cors from 'cors';
-import { prisma } from './lib/prisma';
+<file path="backend/prisma/migrations/20260114220654_init_db/migration.sql">
+-- CreateTable
+CREATE TABLE "User" (
+    "id" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "name" TEXT,
+    "password" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "onboardingData" JSONB,
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+-- CreateTable
+CREATE TABLE "Goal" (
+    "id" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'active',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "userId" TEXT NOT NULL,
 
-// Health check route
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', message: 'Server is running' });
-});
+    CONSTRAINT "Goal_pkey" PRIMARY KEY ("id")
+);
 
-// Users route
-app.get('/users', async (req: Request, res: Response) => {
-  try {
-    const users = await prisma.user.findMany({
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-    res.json(users);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+-- CreateTable
+CREATE TABLE "Task" (
+    "id" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "duration" INTEGER NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'queued',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "goalId" TEXT NOT NULL,
 
-// Listen on all network interfaces (0.0.0.0) to allow mobile device access
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`📱 Server is accessible from your network`);
-  console.log(`💡 Make sure your phone is on the same WiFi network`);
-  console.log(`🔗 Use your computer's local IP address in the mobile app`);
-});
+    CONSTRAINT "Task_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- AddForeignKey
+ALTER TABLE "Goal" ADD CONSTRAINT "Goal_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Task" ADD CONSTRAINT "Task_goalId_fkey" FOREIGN KEY ("goalId") REFERENCES "Goal"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+</file>
+
+<file path="backend/prisma/migrations/migration_lock.toml">
+# Please do not edit this file manually
+# It should be added in your version-control system (i.e. Git)
+provider = "postgresql"
 </file>
 
 <file path="src/components/ActiveTaskCard.tsx">
@@ -2090,6 +1949,133 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '500',
+  },
+});
+</file>
+
+<file path="src/components/BottomNav.tsx">
+import React from 'react';
+import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Home as HomeIcon, Brain, User } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+
+const { width } = Dimensions.get('window');
+
+type TabType = 'Home' | 'GoalInput' | 'Profile';
+
+interface BottomNavProps {
+  activeTab: TabType;
+}
+
+export const BottomNav: React.FC<BottomNavProps> = ({ activeTab }) => {
+  const router = useRouter();
+
+  const handleNav = (route: string, tab: TabType) => {
+    if (activeTab === tab) return;
+    
+    Haptics.selectionAsync();
+    
+    if (route === '/home') {
+      // If we are deep in the stack, we want to pop back to root (Home)
+      if (router.canGoBack()) {
+        router.dismissAll(); // This pops to the very first screen (Home)
+      } else {
+        router.replace('/home');
+      }
+    } else {
+      // Push new screen onto stack (slides in from right)
+      // @ts-ignore
+      router.push(route);
+    }
+  };
+
+  return (
+    <View style={styles.navContainer}>
+      <View style={styles.pill}>
+        {/* HOME BUTTON */}
+        <TouchableOpacity 
+          style={styles.pillItem} 
+          onPress={() => handleNav('/home', 'Home')}
+          activeOpacity={0.7}
+        >
+          <HomeIcon 
+            size={22} 
+            color={activeTab === 'Home' ? colors.primary : '#D1D1D1'} 
+            strokeWidth={activeTab === 'Home' ? 2.5 : 2}
+          />
+        </TouchableOpacity>
+
+        {/* CENTER BUTTON - Goal Input */}
+        <TouchableOpacity 
+          style={styles.pillCenter} 
+          onPress={() => handleNav('/goal-input', 'GoalInput')}
+          activeOpacity={0.9}
+        >
+          <Brain size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        {/* PROFILE BUTTON */}
+        <TouchableOpacity 
+          style={styles.pillItem} 
+          onPress={() => handleNav('/profile', 'Profile')}
+          activeOpacity={0.7}
+        >
+          <User 
+            size={22} 
+            color={activeTab === 'Profile' ? colors.primary : '#D1D1D1'} 
+            strokeWidth={activeTab === 'Profile' ? 2.5 : 2}
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  navContainer: {
+    position: 'absolute',
+    bottom: 40,
+    width: '100%',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  pill: {
+    width: width * 0.6,
+    height: 68,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 34,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 15,
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  pillItem: { 
+    flex: 1, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    height: '100%' 
+  },
+  pillCenter: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
 });
 </file>
@@ -6693,6 +6679,354 @@ const styles = StyleSheet.create({
 });
 </file>
 
+<file path="src/components/SessionDebrief.tsx">
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import Animated, { FadeIn, FadeOut, SlideInDown, Layout } from 'react-native-reanimated';
+import { Check, X, Clock, AlertTriangle, ArrowRight, Plus, Minus } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+
+const { width } = Dimensions.get('window');
+
+interface SessionData {
+  completed: boolean;
+  distraction?: string;
+  addedMinutes?: number;
+}
+
+interface SessionDebriefProps {
+  visible: boolean;
+  onComplete: (data: SessionData) => void;
+}
+
+const FRICTION_POINTS = [
+  { id: 'distraction', label: 'Distractions', icon: '🔔' },
+  { id: 'estimation', label: 'Bad Estimate', icon: '⏱️' },
+  { id: 'energy', label: 'Low Energy', icon: '🔋' },
+  { id: 'blocked', label: 'Blocked', icon: '🚧' },
+];
+
+export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onComplete }) => {
+  const [step, setStep] = useState<'outcome' | 'analysis' | 'recovery'>('outcome');
+  const [outcome, setOutcome] = useState<boolean | null>(null);
+  const [friction, setFriction] = useState<string | null>(null);
+  const [addedTime, setAddedTime] = useState(15);
+
+  if (!visible) return null;
+
+  const handleSuccess = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setOutcome(true);
+    // Slight delay for animation before closing
+    setTimeout(() => {
+        onComplete({ completed: true });
+    }, 500);
+  };
+
+  const handleFailure = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setOutcome(false);
+    setStep('analysis');
+  };
+
+  const handleFrictionSelect = (id: string) => {
+    Haptics.selectionAsync();
+    setFriction(id);
+    setTimeout(() => setStep('recovery'), 250);
+  };
+
+  const adjustTime = (delta: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAddedTime(prev => Math.max(5, prev + delta));
+  };
+
+  const handleExtension = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onComplete({ 
+        completed: false, 
+        distraction: friction || 'unknown',
+        addedMinutes: addedTime
+    });
+  };
+
+  // --- RENDER STEPS ---
+
+  const renderOutcome = () => (
+    <Animated.View entering={FadeIn.duration(400)} style={styles.contentContainer}>
+      <Text style={styles.headerTitle}>MISSION REPORT</Text>
+      <Text style={styles.headerSubtitle}>Did you complete the objective?</Text>
+
+      <View style={styles.outcomeRow}>
+        <TouchableOpacity 
+            style={[styles.outcomeBtn, styles.successBtn]} 
+            onPress={handleSuccess}
+            activeOpacity={0.8}
+        >
+            <View style={styles.iconCircleSuccess}>
+                <Check size={32} color="#FFFFFF" strokeWidth={3} />
+            </View>
+            <Text style={styles.successText}>MISSION ACCOMPLISHED</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+            style={[styles.outcomeBtn, styles.failBtn]} 
+            onPress={handleFailure}
+            activeOpacity={0.8}
+        >
+            <View style={styles.iconCircleFail}>
+                <X size={32} color="#EF4444" strokeWidth={3} />
+            </View>
+            <Text style={styles.failText}>NOT YET</Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+
+  const renderAnalysis = () => (
+    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
+      <Text style={styles.headerTitle}>DEBRIEF</Text>
+      <Text style={styles.headerSubtitle}>What was the primary obstacle?</Text>
+
+      <View style={styles.grid}>
+        {FRICTION_POINTS.map((item) => (
+            <TouchableOpacity 
+                key={item.id}
+                style={[styles.gridItem, friction === item.id && styles.gridItemSelected]}
+                onPress={() => handleFrictionSelect(item.id)}
+            >
+                <Text style={styles.gridIcon}>{item.icon}</Text>
+                <Text style={[styles.gridLabel, friction === item.id && styles.gridLabelSelected]}>
+                    {item.label}
+                </Text>
+            </TouchableOpacity>
+        ))}
+      </View>
+    </Animated.View>
+  );
+
+  const renderRecovery = () => (
+    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
+      <Text style={styles.headerTitle}>RECOVERY PROTOCOL</Text>
+      <Text style={styles.headerSubtitle}>How much more time do you need?</Text>
+
+      <View style={styles.timeControl}>
+        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(-5)}>
+            <Minus size={24} color={colors.text} />
+        </TouchableOpacity>
+        <View style={styles.timeDisplay}>
+            <Text style={styles.timeValue}>{addedTime}</Text>
+            <Text style={styles.timeUnit}>MINUTES</Text>
+        </View>
+        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(5)}>
+            <Plus size={24} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity style={styles.confirmBtn} onPress={handleExtension}>
+        <Text style={styles.confirmText}>UPDATE MISSION PARAMETERS</Text>
+        <ArrowRight size={20} color="#FFFFFF" />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+
+  return (
+    <View style={styles.container}>
+      {/* White Background Fade In */}
+      <Animated.View entering={FadeIn.duration(500)} style={styles.whiteBackground} />
+      
+      <View style={styles.safeArea}>
+        {step === 'outcome' && renderOutcome()}
+        {step === 'analysis' && renderAnalysis()}
+        {step === 'recovery' && renderRecovery()}
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whiteBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FFFFFF',
+  },
+  safeArea: {
+    width: '100%',
+    padding: 24,
+    alignItems: 'center',
+  },
+  contentContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 2,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  headerSubtitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  
+  // Outcome Step
+  outcomeRow: {
+    gap: 16,
+    width: '100%',
+  },
+  outcomeBtn: {
+    width: '100%',
+    paddingVertical: 24,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  successBtn: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#DCFCE7',
+  },
+  failBtn: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+  },
+  iconCircleSuccess: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#10B981',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#10B981',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  iconCircleFail: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  successText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#15803D',
+    letterSpacing: 0.5,
+  },
+  failText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#B91C1C',
+    letterSpacing: 0.5,
+  },
+
+  // Analysis Step
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  gridItem: {
+    width: '47%',
+    aspectRatio: 1.2,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  gridItemSelected: {
+    borderColor: colors.primary,
+    backgroundColor: '#FFFBEB',
+  },
+  gridIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  gridLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  gridLabelSelected: {
+    color: colors.primaryDark,
+  },
+
+  // Recovery Step
+  timeControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 20,
+    marginBottom: 40,
+  },
+  timeBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeDisplay: {
+    alignItems: 'center',
+  },
+  timeValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  timeUnit: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: 1,
+  },
+  confirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    width: '100%',
+    paddingVertical: 18,
+    borderRadius: 24,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+    gap: 8,
+  },
+  confirmText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+});
+</file>
+
 <file path="src/components/SimpleLineChart.tsx">
 import React from 'react';
 import { View, StyleSheet, Dimensions, Platform } from 'react-native';
@@ -9746,461 +10080,273 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="app/goal-detail.tsx">
-import React, { useMemo, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Dimensions, 
-  Modal, 
-  TouchableWithoutFeedback,
-  Alert
+<file path="app/index.tsx">
+import React from 'react';
+import { Redirect } from 'expo-router';
+
+export default function IndexScreen() {
+  // SECURITY UPDATE: Redirect to lock screen first
+  return <Redirect href="/lock-screen" />;
+}
+</file>
+
+<file path="app/leaderboard.tsx">
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { 
-  ChevronLeft, 
-  CheckCircle2, 
-  Circle, 
-  Clock, 
-  Target, 
-  MoreHorizontal, 
-  Trash2, 
-  Edit3
-} from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { ChevronLeft, Flame, Trophy } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown, FadeIn, Layout } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-
-import { useApp } from '../src/context/AppContext';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { lightColors as colors } from '../src/constants/colors';
-import { TaskEditModal } from '../src/components/TaskEditModal';
+import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
 
 const { width } = Dimensions.get('window');
 
-export default function GoalDetailScreen() {
-  const { goalId } = useLocalSearchParams();
+// --- THEME COLORS FOR TOP 3 ---
+const TOP_RANK_COLORS = {
+  1: { number: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' }, // Goldish
+  2: { number: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' }, // Silverish
+  3: { number: '#B45309', bg: '#FFF7ED', border: '#FFEDD5' }, // Bronzish
+};
+
+interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  streak: number;
+  isCurrentUser?: boolean;
+}
+
+export default function LeaderboardScreen() {
   const router = useRouter();
-  const { goals, tasks, updateTask, deleteGoal } = useApp();
-  
-  // State
-  const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [menuVisible, setMenuVisible] = useState(false);
 
-  // Safe data retrieval
-  const goal = useMemo(() => goals.find(g => g.id === goalId), [goals, goalId]);
-  const goalTasks = useMemo(() => tasks.filter(t => t.goalId === goalId), [tasks, goalId]);
-
-  const progress = useMemo(() => {
-    const completed = goalTasks.filter(t => t.status === 'completed').length;
-    return goalTasks.length > 0 ? (completed / goalTasks.length) * 100 : 0;
-  }, [goalTasks]);
-
-  const totalTime = useMemo(() => {
-    return goalTasks.reduce((acc, t) => acc + (t.duration || 0), 0);
-  }, [goalTasks]);
-
-  if (!goal) return null;
-
-  // --- Actions ---
-
-  const handleMenuPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setMenuVisible(true);
-  };
-
-  const closeMenu = () => {
-    setMenuVisible(false);
-  };
-
-  const handleRefine = () => {
-    setMenuVisible(false);
-    // Navigate to Input Screen with 'Edit Mode' parameters
-    router.push({
-      pathname: '/goal-input',
-      params: { 
-        initialText: goal.title, 
-        editingGoalId: goal.id 
-      }
-    });
-  };
-
-  const handleDelete = () => {
-    setMenuVisible(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    
-    Alert.alert(
-      "Abort Mission?",
-      "This will permanently delete the mission and all associated tasks. This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Abort", 
-          style: "destructive", 
-          onPress: () => {
-            deleteGoal(goal.id);
-            router.back();
-          }
-        }
-      ]
-    );
-  };
-
-  const handleStartSession = () => {
-    if (goalTasks.length > 0) {
-      // Find the first uncompleted task, or default to the first task if all are done (for replay)
-      const nextTask = goalTasks.find(t => t.status !== 'completed') || goalTasks[0];
-      
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Navigate to the Sentinel Focus Session
-      router.push({
-        pathname: '/focus-session',
-        params: { 
-          taskId: nextTask.id,
-          duration: nextTask.duration
-        }
-      });
-    } else {
-      Alert.alert("Mission Complete", "All tasks are already finished! Add more steps to continue.");
-    }
-  };
+  const leaderboardData: LeaderboardEntry[] = [
+    { rank: 1, name: 'Alex Vance', streak: 45 },
+    { rank: 2, name: 'Sam Kovalsky', streak: 32 },
+    { rank: 3, name: 'Jordan Mendoza', streak: 28 },
+    { rank: 4, name: 'You', streak: 12, isCurrentUser: true },
+    { rank: 5, name: 'Taylor Higgins', streak: 10 },
+    { rank: 6, name: 'Casey Miller', streak: 8 },
+    { rank: 7, name: 'Morgan Ross', streak: 5 },
+    { rank: 8, name: 'Riley Smith', streak: 3 },
+    { rank: 9, name: 'Jamie Doe', streak: 2 },
+    { rank: 10, name: 'Quinn T.', streak: 1 },
+  ];
 
   return (
-    <View style={styles.root}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         
-        {/* Header */}
+        {/* Header - Line removed */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => router.back()} 
-            style={styles.backButton}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ChevronLeft size={28} color={colors.text} />
           </TouchableOpacity>
-          
-          <View style={styles.headerRight}>
-            <TouchableOpacity 
-              style={styles.iconButton} 
-              onPress={handleMenuPress}
-              activeOpacity={0.7}
-            >
-                <MoreHorizontal size={24} color={colors.text} />
-            </TouchableOpacity>
+          <Text style={styles.headerTitle}>Global Streak</Text>
+          <View style={styles.flameContainer}>
+            <AnimatedStreakFlame onPress={() => {}} />
           </View>
         </View>
 
-        <ScrollView 
-            contentContainerStyle={styles.scrollContent} 
-            showsVerticalScrollIndicator={false}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-            {/* Title Section */}
-            <View style={styles.titleSection}>
-                <View style={styles.tagContainer}>
-                    <Target size={12} color={colors.primary} />
-                    <Text style={styles.tagText}>MISSION PARAMETERS</Text>
-                </View>
-                <Text style={styles.pageTitle}>{goal.title}</Text>
-                
-                <View style={styles.metaRow}>
-                    <Text style={styles.metaText}>{goalTasks.length} Steps</Text>
-                    <View style={styles.dot} />
-                    <Text style={styles.metaText}>{Math.round(totalTime / 60)}h {(totalTime % 60)}m Total Focus</Text>
-                </View>
-            </View>
+          {/* Original Podium Text */}
+          <View style={styles.podiumContainer}>
+            <Trophy size={40} color={colors.primary} strokeWidth={1.5} />
+            <Text style={styles.podiumText}>Keep the fire burning!</Text>
+          </View>
 
-            {/* Progress Card */}
-            <View style={styles.progressCard}>
-                <View style={styles.progressInfo}>
-                    <Text style={styles.progressLabel}>Completion Status</Text>
-                    <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
-                </View>
-                <View style={styles.progressBarBg}>
-                    <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-                </View>
-            </View>
-
-            {/* Task List */}
-            <View style={styles.taskList}>
-                <Text style={styles.sectionHeader}>Execution Steps</Text>
-                
-                {goalTasks.map((task, index) => (
-                    <Animated.View 
-                        key={task.id} 
-                        entering={FadeInDown.delay(index * 100).springify()}
-                        layout={Layout.springify()}
-                    >
-                        <TouchableOpacity 
-                            style={[
-                                styles.taskCard, 
-                                task.status === 'completed' && styles.taskCardDone
-                            ]}
-                            onPress={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                                setSelectedTask(task);
-                            }}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.checkContainer}>
-                                {task.status === 'completed' ? (
-                                    <CheckCircle2 size={24} color={colors.primary} fill={colors.primary} />
-                                ) : (
-                                    <Circle size={24} color="#E5E7EB" strokeWidth={2} />
-                                )}
-                            </View>
-
-                            <View style={styles.taskContent}>
-                                <Text 
-                                    style={[
-                                        styles.taskTitle, 
-                                        task.status === 'completed' && styles.taskTextDone
-                                    ]}
-                                >
-                                    {task.title}
-                                </Text>
-                                <View style={styles.taskMeta}>
-                                    <Clock size={12} color={colors.textSecondary} />
-                                    <Text style={styles.taskDuration}>{task.duration} min</Text>
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                    </Animated.View>
-                ))}
-            </View>
-        </ScrollView>
-
-        {/* Floating Action Button */}
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={styles.primaryBtn} 
-            activeOpacity={0.9}
-            onPress={handleStartSession}
-          >
-            <Text style={styles.primaryBtnText}>START SESSION</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Task Edit Modal */}
-        <TaskEditModal 
-          visible={!!selectedTask}
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-          onUpdate={(id: string, updates: any) => {
-            updateTask(id, updates);
-            setSelectedTask((prev: any) => ({ ...prev, ...updates }));
-          }}
-        />
-
-        {/* --- Dropdown Menu Modal --- */}
-        <Modal
-          visible={menuVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={closeMenu}
-        >
-          <TouchableWithoutFeedback onPress={closeMenu}>
-            <View style={styles.menuOverlay}>
+          {leaderboardData.map((entry, index) => {
+            const isTop3 = entry.rank <= 3;
+            const rankTheme = isTop3 ? TOP_RANK_COLORS[entry.rank as keyof typeof TOP_RANK_COLORS] : null;
+            
+            return (
               <Animated.View 
-                entering={FadeIn.duration(200)}
-                style={styles.menuContainer}
+                key={entry.rank}
+                entering={FadeInDown.delay(index * 50).springify()}
+                style={[
+                  styles.leaderboardRow,
+                  isTop3 && { backgroundColor: rankTheme?.bg, borderColor: rankTheme?.border },
+                  entry.isCurrentUser && styles.currentUserRow
+                ]}
               >
-                <TouchableOpacity style={styles.menuItem} onPress={handleRefine}>
-                  <Edit3 size={18} color={colors.text} />
-                  <Text style={styles.menuText}>Refine Directive</Text>
-                </TouchableOpacity>
-                <View style={styles.menuDivider} />
-                <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
-                  <Trash2 size={18} color={colors.error} />
-                  <Text style={[styles.menuText, { color: colors.error }]}>Abort Mission</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
+                {/* Rank Number with # */}
+                <View style={styles.rankContainer}>
+                  <Text style={[
+                    styles.rankNumber,
+                    isTop3 && { color: rankTheme?.number, fontWeight: '900' }
+                  ]}>
+                    #{entry.rank}
+                  </Text>
+                </View>
 
+                {/* Name */}
+                <View style={styles.nameContainer}>
+                  <Text style={[
+                    styles.nameText,
+                    entry.isCurrentUser && { color: colors.primary, fontWeight: '800' }
+                  ]}>
+                    {entry.name}
+                  </Text>
+                  {entry.isCurrentUser && (
+                    <View style={styles.youBadge}>
+                      <Text style={styles.youBadgeText}>YOU</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Streak Metric - High contrast */}
+                <View style={styles.streakContainer}>
+                  <Flame size={14} color={colors.textSecondary} />
+                  <Text style={styles.streakNumber}>
+                    {entry.streak}
+                  </Text>
+                </View>
+              </Animated.View>
+            );
+          })}
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
-  container: { flex: 1 },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingHorizontal: 20, 
-    paddingVertical: 12,
-    zIndex: 10,
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    height: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    // Removed borderBottomWidth to remove the line
   },
   backButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  headerRight: { flexDirection: 'row', gap: 12 },
-  iconButton: {
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  flameContainer: {
     width: 44,
-    height: 44,
+    alignItems: 'flex-end',
+  },
+  podiumContainer: {
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 22,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
+    paddingVertical: 20,
+    marginBottom: 10,
   },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 120 },
-  
-  titleSection: { marginVertical: 20 },
-  tagContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6, 
-    marginBottom: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6
+  podiumText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginTop: 8,
   },
-  tagText: { 
-    fontSize: 10, 
-    fontWeight: '800', 
-    color: colors.primary, 
-    letterSpacing: 1 
-  },
-  pageTitle: { 
-    fontSize: 28, 
-    fontWeight: '800', 
-    color: '#1A1A1A', 
-    marginBottom: 8,
-    lineHeight: 34
-  },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  metaText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB' },
-
-  progressCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  progressInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  progressLabel: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
-  progressPercent: { fontSize: 14, fontWeight: '800', color: colors.primary },
-  progressBarBg: { height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' },
-  progressBarFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 4 },
-
-  taskList: { gap: 16 },
-  sectionHeader: { 
-    fontSize: 14, 
-    fontWeight: '800', 
-    color: '#9CA3AF', 
-    textTransform: 'uppercase', 
-    letterSpacing: 1,
-    marginBottom: 8 
-  },
-  taskCard: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: 16, 
-    borderRadius: 16, 
-    backgroundColor: '#FFFFFF', 
-    borderWidth: 1, 
-    borderColor: '#F3F4F6', 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.03, 
-    shadowRadius: 8, 
-    elevation: 2 
-  },
-  taskCardDone: { opacity: 0.6, backgroundColor: '#FAFAFA' },
-  checkContainer: { marginRight: 16 },
-  taskContent: { flex: 1 },
-  taskTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A', marginBottom: 4 },
-  taskTextDone: { textDecorationLine: 'line-through', color: '#9CA3AF' },
-  taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  taskDuration: { fontSize: 12, fontWeight: '500', color: colors.textSecondary },
-
-  footer: { 
-    position: 'absolute', 
-    bottom: 0, 
-    left: 0, 
-    right: 0, 
-    padding: 24, 
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6'
-  },
-  primaryBtn: { 
-    backgroundColor: '#1A1A1A', 
-    paddingVertical: 18, 
-    borderRadius: 24, 
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5
-  },
-  primaryBtnText: { 
-    color: '#FFFFFF', 
-    fontSize: 16, 
-    fontWeight: '700', 
-    letterSpacing: 1 
-  },
-
-  // --- Menu Styles ---
-  menuOverlay: {
+  scrollView: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
-  menuContainer: {
-    position: 'absolute',
-    top: 110,
-    right: 24,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 8,
-    width: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
-  menuItem: {
+  leaderboardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 16,
-    gap: 12,
+    borderRadius: 20,
+    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+    elevation: 1,
   },
-  menuText: {
-    fontSize: 15,
+  currentUserRow: {
+    borderColor: colors.primary,
+    backgroundColor: '#FFFBF0', // Very subtle orange tint for user
+    borderWidth: 1,
+  },
+  rankContainer: {
+    width: 45,
+    marginRight: 12,
+    alignItems: 'center',
+  },
+  rankNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  nameContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  nameText: {
+    fontSize: 16,
     fontWeight: '600',
-    color: colors.text,
+    color: '#1A1A1A',
   },
-  menuDivider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 16,
+  youBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  youBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  streakContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  streakNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A1A1A', // Dark for visibility
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });
 </file>
@@ -10236,30 +10382,6 @@ services:
 
 volumes:
   postgres_data:
-</file>
-
-<file path="backend/prisma/schema.prisma">
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("users")
-}
 </file>
 
 <file path="backend/README.md">
@@ -10342,6 +10464,224 @@ npm start
 The server will run on `http://localhost:3000` (or the PORT specified in `.env`).
 </file>
 
+<file path="backend/src/index.ts">
+import express from 'express';
+import cors from 'cors';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+const app = express();
+
+const PORT = Number(process.env.PORT) || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// --- DATE HELPERS ---
+const isSameDay = (d1: Date, d2: Date) => {
+  return d1.toISOString().split('T')[0] === d2.toISOString().split('T')[0];
+};
+
+const isYesterday = (today: Date, past: Date) => {
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return isSameDay(yesterday, past);
+};
+
+// --- LOGGING ---
+app.use((req, res, next) => {
+  console.log(`\n📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// --- AUTH ROUTES ---
+
+app.post('/register', async (req, res) => {
+  const { email, name, password, onboardingData } = req.body;
+  try {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) return res.status(400).json({ error: 'User already exists' });
+
+    const user = await prisma.user.create({
+      data: { 
+        email, 
+        name: name || 'Operative', 
+        password, 
+        onboardingData 
+      },
+    });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to register' });
+  }
+});
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// --- USER ROUTES ---
+
+app.get('/users/:email', async (req, res) => {
+  const { email } = req.params;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { goals: { include: { tasks: true } } }
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    let tasksCrushed = 0;
+    let totalMinutes = 0;
+    user.goals.forEach(goal => {
+      goal.tasks.forEach(task => {
+        if (task.status === 'completed') {
+          tasksCrushed++;
+          totalMinutes += task.duration;
+        }
+      });
+    });
+
+    res.json({
+      ...user,
+      stats: {
+        tasksCrushed,
+        hoursFocused: (totalMinutes / 60).toFixed(1),
+        streak: user.currentStreak, // SOURCE OF TRUTH
+        level: Math.floor(tasksCrushed / 5) + 1
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// --- GOAL & TASK ROUTES ---
+
+app.post('/goals', async (req, res) => {
+  const { title, userEmail } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email: userEmail }});
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const goal = await prisma.goal.create({
+      data: { title, userId: user.id }
+    });
+    res.json(goal);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create goal' });
+  }
+});
+
+app.post('/goals/:goalId/tasks', async (req, res) => {
+  const { goalId } = req.params;
+  const { tasks } = req.body; 
+  try {
+    const dbTasks = tasks.map((task: any) => ({
+      title: task.title,
+      description: task.description || '',
+      duration: Number(task.duration) || 15,
+      status: 'queued',
+      goalId: goalId
+    }));
+
+    const createdTasks = await prisma.$transaction(
+      dbTasks.map((t: any) => prisma.task.create({ data: t }))
+    );
+    res.json(createdTasks);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add tasks' });
+  }
+});
+
+app.patch('/tasks/:taskId', async (req, res) => {
+  const { taskId } = req.params;
+  const updates = req.body; 
+  
+  try {
+    const cleanUpdates: any = {};
+    if (updates.status !== undefined) cleanUpdates.status = updates.status;
+    if (updates.completed === true) cleanUpdates.status = 'completed';
+
+    // 1. Update the Task
+    const task = await prisma.task.update({
+      where: { id: taskId },
+      data: cleanUpdates,
+      include: { goal: { include: { user: true } } }
+    });
+
+    // 2. Handle Streak Update
+    if (cleanUpdates.status === 'completed') {
+      const user = task.goal.user;
+      const today = new Date();
+      const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
+
+      let newStreak = user.currentStreak;
+
+      if (!lastActive) {
+        newStreak = 1; // First ever
+      } else if (isSameDay(today, lastActive)) {
+        newStreak = user.currentStreak; // No change if already active today
+      } else if (isYesterday(today, lastActive)) {
+        newStreak = user.currentStreak + 1; // Increment!
+      } else {
+        newStreak = 1; // Reset if missed a day
+      }
+
+      // Force update the User record immediately
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          currentStreak: newStreak,
+          lastActiveDate: today
+        }
+      });
+    }
+
+    res.json(task);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+// --- LEADERBOARD ROUTE ---
+
+app.get('/leaderboard', async (req, res) => {
+  try {
+    // Return EXACTLY what is in the DB
+    const users = await prisma.user.findMany({
+      orderBy: { currentStreak: 'desc' },
+      take: 10,
+      select: { id: true, name: true, currentStreak: true }
+    });
+
+    const leaderboard = users.map(user => ({
+      id: user.id,
+      name: user.name || 'Operative',
+      streak: user.currentStreak, // Ensure this matches User Route
+    }));
+    
+    res.json(leaderboard);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server ready at http://localhost:${PORT}`);
+});
+</file>
+
 <file path="backend/src/lib/prisma.ts">
 import { PrismaClient } from '@prisma/client';
 
@@ -10356,38 +10696,6 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
-</file>
-
-<file path="backend/src/prisma/seed.ts">
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-async function main() {
-  console.log('🌱 Starting database seed...');
-
-  // Create a dummy user
-  const user = await prisma.user.upsert({
-    where: { email: 'test@example.com' },
-    update: {},
-    create: {
-      email: 'test@example.com',
-      name: 'Test User',
-    },
-  });
-
-  console.log('✅ Created user:', user);
-  console.log('🎉 Seed completed!');
-}
-
-main()
-  .catch((e) => {
-    console.error('❌ Seed failed:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
 </file>
 
 <file path="backend/tsconfig.json">
@@ -10407,52 +10715,6 @@ main()
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
-}
-</file>
-
-<file path="package.json">
-{
-  "name": "productivity-ai",
-  "version": "1.0.0",
-  "main": "expo-router/entry",
-  "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
-  },
-  "dependencies": {
-    "@react-native-async-storage/async-storage": "^2.2.0",
-    "@shopify/react-native-skia": "^2.4.14",
-    "babel-preset-expo": "~54.0.9",
-    "expo": "~54.0.0",
-    "expo-haptics": "^15.0.8",
-    "expo-keep-awake": "~15.0.8",
-    "expo-linking": "~8.0.11",
-    "expo-network": "~8.0.8",
-    "expo-router": "~6.0.21",
-    "expo-sensors": "~15.0.8",
-    "expo-status-bar": "~3.0.9",
-    "lottie-react-native": "~7.3.1",
-    "lucide-react-native": "^0.562.0",
-    "moti": "^0.30.0",
-    "react": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-confetti-cannon": "^1.5.2",
-    "react-native-gesture-handler": "~2.28.0",
-    "react-native-reanimated": "~4.1.1",
-    "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0",
-    "react-native-svg": "15.12.1",
-    "react-native-worklets": "0.5.1",
-    "react-native-worklets-core": "^1.6.2"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.24.0",
-    "@types/react": "~19.1.10",
-    "typescript": "^5.3.3"
-  },
-  "private": true
 }
 </file>
 
@@ -11812,60 +12074,84 @@ const styles = StyleSheet.create({
 </file>
 
 <file path="src/components/LeaderboardModal.tsx">
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ScrollView,
-  Dimensions,
-  SafeAreaView,
+  View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator
 } from 'react-native';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  ZoomIn,
-  ZoomOut,
-} from 'react-native-reanimated';
-import { X, Trophy, Flame } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import { X, Flame } from 'lucide-react-native';
+import { apiService } from '../services/api';
+import { useApp } from '../context/AppContext';
 
 const { height } = Dimensions.get('window');
 
 interface LeaderboardEntry {
-  rank: number;
+  id: string;
   name: string;
   streak: number;
-  isCurrentUser?: boolean;
+  rank: number;
+  isCurrentUser: boolean;
 }
 
 interface LeaderboardModalProps {
   visible: boolean;
   onClose: () => void;
-  currentStreak?: number;
 }
 
-export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
-  visible,
-  onClose,
-  currentStreak = 12,
-}) => {
-  // Dummy leaderboard data
-  const leaderboardData: LeaderboardEntry[] = [
-    { rank: 1, name: 'Alex', streak: 45 },
-    { rank: 2, name: 'Sam', streak: 32 },
-    { rank: 3, name: 'Jordan', streak: 28 },
-    { rank: 4, name: 'You', streak: currentStreak, isCurrentUser: true },
-    { rank: 5, name: 'Taylor', streak: 10 },
-    { rank: 6, name: 'Casey', streak: 8 },
-    { rank: 7, name: 'Morgan', streak: 5 },
-  ];
+export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({ visible, onClose }) => {
+  const { user } = useApp();
+  const [data, setData] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUserEntry, setCurrentUserEntry] = useState<LeaderboardEntry | null>(null);
 
-  const handleClose = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onClose();
+  useEffect(() => {
+    if (visible) {
+      setLoading(true);
+      fetchData();
+    }
+  }, [visible]);
+
+  const fetchData = async () => {
+    try {
+      // 1. Fetch Global Leaderboard
+      const leaderboard = await apiService.getLeaderboard();
+      
+      // 2. Map and Rank data
+      const rankedData: LeaderboardEntry[] = leaderboard.map((item: any, index: number) => {
+        const isMe = user ? item.id === user.id : false;
+        return {
+          id: item.id,
+          // FIX: Use context name if it's me, otherwise use server name
+          name: isMe && user?.name ? user.name : item.name,
+          streak: item.streak,
+          rank: index + 1,
+          isCurrentUser: isMe
+        };
+      });
+
+      // 3. Check if current user is in top 10
+      const meInTop10 = rankedData.find(d => d.isCurrentUser);
+
+      // 4. If not in top 10, fetch my own profile to display my stats at bottom
+      if (!meInTop10 && user?.email) {
+        const myProfile = await apiService.getUserProfile(user.email);
+        setCurrentUserEntry({
+          id: user.id,
+          name: user.name || 'Me', // Use local name
+          streak: myProfile.stats?.streak || 0, // Get fresh streak from profile stats
+          rank: 0, 
+          isCurrentUser: true
+        });
+      } else {
+        setCurrentUserEntry(null);
+      }
+
+      setData(rankedData);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getRankIcon = (rank: number) => {
@@ -11875,98 +12161,91 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
     return null;
   };
 
-  // Ensure we don't render anything if not visible to save resources
   if (!visible) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={handleClose}
-      statusBarTranslucent
-    >
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.overlayContainer}>
-        {/* Dark Overlay Background */}
-        <Animated.View 
-          entering={FadeIn.duration(200)} 
-          exiting={FadeOut.duration(200)}
-          style={styles.backdrop} 
-        >
-          <TouchableOpacity 
-            style={StyleSheet.absoluteFill} 
-            onPress={handleClose} 
-            activeOpacity={1} 
-          />
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.backdrop}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
         </Animated.View>
 
-        {/* Modal Content */}
-        <Animated.View 
-          entering={ZoomIn.duration(300).damping(15)} 
-          exiting={ZoomOut.duration(200)}
-          style={styles.modalContainer}
-        >
-          {/* Header */}
+        <Animated.View entering={ZoomIn} exiting={ZoomOut} style={styles.modalContainer}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Flame size={24} color="#FF4500" fill="#FF4500" />
               <Text style={styles.headerTitle}>Global Streak</Text>
             </View>
-            <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
-          {/* Leaderboard List */}
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {leaderboardData.map((entry) => (
-              <View
-                key={entry.rank}
-                style={[
-                  styles.leaderboardRow,
-                  entry.isCurrentUser && styles.currentUserRow,
-                ]}
-              >
-                <View style={styles.rankContainer}>
-                  {getRankIcon(entry.rank) ? (
-                    <Text style={styles.rankIcon}>{getRankIcon(entry.rank)}</Text>
-                  ) : (
-                    <Text style={styles.rankNumber}>{entry.rank}</Text>
-                  )}
-                </View>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color="#FF4500" size="large" />
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+                {data.map((entry) => (
+                  <View key={entry.id} style={[styles.leaderboardRow, entry.isCurrentUser && styles.currentUserRow]}>
+                    <View style={styles.rankContainer}>
+                      {getRankIcon(entry.rank) ? (
+                        <Text style={styles.rankIcon}>{getRankIcon(entry.rank)}</Text>
+                      ) : (
+                        <Text style={styles.rankNumber}>{entry.rank}</Text>
+                      )}
+                    </View>
+                    <View style={styles.nameContainer}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {/* FIX: Displays Real Name */}
+                        <Text style={[styles.nameText, entry.isCurrentUser && styles.currentUserName]}>
+                          {entry.name}
+                        </Text>
+                        
+                        {/* Badge says "YOU" separately */}
+                        {entry.isCurrentUser && (
+                          <View style={styles.youBadge}>
+                            <Text style={styles.youText}>YOU</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.streakContainer}>
+                      <Flame size={14} color="#FF4500" />
+                      <Text style={styles.streakNumber}>{entry.streak}</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
 
-                <View style={styles.nameContainer}>
-                  <Text
-                    style={[
-                      styles.nameText,
-                      entry.isCurrentUser && styles.currentUserName,
-                    ]}
-                  >
-                    {entry.name}
-                  </Text>
-                  {entry.isCurrentUser && (
-                    <Text style={styles.currentUserLabel}>You</Text>
-                  )}
+              {/* Sticky User Row (If not in top 10) */}
+              {currentUserEntry && (
+                <View style={styles.stickyUserContainer}>
+                  <View style={[styles.leaderboardRow, styles.currentUserRow, { marginBottom: 0 }]}>
+                    <View style={styles.rankContainer}>
+                      <Text style={styles.rankNumber}>--</Text>
+                    </View>
+                    <View style={styles.nameContainer}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={[styles.nameText, styles.currentUserName]}>
+                          {currentUserEntry.name}
+                        </Text>
+                        <View style={styles.youBadge}>
+                          <Text style={styles.youText}>YOU</Text>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={styles.streakContainer}>
+                      <Flame size={14} color="#FF4500" />
+                      <Text style={styles.streakNumber}>{currentUserEntry.streak}</Text>
+                    </View>
+                  </View>
                 </View>
-
-                <View style={styles.streakContainer}>
-                  <Flame size={14} color="#FF4500" />
-                  <Text style={styles.streakNumber}>{entry.streak}</Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              🔥 Keep your streak alive to climb the ranks!
-            </Text>
-          </View>
+              )}
+            </View>
+          )}
         </Animated.View>
       </View>
     </Modal>
@@ -11974,137 +12253,41 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  overlayContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    // On Android, we want the modal to sit at the bottom but not cover the whole screen
-    zIndex: 1000,
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-  },
-  modalContainer: {
+  overlayContainer: { flex: 1, justifyContent: 'flex-end', zIndex: 1000 },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.6)' },
+  modalContainer: { backgroundColor: '#1A1A1A', borderTopLeftRadius: 32, borderTopRightRadius: 32, height: height * 0.75, borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.1)', overflow: 'hidden' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 24, borderBottomWidth: 1, borderBottomColor: 'rgba(255, 255, 255, 0.05)' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
+  closeButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255, 255, 255, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 100 }, // Extra padding for sticky footer
+  leaderboardRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, marginBottom: 8, backgroundColor: 'rgba(255, 255, 255, 0.03)' },
+  currentUserRow: { backgroundColor: 'rgba(255, 69, 0, 0.15)', borderWidth: 1, borderColor: 'rgba(255, 69, 0, 0.3)' },
+  rankContainer: { width: 30, alignItems: 'center', marginRight: 12 },
+  rankIcon: { fontSize: 20 },
+  rankNumber: { fontSize: 16, fontWeight: '700', color: '#6B7280', fontFamily: 'monospace' },
+  nameContainer: { flex: 1 },
+  nameText: { fontSize: 16, fontWeight: '600', color: '#E5E7EB' },
+  currentUserName: { color: '#FFFFFF', fontWeight: '700' },
+  youBadge: { backgroundColor: '#FF4500', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  youText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  streakContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.2)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  streakNumber: { fontSize: 16, fontWeight: '700', color: '#FF4500', fontFamily: 'monospace' },
+  
+  // Sticky footer style
+  stickyUserContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
     backgroundColor: '#1A1A1A',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    height: height * 0.75, // Take up 75% of screen
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 20,
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-  },
-  leaderboardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    marginBottom: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-  },
-  currentUserRow: {
-    backgroundColor: 'rgba(255, 69, 0, 0.1)', // Orange tint
-    borderWidth: 1,
-    borderColor: 'rgba(255, 69, 0, 0.3)',
-  },
-  rankContainer: {
-    width: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  rankIcon: {
-    fontSize: 20,
-  },
-  rankNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#6B7280',
-    fontFamily: 'monospace',
-  },
-  nameContainer: {
-    flex: 1,
-  },
-  nameText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#E5E7EB',
-  },
-  currentUserName: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  currentUserLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#FF4500',
-    marginTop: 2,
-    textTransform: 'uppercase',
-  },
-  streakContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  streakNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FF4500',
-    fontFamily: 'monospace',
-  },
-  footer: {
-    padding: 24,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    alignItems: 'center',
-  },
-  footerText: {
-    color: '#9CA3AF',
-    fontSize: 13,
-    fontWeight: '500',
-  },
+    elevation: 10,
+  }
 });
 </file>
 
@@ -13359,50 +13542,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/config/api.ts">
-import { Platform } from 'react-native';
-import * as Network from 'expo-network';
-
-// For development: Replace this with your computer's local IP address
-// To find your IP:
-// - Windows: ipconfig (look for IPv4 Address under your active network adapter)
-// - Mac/Linux: ifconfig or ip addr (look for inet under your active network adapter)
-// Example: '192.168.1.100'
-const LOCAL_IP = '192.168.1.100'; // ⚠️ CHANGE THIS TO YOUR LOCAL IP ADDRESS
-
-const BACKEND_PORT = 3000;
-
-// Determine the API base URL
-export const getApiUrl = () => {
-  if (typeof __DEV__ !== 'undefined' && __DEV__) {
-    // In development, use your local IP address
-    return `http://${LOCAL_IP}:${BACKEND_PORT}`;
-  } else {
-    // In production, use your deployed backend URL
-    return 'https://your-production-api.com';
-  }
-};
-
-export const API_BASE_URL = getApiUrl();
-
-// Helper function to get network info (for debugging)
-export const getNetworkInfo = async () => {
-  try {
-    const ipAddress = await Network.getIpAddressAsync();
-    return {
-      ipAddress,
-      apiUrl: API_BASE_URL,
-    };
-  } catch (error) {
-    console.error('Error getting network info:', error);
-    return {
-      ipAddress: 'unknown',
-      apiUrl: API_BASE_URL,
-    };
-  }
-};
-</file>
-
 <file path="src/constants/colors.ts">
 export const lightColors = {
   // Backgrounds - Set to Pure White
@@ -13630,62 +13769,6 @@ export const mockTasks: Task[] = [
 ];
 </file>
 
-<file path="src/services/api.ts">
-import { API_BASE_URL } from '../config/api';
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-class ApiService {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = API_BASE_URL;
-  }
-
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error(`API Error (${endpoint}):`, error);
-      throw error;
-    }
-  }
-
-  async getUsers(): Promise<User[]> {
-    return this.request<User[]>('/users');
-  }
-
-  async healthCheck(): Promise<{ status: string; message: string }> {
-    return this.request<{ status: string; message: string }>('/health');
-  }
-}
-
-export const apiService = new ApiService();
-</file>
-
 <file path="src/types/index.ts">
 export interface Goal {
   id: string;
@@ -13746,357 +13829,463 @@ export interface ProductivityRating {
 }
 </file>
 
-<file path="app/goal-input.tsx">
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-  Dimensions,
+<file path="app/goal-detail.tsx">
+import React, { useMemo, useState } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  Dimensions, 
+  Modal, 
+  TouchableWithoutFeedback,
+  Alert
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { 
+  ChevronLeft, 
+  CheckCircle2, 
+  Circle, 
+  Clock, 
+  Target, 
+  MoreHorizontal, 
+  Trash2, 
+  Edit3
+} from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { MotiView } from 'moti';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
-import { Sparkles, ArrowRight, Save } from 'lucide-react-native';
+import Animated, { FadeInDown, FadeIn, Layout } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
-import { TaskStagingModal } from '../src/components/TaskStagingModal';
-import { BottomNav } from '../src/components/BottomNav'; 
+import { TaskEditModal } from '../src/components/TaskEditModal';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
+const { width } = Dimensions.get('window');
 
-export default function GoalInputScreen() {
-  const { initialText, editingGoalId } = useLocalSearchParams();
-  const isEditing = !!editingGoalId;
-
-  const [goal, setGoal] = useState(initialText ? (initialText as string) : '');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const [isStagingVisible, setIsStagingVisible] = useState(false);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  
+export default function GoalDetailScreen() {
+  const { goalId } = useLocalSearchParams();
   const router = useRouter();
-  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks } = useApp();
+  const { goals, tasks, updateTask, deleteGoal } = useApp();
   
-  const borderOpacity = useSharedValue(0);
-  const submitButtonOpacity = useSharedValue(0);
+  // State
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
 
-  useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
+  // Safe data retrieval
+  const goal = useMemo(() => goals.find(g => g.id === goalId), [goals, goalId]);
+  const goalTasks = useMemo(() => tasks.filter(t => t.goalId === goalId), [tasks, goalId]);
 
-  useEffect(() => {
-    if (initialText) {
-      setGoal(initialText as string);
-      submitButtonOpacity.value = withSpring(1);
-    }
-  }, [initialText]);
+  const progress = useMemo(() => {
+    const completed = goalTasks.filter(t => t.status === 'completed').length;
+    return goalTasks.length > 0 ? (completed / goalTasks.length) * 100 : 0;
+  }, [goalTasks]);
 
-  const borderAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      shadowOpacity: 0.1 + borderOpacity.value * 0.4,
-      shadowRadius: 12 + borderOpacity.value * 8,
-      borderWidth: 1 + borderOpacity.value,
-    };
-  });
+  const totalTime = useMemo(() => {
+    return goalTasks.reduce((acc, t) => acc + (t.duration || 0), 0);
+  }, [goalTasks]);
 
-  const submitButtonStyle = useAnimatedStyle(() => {
-    return {
-      opacity: submitButtonOpacity.value,
-      transform: [{ scale: submitButtonOpacity.value }],
-    };
-  });
+  if (!goal) return null;
 
-  const handleSubmit = async () => {
-    if (!goal.trim()) return;
-    setIsLoading(true);
-    Keyboard.dismiss();
+  // --- Actions ---
 
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsStagingVisible(true);
-    }, 1500);
+  const handleMenuPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMenuVisible(true);
   };
 
-  const handleFinalConfirm = (finalTasks: any[]) => {
-    setIsStagingVisible(false);
-    
-    if (isEditing) {
-      const id = editingGoalId as string;
-      updateGoal(id, { title: goal.trim() });
-      overrideTasks(id, finalTasks);
-      router.back();
-    } else {
-      const newGoal = addGoal(goal.trim());
-      addTasks(newGoal.id, finalTasks);
-      setCurrentGoal(newGoal);
-      
-      // Use back() to reverse the entry animation
-      if (router.canGoBack()) {
-        router.back(); 
-      } else {
-        router.replace('/home');
+  const closeMenu = () => {
+    setMenuVisible(false);
+  };
+
+  const handleRefine = () => {
+    setMenuVisible(false);
+    // Navigate to Input Screen with 'Edit Mode' parameters
+    router.push({
+      pathname: '/goal-input',
+      params: { 
+        initialText: goal.title, 
+        editingGoalId: goal.id 
       }
-    }
+    });
   };
 
-  const handleInputFocus = () => {
-    setIsInputFocused(true);
-    borderOpacity.value = withTiming(1, { duration: 300 });
-    submitButtonOpacity.value = withSpring(1, { damping: 20, stiffness: 100 });
+  const handleDelete = () => {
+    setMenuVisible(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    
+    Alert.alert(
+      "Abort Mission?",
+      "This will permanently delete the mission and all associated tasks. This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Abort", 
+          style: "destructive", 
+          onPress: () => {
+            deleteGoal(goal.id);
+            router.back();
+          }
+        }
+      ]
+    );
   };
 
-  const handleInputBlur = () => {
-    setIsInputFocused(false);
-    borderOpacity.value = withTiming(0, { duration: 300 });
-    if (!goal.trim()) {
-      submitButtonOpacity.value = withSpring(0, { damping: 20, stiffness: 100 });
+  const handleStartSession = () => {
+    if (goalTasks.length > 0) {
+      // Find the first uncompleted task, or default to the first task if all are done (for replay)
+      const nextTask = goalTasks.find(t => t.status !== 'completed') || goalTasks[0];
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // Navigate to the Sentinel Focus Session
+      router.push({
+        pathname: '/focus-session',
+        params: { 
+          taskId: nextTask.id,
+          duration: nextTask.duration
+        }
+      });
+    } else {
+      Alert.alert("Mission Complete", "All tasks are already finished! Add more steps to continue.");
     }
   };
 
   return (
     <View style={styles.root}>
-      <KeyboardAvoidingView
-        style={[styles.container, { backgroundColor: '#FFFFFF' }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <StatusBar style="dark" />
-
-        <View style={styles.centeredContainer}>
-          <MotiView
-            from={{ opacity: 0, translateY: -20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 600 }}
+      <StatusBar style="dark" />
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={styles.backButton}
+            activeOpacity={0.7}
           >
-            <Text style={[styles.title, { color: colors.text }]}>
-              {isEditing ? "Refine Mission Directive" : "What is your main goal right now?"}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {isEditing 
-                ? "Update your objective to re-calculate optimal tasks." 
-                : "Enter a goal and we'll break it down into actionable steps"}
-            </Text>
-          </MotiView>
-
-          <MotiView
-            from={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'timing', duration: 600, delay: 200 }}
-          >
-            <Animated.View 
-              style={[
-                styles.inputCard, 
-                borderAnimatedStyle,
-                isInputFocused && { 
-                  borderColor: colors.primary,
-                  shadowColor: colors.primary,
-                }
-              ]}
+            <ChevronLeft size={28} color={colors.text} />
+          </TouchableOpacity>
+          
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              style={styles.iconButton} 
+              onPress={handleMenuPress}
+              activeOpacity={0.7}
             >
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="e.g., Launch my dropshipping store"
-                  placeholderTextColor={colors.textLight}
-                  value={goal}
-                  onChangeText={setGoal}
-                  onFocus={handleInputFocus}
-                  onBlur={handleInputBlur}
-                  multiline
-                  editable={!isLoading}
-                  textAlignVertical="top"
-                />
-              </View>
-              
-              <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
-                <TouchableOpacity
-                  style={[
-                    styles.submitButton, 
-                    { backgroundColor: colors.primary, shadowColor: colors.primary },
-                    (!goal.trim() || isLoading) && styles.submitButtonDisabled
-                  ]}
-                  onPress={handleSubmit}
-                  disabled={!goal.trim() || isLoading}
-                  activeOpacity={0.8}
-                >
-                  {isEditing ? (
-                    <Save size={20} color="#FFFFFF" />
-                  ) : (
-                    <ArrowRight size={20} color="#FFFFFF" />
-                  )}
+                <MoreHorizontal size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView 
+            contentContainerStyle={styles.scrollContent} 
+            showsVerticalScrollIndicator={false}
+        >
+            {/* Title Section */}
+            <View style={styles.titleSection}>
+                <View style={styles.tagContainer}>
+                    <Target size={12} color={colors.primary} />
+                    <Text style={styles.tagText}>MISSION PARAMETERS</Text>
+                </View>
+                <Text style={styles.pageTitle}>{goal.title}</Text>
+                
+                <View style={styles.metaRow}>
+                    <Text style={styles.metaText}>{goalTasks.length} Steps</Text>
+                    <View style={styles.dot} />
+                    <Text style={styles.metaText}>{Math.round(totalTime / 60)}h {(totalTime % 60)}m Total Focus</Text>
+                </View>
+            </View>
+
+            {/* Progress Card */}
+            <View style={styles.progressCard}>
+                <View style={styles.progressInfo}>
+                    <Text style={styles.progressLabel}>Completion Status</Text>
+                    <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
+                </View>
+                <View style={styles.progressBarBg}>
+                    <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+                </View>
+            </View>
+
+            {/* Task List */}
+            <View style={styles.taskList}>
+                <Text style={styles.sectionHeader}>Execution Steps</Text>
+                
+                {goalTasks.map((task, index) => (
+                    <Animated.View 
+                        key={task.id} 
+                        entering={FadeInDown.delay(index * 100).springify()}
+                        layout={Layout.springify()}
+                    >
+                        <TouchableOpacity 
+                            style={[
+                                styles.taskCard, 
+                                task.status === 'completed' && styles.taskCardDone
+                            ]}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                setSelectedTask(task);
+                            }}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.checkContainer}>
+                                {task.status === 'completed' ? (
+                                    <CheckCircle2 size={24} color={colors.primary} fill={colors.primary} />
+                                ) : (
+                                    <Circle size={24} color="#E5E7EB" strokeWidth={2} />
+                                )}
+                            </View>
+
+                            <View style={styles.taskContent}>
+                                <Text 
+                                    style={[
+                                        styles.taskTitle, 
+                                        task.status === 'completed' && styles.taskTextDone
+                                    ]}
+                                >
+                                    {task.title}
+                                </Text>
+                                <View style={styles.taskMeta}>
+                                    <Clock size={12} color={colors.textSecondary} />
+                                    <Text style={styles.taskDuration}>{task.duration} min</Text>
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                    </Animated.View>
+                ))}
+            </View>
+        </ScrollView>
+
+        {/* Floating Action Button */}
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={styles.primaryBtn} 
+            activeOpacity={0.9}
+            onPress={handleStartSession}
+          >
+            <Text style={styles.primaryBtnText}>START SESSION</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Task Edit Modal */}
+        <TaskEditModal 
+          visible={!!selectedTask}
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={(id: string, updates: any) => {
+            updateTask(id, updates);
+            setSelectedTask((prev: any) => ({ ...prev, ...updates }));
+          }}
+        />
+
+        {/* --- Dropdown Menu Modal --- */}
+        <Modal
+          visible={menuVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeMenu}
+        >
+          <TouchableWithoutFeedback onPress={closeMenu}>
+            <View style={styles.menuOverlay}>
+              <Animated.View 
+                entering={FadeIn.duration(200)}
+                style={styles.menuContainer}
+              >
+                <TouchableOpacity style={styles.menuItem} onPress={handleRefine}>
+                  <Edit3 size={18} color={colors.text} />
+                  <Text style={styles.menuText}>Refine Directive</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
+                  <Trash2 size={18} color={colors.error} />
+                  <Text style={[styles.menuText, { color: colors.error }]}>Abort Mission</Text>
                 </TouchableOpacity>
               </Animated.View>
-            </Animated.View>
-          </MotiView>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
 
-          {isLoading && (
-            <MotiView
-              from={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ type: 'timing', duration: 300 }}
-              style={styles.loadingContainer}
-            >
-              <MotiView
-                from={{ rotate: '0deg' }}
-                animate={{ rotate: '360deg' }}
-                transition={{ type: 'timing', duration: 2000, loop: true }}
-              >
-                <Sparkles size={32} color={colors.primary} />
-              </MotiView>
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                {isEditing ? "Recalculating mission parameters..." : "Analyzing mission parameters..."}
-              </Text>
-            </MotiView>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-
-      <TaskStagingModal
-        visible={isStagingVisible}
-        goalTitle={goal}
-        onConfirm={handleFinalConfirm}
-        onClose={() => setIsStagingVisible(false)}
-      />
-
-      {/* Pill Dashboard Navigation - Shows when keyboard is hidden */}
-      {!isKeyboardVisible && <BottomNav activeTab="GoalInput" />}
+      </SafeAreaView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1 },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingHorizontal: 20, 
+    paddingVertical: 12,
+    zIndex: 10,
   },
-  container: {
-    flex: 1,
-  },
-  centeredContainer: {
-    flex: 1,
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerRight: { flexDirection: 'row', gap: 12 },
+  iconButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 120 },
+  
+  titleSection: { marginVertical: 20 },
+  tagContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6, 
+    marginBottom: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6
+  },
+  tagText: { 
+    fontSize: 10, 
+    fontWeight: '800', 
+    color: colors.primary, 
+    letterSpacing: 1 
+  },
+  pageTitle: { 
+    fontSize: 28, 
+    fontWeight: '800', 
+    color: '#1A1A1A', 
+    marginBottom: 8,
+    lineHeight: 34
+  },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metaText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB' },
+
+  progressCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
     padding: 20,
-    width: '100%',
-    paddingBottom: 100,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  title: {
-    fontSize: 30,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 38,
-    letterSpacing: -0.5,
+  progressInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  progressLabel: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
+  progressPercent: { fontSize: 14, fontWeight: '800', color: colors.primary },
+  progressBarBg: { height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 4 },
+
+  taskList: { gap: 16 },
+  sectionHeader: { 
+    fontSize: 14, 
+    fontWeight: '800', 
+    color: '#9CA3AF', 
+    textTransform: 'uppercase', 
+    letterSpacing: 1,
+    marginBottom: 8 
   },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 40,
-    lineHeight: 24,
+  taskCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 16, 
+    borderRadius: 16, 
+    backgroundColor: '#FFFFFF', 
+    borderWidth: 1, 
+    borderColor: '#F3F4F6', 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.03, 
+    shadowRadius: 8, 
+    elevation: 2 
   },
-  inputCard: {
-    width: INPUT_CARD_WIDTH,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(245, 158, 11, 0.2)',
-    backgroundColor: '#F9F9F9',
-    position: 'relative',
+  taskCardDone: { opacity: 0.6, backgroundColor: '#FAFAFA' },
+  checkContainer: { marginRight: 16 },
+  taskContent: { flex: 1 },
+  taskTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A', marginBottom: 4 },
+  taskTextDone: { textDecorationLine: 'line-through', color: '#9CA3AF' },
+  taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  taskDuration: { fontSize: 12, fontWeight: '500', color: colors.textSecondary },
+
+  footer: { 
+    position: 'absolute', 
+    bottom: 0, 
+    left: 0, 
+    right: 0, 
+    padding: 24, 
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6'
+  },
+  primaryBtn: { 
+    backgroundColor: '#1A1A1A', 
+    paddingVertical: 18, 
+    borderRadius: 24, 
+    alignItems: 'center',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-    minHeight: 140,
-    alignSelf: 'center',
-    overflow: 'hidden',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5
   },
-  inputWrapper: {
-    width: '100%',
+  primaryBtnText: { 
+    color: '#FFFFFF', 
+    fontSize: 16, 
+    fontWeight: '700', 
+    letterSpacing: 1 
   },
-  input: {
-    width: '100%',
-    padding: 20,
-    paddingBottom: 60,
-    fontSize: 18,
-    borderWidth: 0,
+
+  // --- Menu Styles ---
+  menuOverlay: {
+    flex: 1,
     backgroundColor: 'transparent',
-    minHeight: 120,
-    maxHeight: 250,
   },
-  submitButtonContainer: {
+  menuContainer: {
     position: 'absolute',
-    bottom: 16,
-    right: 16,
+    top: 110,
+    right: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 8,
+    width: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
-  submitButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+  menuItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    elevation: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
   },
-  submitButtonDisabled: {
-    opacity: 0.5,
+  menuText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
   },
-  loadingContainer: {
-    alignItems: 'center',
-    marginTop: 30,
-  },
-  loadingText: {
-    fontSize: 16,
-    marginTop: 16,
-    textAlign: 'center',
-    fontWeight: '500',
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginHorizontal: 16,
   },
 });
-</file>
-
-<file path="app/onboarding.tsx">
-import React, { useEffect } from 'react';
-import { View } from 'react-native';
-import { OnboardingWizard, OnboardingData } from '../src/components/OnboardingWizard';
-import { useRouter } from 'expo-router';
-
-export default function OnboardingScreen() {
-  const router = useRouter();
-
-  useEffect(() => {
-    console.log("OnboardingScreen: Mounted");
-  }, []);
-
-  const handleComplete = async (data: OnboardingData) => {
-    console.log("OnboardingScreen: handleComplete triggered", data);
-    
-    // Safety delay
-    setTimeout(() => {
-        console.log("OnboardingScreen: Attempting navigation to /home");
-        try {
-            router.replace('/home');
-        } catch (e) {
-            console.error("OnboardingScreen: Navigation failed", e);
-        }
-    }, 500);
-  };
-
-  return <OnboardingWizard onComplete={handleComplete} />;
-}
 </file>
 
 <file path="app/welcome.tsx">
@@ -14298,6 +14487,14 @@ export default function WelcomeScreen() {
     router.replace('/ghost-hours');
   };
 
+  const handleLogin = () => {
+    // Navigate to Auth screen with login mode parameter
+    router.push({
+      pathname: '/auth',
+      params: { mode: 'login' }
+    });
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#FFFFFF' }]}>
       <StatusBar style="dark" />
@@ -14436,7 +14633,11 @@ export default function WelcomeScreen() {
             <Text style={[styles.loginText, { color: colors.textSecondary }]}>
               Already have an account?{' '}
             </Text>
-            <TouchableOpacity onPress={handleGetStarted}>
+            <TouchableOpacity 
+              onPress={handleLogin}
+              activeOpacity={0.6}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Text style={[styles.loginLinkText, { color: colors.primary }]}>
                 Log in
               </Text>
@@ -14616,6 +14817,138 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+</file>
+
+<file path="backend/prisma/schema.prisma">
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  name           String?
+  password       String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // --- NEW FIELDS FOR LEADERBOARD ---
+  currentStreak  Int      @default(0)
+  lastActiveDate DateTime? 
+  // ----------------------------------
+
+  onboardingData Json?
+  goals          Goal[]
+}
+
+// ... Keep Goal and Task models exactly the same
+model Goal {
+  id        String   @id @default(uuid())
+  title     String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tasks     Task[]
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  duration    Int
+  status      String   @default("queued")
+  order       Int      @default(0) // Added this back if missing, good for sorting
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  goalId      String
+  goal        Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+}
+</file>
+
+<file path="backend/src/prisma/seed.ts">
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('🌱 Starting database seed...');
+
+  // Create a dummy user
+  const user = await prisma.user.upsert({
+    where: { email: 'test@example.com' },
+    update: {},
+    create: {
+      email: 'test@example.com',
+      name: 'Test User',
+      password: 'password123', // <--- We added this!
+    },
+  });
+
+  console.log('✅ Created user:', user);
+  console.log('🎉 Seed completed!');
+}
+
+main()
+  .catch((e) => {
+    console.error('❌ Seed failed:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+</file>
+
+<file path="package.json">
+{
+  "name": "productivity-ai",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@shopify/react-native-skia": "^2.4.14",
+    "babel-preset-expo": "~54.0.9",
+    "expo": "~54.0.0",
+    "expo-haptics": "^15.0.8",
+    "expo-keep-awake": "~15.0.8",
+    "expo-linking": "~8.0.11",
+    "expo-network": "~8.0.8",
+    "expo-router": "~6.0.21",
+    "expo-sensors": "~15.0.8",
+    "expo-status-bar": "~3.0.9",
+    "lottie-react-native": "~7.3.1",
+    "lucide-react-native": "^0.562.0",
+    "moti": "^0.30.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-confetti-cannon": "^1.5.2",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-worklets": "0.5.1",
+    "react-native-worklets-core": "^1.6.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/react": "~19.1.10",
+    "typescript": "^5.3.3"
+  },
+  "private": true
+}
 </file>
 
 <file path="src/components/GhostHoursCalculator.tsx">
@@ -15834,48 +16167,588 @@ const styles = StyleSheet.create({
 export default TaskReactorCircle;
 </file>
 
+<file path="src/config/api.ts">
+export const API_BASE_URL = 'https://emile-actiniform-omer.ngrok-free.dev';
+</file>
+
+<file path="src/services/api.ts">
+import { API_BASE_URL } from '../config/api';
+
+// 1. HEADERS
+const getHeaders = () => {
+  return {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+    'User-Agent': 'ProductivityAI-Mobile',
+  };
+};
+
+// 2. IMPROVED RESPONSE HANDLER
+const handleResponse = async (response: Response) => {
+  const text = await response.text();
+
+  // Check for HTML response (Ngrok error page)
+  if (text.trim().startsWith('<')) {
+    console.log('🛑 BLOCKED HTML RESPONSE');
+    throw new Error('Server connection error. Check your terminal.');
+  }
+
+  // If response is NOT ok (like 400, 401, 500)
+  if (!response.ok) {
+    let errorMessage = `Request failed: ${response.status}`;
+    try {
+      // Try to parse the backend JSON error: { error: "Invalid email..." }
+      const json = JSON.parse(text);
+      if (json.error) {
+        errorMessage = json.error; // Use the specific message from backend
+      }
+    } catch (e) {
+      // If parsing fails, use the raw text or status code
+      errorMessage = text || errorMessage;
+    }
+    throw new Error(errorMessage);
+  }
+
+  return text ? JSON.parse(text) : null;
+};
+
+export const apiService = {
+  // Auth
+  async register(userData: any) {
+    return fetch(`${API_BASE_URL}/register`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(userData),
+    }).then(handleResponse);
+  },
+
+  async login(credentials: any) {
+    return fetch(`${API_BASE_URL}/login`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(credentials),
+    }).then(handleResponse);
+  },
+
+  // User Profile
+  async getUserProfile(email: string) {
+    return fetch(`${API_BASE_URL}/users/${email}`, {
+      method: 'GET',
+      headers: getHeaders(),
+    }).then(handleResponse);
+  },
+
+  // Goals
+  async createGoal(email: string, title: string) {
+    return fetch(`${API_BASE_URL}/goals`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ title, userEmail: email }),
+    }).then(handleResponse);
+  },
+
+  async getGoals(email: string) {
+    return fetch(`${API_BASE_URL}/users/${email}/goals`, {
+      method: 'GET',
+      headers: getHeaders(),
+    }).then(handleResponse);
+  },
+
+  // Tasks
+  async addTasksToGoal(goalId: string, tasks: any[]) {
+    return fetch(`${API_BASE_URL}/goals/${goalId}/tasks`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ tasks }),
+    }).then(handleResponse);
+  },
+
+  async updateTask(taskId: string, updates: any) {
+    return fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(updates),
+    }).then(handleResponse);
+  },
+
+  // Leaderboard
+  async getLeaderboard() {
+    return fetch(`${API_BASE_URL}/leaderboard`, {
+      method: 'GET',
+      headers: getHeaders(),
+    }).then(handleResponse);
+  }
+};
+</file>
+
+<file path="app/goal-input.tsx">
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  Dimensions,
+  Alert
+} from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { MotiView } from 'moti';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { Sparkles, ArrowRight, Save } from 'lucide-react-native';
+import { useApp } from '../src/context/AppContext';
+import { lightColors as colors } from '../src/constants/colors';
+import { TaskStagingModal } from '../src/components/TaskStagingModal';
+import { BottomNav } from '../src/components/BottomNav'; 
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
+
+export default function GoalInputScreen() {
+  const { initialText, editingGoalId } = useLocalSearchParams();
+  const isEditing = !!editingGoalId;
+
+  const [goal, setGoal] = useState(initialText ? (initialText as string) : '');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isStagingVisible, setIsStagingVisible] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  
+  const router = useRouter();
+  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks } = useApp();
+  
+  const borderOpacity = useSharedValue(0);
+  const submitButtonOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (initialText) {
+      setGoal(initialText as string);
+      submitButtonOpacity.value = withSpring(1);
+    }
+  }, [initialText]);
+
+  const borderAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      shadowOpacity: 0.1 + borderOpacity.value * 0.4,
+      shadowRadius: 12 + borderOpacity.value * 8,
+      borderWidth: 1 + borderOpacity.value,
+    };
+  });
+
+  const submitButtonStyle = useAnimatedStyle(() => {
+    return {
+      opacity: submitButtonOpacity.value,
+      transform: [{ scale: submitButtonOpacity.value }],
+    };
+  });
+
+  const handleSubmit = async () => {
+    if (!goal.trim()) return;
+    setIsLoading(true);
+    Keyboard.dismiss();
+
+    setTimeout(() => {
+      setIsLoading(false);
+      setIsStagingVisible(true);
+    }, 1500);
+  };
+
+  // --- FIX: Added async/await here ---
+  const handleFinalConfirm = async (finalTasks: any[]) => {
+    setIsStagingVisible(false);
+    setIsLoading(true); // Show loading while saving to DB
+    
+    try {
+      if (isEditing) {
+        const id = editingGoalId as string;
+        updateGoal(id, { title: goal.trim() });
+        overrideTasks(id, finalTasks);
+        router.back();
+      } else {
+        // 1. Wait for the goal to be created in the database
+        const newGoal = await addGoal(goal.trim());
+        
+        if (newGoal && newGoal.id) {
+          // 2. Wait for tasks to be added to that specific goal ID
+          await addTasks(newGoal.id, finalTasks);
+          setCurrentGoal(newGoal);
+          
+          if (router.canGoBack()) {
+            router.back(); 
+          } else {
+            router.replace('/home');
+          }
+        } else {
+          throw new Error("Failed to create goal");
+        }
+      }
+    } catch (error) {
+      console.error("Save Error:", error);
+      Alert.alert("Error", "Could not save your mission. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleInputFocus = () => {
+    setIsInputFocused(true);
+    borderOpacity.value = withTiming(1, { duration: 300 });
+    submitButtonOpacity.value = withSpring(1, { damping: 20, stiffness: 100 });
+  };
+
+  const handleInputBlur = () => {
+    setIsInputFocused(false);
+    borderOpacity.value = withTiming(0, { duration: 300 });
+    if (!goal.trim()) {
+      submitButtonOpacity.value = withSpring(0, { damping: 20, stiffness: 100 });
+    }
+  };
+
+  return (
+    <View style={styles.root}>
+      <KeyboardAvoidingView
+        style={[styles.container, { backgroundColor: '#FFFFFF' }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <StatusBar style="dark" />
+
+        <View style={styles.centeredContainer}>
+          <MotiView
+            from={{ opacity: 0, translateY: -20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 600 }}
+          >
+            <Text style={[styles.title, { color: colors.text }]}>
+              {isEditing ? "Refine Mission Directive" : "What is your main goal right now?"}
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+              {isEditing 
+                ? "Update your objective to re-calculate optimal tasks." 
+                : "Enter a goal and we'll break it down into actionable steps"}
+            </Text>
+          </MotiView>
+
+          <MotiView
+            from={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'timing', duration: 600, delay: 200 }}
+          >
+            <Animated.View 
+              style={[
+                styles.inputCard, 
+                borderAnimatedStyle,
+                isInputFocused && { 
+                  borderColor: colors.primary,
+                  shadowColor: colors.primary,
+                }
+              ]}
+            >
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="e.g., Launch my dropshipping store"
+                  placeholderTextColor={colors.textLight}
+                  value={goal}
+                  onChangeText={setGoal}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
+                  multiline
+                  editable={!isLoading}
+                  textAlignVertical="top"
+                />
+              </View>
+              
+              <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton, 
+                    { backgroundColor: colors.primary, shadowColor: colors.primary },
+                    (!goal.trim() || isLoading) && styles.submitButtonDisabled
+                  ]}
+                  onPress={handleSubmit}
+                  disabled={!goal.trim() || isLoading}
+                  activeOpacity={0.8}
+                >
+                  {isEditing ? (
+                    <Save size={20} color="#FFFFFF" />
+                  ) : (
+                    <ArrowRight size={20} color="#FFFFFF" />
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+            </Animated.View>
+          </MotiView>
+
+          {isLoading && (
+            <MotiView
+              from={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ type: 'timing', duration: 300 }}
+              style={styles.loadingContainer}
+            >
+              <MotiView
+                from={{ rotate: '0deg' }}
+                animate={{ rotate: '360deg' }}
+                transition={{ type: 'timing', duration: 2000, loop: true }}
+              >
+                <Sparkles size={32} color={colors.primary} />
+              </MotiView>
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                {isEditing ? "Recalculating mission parameters..." : "Syncing with HQ..."}
+              </Text>
+            </MotiView>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+
+      <TaskStagingModal
+        visible={isStagingVisible}
+        goalTitle={goal}
+        onConfirm={handleFinalConfirm}
+        onClose={() => setIsStagingVisible(false)}
+      />
+
+      {/* Pill Dashboard Navigation - Shows when keyboard is hidden */}
+      {!isKeyboardVisible && <BottomNav activeTab="GoalInput" />}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  container: {
+    flex: 1,
+  },
+  centeredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    width: '100%',
+    paddingBottom: 100,
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 12,
+    lineHeight: 38,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 40,
+    lineHeight: 24,
+  },
+  inputCard: {
+    width: INPUT_CARD_WIDTH,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+    backgroundColor: '#F9F9F9',
+    position: 'relative',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    minHeight: 140,
+    alignSelf: 'center',
+    overflow: 'hidden',
+  },
+  inputWrapper: {
+    width: '100%',
+  },
+  input: {
+    width: '100%',
+    padding: 20,
+    paddingBottom: 60,
+    fontSize: 18,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    minHeight: 120,
+    maxHeight: 250,
+  },
+  submitButtonContainer: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+  },
+  submitButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+  },
+  submitButtonDisabled: {
+    opacity: 0.5,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    marginTop: 30,
+  },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+});
+</file>
+
+<file path="app/onboarding.tsx">
+import React, { useEffect } from 'react';
+import { OnboardingWizard, OnboardingData } from '../src/components/OnboardingWizard';
+import { useRouter } from 'expo-router';
+
+export default function OnboardingScreen() {
+  const router = useRouter();
+
+  const handleComplete = async (data: OnboardingData) => {
+    // Navigate to Auth screen and pass the onboarding data
+    router.push({
+      pathname: '/auth',
+      params: { onboardingData: JSON.stringify(data) }
+    });
+  };
+
+  return <OnboardingWizard onComplete={handleComplete} />;
+}
+</file>
+
 <file path="src/context/AppContext.tsx">
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Goal, Task } from '../types';
+import { apiService } from '../services/api';
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  onboardingData?: any;
+}
 
 interface AppContextType {
+  user: User | null;
+  setUser: (user: User | null) => void;
   goals: Goal[];
   tasks: Task[];
   currentGoal: Goal | null;
-  addGoal: (title: string) => Goal;
+  addGoal: (title: string) => Promise<Goal | null>;
   updateGoal: (goalId: string, updates: Partial<Goal>) => void;
   deleteGoal: (goalId: string) => void;
-  addTasks: (goalId: string, tasks: any[]) => void;
+  addTasks: (goalId: string, tasks: any[]) => Promise<void>;
   overrideTasks: (goalId: string, tasks: any[]) => void;
   completeTask: (taskId: string) => void;
   toggleSubTask: (taskId: string) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
   setCurrentGoal: (goal: Goal | null) => void;
   rateProductivity: (taskId: string, rating: number) => void;
+  refreshData: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
 
-  const addGoal = useCallback((title: string) => {
-    const newGoal: Goal = {
-      id: Date.now().toString(),
-      title,
-      createdAt: new Date(),
-      status: 'active',
-    };
-    setGoals((prev) => [newGoal, ...prev]);
-    return newGoal;
+  // Load data from Backend when User logs in
+  const refreshData = useCallback(async () => {
+    if (!user?.email) return;
+    try {
+      const profile = await apiService.getUserProfile(user.email);
+      setGoals(profile.goals || []);
+      
+      // Flatten tasks from all goals
+      const allTasks: Task[] = [];
+      profile.goals.forEach((g: any) => {
+        if (g.tasks) allTasks.push(...g.tasks);
+      });
+      setTasks(allTasks);
+    } catch (e) {
+      console.error("Sync Error:", e);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) refreshData();
+  }, [user, refreshData]);
+
+  // --- ACTIONS ---
+
+  const addGoal = useCallback(async (title: string) => {
+    if (!user?.email) return null;
+    try {
+      // Save to Backend
+      const newGoal = await apiService.createGoal(user.email, title);
+      
+      // Update Local State
+      setGoals((prev) => [newGoal, ...prev]);
+      setCurrentGoal(newGoal);
+      return newGoal;
+    } catch (e) {
+      console.error("Add Goal Error", e);
+      return null;
+    }
+  }, [user]);
+
+  const addTasks = useCallback(async (goalId: string, stagedTasks: any[]) => {
+    try {
+      // Save to Backend
+      const createdTasks = await apiService.addTasksToGoal(goalId, stagedTasks);
+      
+      // Update Local State
+      setTasks((prev) => [...createdTasks, ...prev]);
+    } catch (e) {
+      console.error("Add Tasks Error", e);
+    }
   }, []);
 
+  const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
+    // Optimistic Update
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
+    
+    // Save to Backend
+    try {
+      await apiService.updateTask(taskId, updates);
+    } catch (e) {
+      console.error("Update Task Error", e);
+    }
+  }, []);
+
+  const completeTask = useCallback((taskId: string) => {
+    updateTask(taskId, { status: 'completed', completed: true, completedAt: new Date() });
+  }, [updateTask]);
+
+  // -- Boilerplate / Local Only for now --
   const updateGoal = useCallback((goalId: string, updates: Partial<Goal>) => {
-    setGoals((prev) => 
-      prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g))
-    );
+    setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g)));
     if (currentGoal?.id === goalId) {
       setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
     }
@@ -15884,94 +16757,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteGoal = useCallback((goalId: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== goalId));
     setTasks((prev) => prev.filter((t) => t.goalId !== goalId));
-    if (currentGoal?.id === goalId) {
-      setCurrentGoal(null);
-    }
+    if (currentGoal?.id === goalId) setCurrentGoal(null);
   }, [currentGoal]);
 
-  const addTasks = useCallback((goalId: string, stagedTasks: any[]) => {
-    const newTasks: Task[] = stagedTasks.map((t, index) => ({
-      id: t.id || `${goalId}-task-${index}-${Date.now()}`,
-      goalId: goalId,
-      title: t.title,
-      duration: t.duration,
-      description: t.description || "",
-      status: 'queued',
-      completed: false,
-    }));
-    setTasks((prev) => [...newTasks, ...prev]);
-  }, []);
-
-  // Deletes old tasks for a goal and adds new ones (for editing/refining)
   const overrideTasks = useCallback((goalId: string, stagedTasks: any[]) => {
-    setTasks((prev) => {
-      const filtered = prev.filter(t => t.goalId !== goalId);
-      const newTasks: Task[] = stagedTasks.map((t, index) => ({
-        id: t.id || `${goalId}-task-${index}-${Date.now()}`,
-        goalId: goalId,
-        title: t.title,
-        duration: t.duration,
-        description: t.description || "",
-        status: 'queued',
-        completed: false,
-      }));
-      return [...newTasks, ...filtered];
-    });
-  }, []);
-
-  // GENERIC UPDATE TASK FUNCTION
-  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
-  }, []);
+    // Complex logic handled simpler by just adding for MVP
+    addTasks(goalId, stagedTasks);
+  }, [addTasks]);
 
   const toggleSubTask = useCallback((taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              status: task.status === 'completed' ? 'queued' : 'completed',
-              completed: task.status !== 'completed',
-            }
-          : task
-      )
-    );
-  }, []);
-
-  const completeTask = useCallback((taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId
-          ? { ...task, status: 'completed', completed: true, completedAt: new Date() }
-          : task
-      )
-    );
+    // Legacy support
   }, []);
 
   const rateProductivity = useCallback((taskId: string, rating: number) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId ? { ...task, productivityRating: rating } : task
-      )
-    );
-  }, []);
+    updateTask(taskId, { productivityRating: rating });
+  }, [updateTask]);
 
   return (
     <AppContext.Provider
       value={{
-        goals,
-        tasks,
-        currentGoal,
-        addGoal,
-        updateGoal,
-        deleteGoal,
-        addTasks,
-        overrideTasks,
-        completeTask,
-        toggleSubTask,
-        updateTask,
-        setCurrentGoal,
-        rateProductivity,
+        user, setUser,
+        goals, tasks, currentGoal,
+        addGoal, updateGoal, deleteGoal,
+        addTasks, overrideTasks, completeTask,
+        toggleSubTask, updateTask,
+        setCurrentGoal, rateProductivity,
+        refreshData
       }}
     >
       {children}

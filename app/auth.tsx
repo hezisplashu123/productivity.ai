@@ -6,23 +6,37 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { apiService } from '../src/services/api';
+import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
-import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
+import { ArrowRight, Lock, Mail, User, HelpCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 export default function AuthScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { setUser } = useApp();
   
-  // If we came from onboarding, we grab the data
   const onboardingDataString = params.onboardingData as string;
   const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
 
-  const [isLogin, setIsLogin] = useState(false); // Default to Sign Up
+  const [isLogin, setIsLogin] = useState(params.mode === 'login');
+  
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Track failed attempts
+  const [failedAttempts, setFailedAttempts] = useState(0);
+
+  const handleForgotPassword = () => {
+    // In a real app, this would call an API to send a reset email
+    Alert.alert(
+      "Reset Password",
+      "We've sent a temporary password to your email.\n(Dev Note: Check your database manually or create a new account)",
+      [{ text: "OK" }]
+    );
+  };
 
   const handleSubmit = async () => {
     if (!email || !password || (!isLogin && !name)) {
@@ -34,30 +48,47 @@ export default function AuthScreen() {
     Haptics.selectionAsync();
 
     try {
-      let user;
+      let responseUser;
       
       if (isLogin) {
-        // Login Logic
-        user = await apiService.login({ email, password });
+        responseUser = await apiService.login({ email, password });
       } else {
-        // Sign Up Logic
-        user = await apiService.register({
+        responseUser = await apiService.register({
           email,
           name,
           password,
-          onboardingData // Attach data if present
+          onboardingData 
         });
       }
 
+      // Success! Reset attempts
+      setFailedAttempts(0);
+      setUser(responseUser);
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // In a real app, you would save the user token/ID to AsyncStorage here
-      // For now, we assume success and go home
       router.replace('/home');
       
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', error.message || 'Connection failed');
+      
+      // Increment failed attempts
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+
+      // INDUSTRY STANDARD: Trigger popup after 3rd failure
+      if (isLogin && newAttempts >= 3) {
+        Alert.alert(
+          "Trouble Logging In?",
+          "It looks like you're having trouble. Would you like to reset your password?",
+          [
+            { text: "Try Again", style: "cancel" },
+            { text: "Reset Password", onPress: handleForgotPassword }
+          ]
+        );
+      } else {
+        // Show specific error message
+        Alert.alert('Login Failed', error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -136,12 +167,26 @@ export default function AuthScreen() {
 
           <TouchableOpacity 
             style={styles.switchButton} 
-            onPress={() => setIsLogin(!isLogin)}
+            onPress={() => {
+              setIsLogin(!isLogin);
+              setFailedAttempts(0); // Reset attempts when switching modes
+            }}
           >
             <Text style={styles.switchText}>
               {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
             </Text>
           </TouchableOpacity>
+
+          {/* Subtle UX: Show link after 1 fail, but Popup only after 3 fails */}
+          {isLogin && failedAttempts > 0 && (
+            <TouchableOpacity 
+              style={styles.forgotButton}
+              onPress={handleForgotPassword}
+            >
+              <HelpCircle size={14} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -219,4 +264,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  forgotButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    padding: 10,
+  },
+  forgotText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  }
 });

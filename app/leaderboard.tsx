@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -15,6 +16,8 @@ import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { lightColors as colors } from '../src/constants/colors';
 import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
+import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
 
 const { width } = Dimensions.get('window');
 
@@ -26,34 +29,75 @@ const TOP_RANK_COLORS = {
 };
 
 interface LeaderboardEntry {
-  rank: number;
+  rank: number | string;
   name: string;
   streak: number;
   isCurrentUser?: boolean;
+  id: string;
 }
 
 export default function LeaderboardScreen() {
   const router = useRouter();
+  const { user } = useApp();
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const leaderboardData: LeaderboardEntry[] = [
-    { rank: 1, name: 'Alex Vance', streak: 45 },
-    { rank: 2, name: 'Sam Kovalsky', streak: 32 },
-    { rank: 3, name: 'Jordan Mendoza', streak: 28 },
-    { rank: 4, name: 'You', streak: 12, isCurrentUser: true },
-    { rank: 5, name: 'Taylor Higgins', streak: 10 },
-    { rank: 6, name: 'Casey Miller', streak: 8 },
-    { rank: 7, name: 'Morgan Ross', streak: 5 },
-    { rank: 8, name: 'Riley Smith', streak: 3 },
-    { rank: 9, name: 'Jamie Doe', streak: 2 },
-    { rank: 10, name: 'Quinn T.', streak: 1 },
-  ];
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [user]);
+
+  const fetchLeaderboard = async () => {
+    setLoading(true);
+    try {
+      // 1. Fetch Top 10 from API
+      const apiData = await apiService.getLeaderboard();
+      
+      // 2. Format Data
+      const formattedData: LeaderboardEntry[] = apiData.map((item: any, index: number) => {
+        const isMe = user ? item.id === user.id : false;
+        return {
+          id: item.id,
+          rank: index + 1,
+          // Use local context name if it's the current user (ensures it matches Profile)
+          name: isMe && user?.name ? user.name : (item.name || 'Unknown Agent'),
+          streak: item.streak,
+          isCurrentUser: isMe
+        };
+      });
+
+      // 3. Check if Current User is in Top 10
+      const isUserInTop10 = formattedData.some(item => item.isCurrentUser);
+
+      // 4. If not in Top 10, fetch user stats specifically and append
+      if (!isUserInTop10 && user?.email) {
+        try {
+          const myProfile = await apiService.getUserProfile(user.email);
+          formattedData.push({
+            id: user.id,
+            rank: '--', // Outside top 10
+            name: user.name || 'Me',
+            streak: myProfile.stats?.streak || 0,
+            isCurrentUser: true
+          });
+        } catch (e) {
+          console.log("Could not fetch user specific rank", e);
+        }
+      }
+
+      setLeaderboardData(formattedData);
+    } catch (error) {
+      console.error("Failed to load leaderboard", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         
-        {/* Header - Line removed */}
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ChevronLeft size={28} color={colors.text} />
@@ -64,67 +108,73 @@ export default function LeaderboardScreen() {
           </View>
         </View>
 
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Original Podium Text */}
-          <View style={styles.podiumContainer}>
-            <Trophy size={40} color={colors.primary} strokeWidth={1.5} />
-            <Text style={styles.podiumText}>Keep the fire burning!</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.podiumContainer}>
+              <Trophy size={40} color={colors.primary} strokeWidth={1.5} />
+              <Text style={styles.podiumText}>Keep the fire burning!</Text>
+            </View>
 
-          {leaderboardData.map((entry, index) => {
-            const isTop3 = entry.rank <= 3;
-            const rankTheme = isTop3 ? TOP_RANK_COLORS[entry.rank as keyof typeof TOP_RANK_COLORS] : null;
-            
-            return (
-              <Animated.View 
-                key={entry.rank}
-                entering={FadeInDown.delay(index * 50).springify()}
-                style={[
-                  styles.leaderboardRow,
-                  isTop3 && { backgroundColor: rankTheme?.bg, borderColor: rankTheme?.border },
-                  entry.isCurrentUser && styles.currentUserRow
-                ]}
-              >
-                {/* Rank Number with # */}
-                <View style={styles.rankContainer}>
-                  <Text style={[
-                    styles.rankNumber,
-                    isTop3 && { color: rankTheme?.number, fontWeight: '900' }
-                  ]}>
-                    #{entry.rank}
-                  </Text>
-                </View>
+            {leaderboardData.map((entry, index) => {
+              const rankNum = typeof entry.rank === 'number' ? entry.rank : 999;
+              const isTop3 = rankNum <= 3;
+              const rankTheme = isTop3 ? TOP_RANK_COLORS[rankNum as keyof typeof TOP_RANK_COLORS] : null;
+              
+              return (
+                <Animated.View 
+                  key={`${entry.id}-${index}`}
+                  entering={FadeInDown.delay(index * 50).springify()}
+                  style={[
+                    styles.leaderboardRow,
+                    isTop3 && { backgroundColor: rankTheme?.bg, borderColor: rankTheme?.border },
+                    entry.isCurrentUser && styles.currentUserRow
+                  ]}
+                >
+                  {/* Rank Number */}
+                  <View style={styles.rankContainer}>
+                    <Text style={[
+                      styles.rankNumber,
+                      isTop3 && { color: rankTheme?.number, fontWeight: '900' }
+                    ]}>
+                      #{entry.rank}
+                    </Text>
+                  </View>
 
-                {/* Name */}
-                <View style={styles.nameContainer}>
-                  <Text style={[
-                    styles.nameText,
-                    entry.isCurrentUser && { color: colors.primary, fontWeight: '800' }
-                  ]}>
-                    {entry.name}
-                  </Text>
-                  {entry.isCurrentUser && (
-                    <View style={styles.youBadge}>
-                      <Text style={styles.youBadgeText}>YOU</Text>
-                    </View>
-                  )}
-                </View>
+                  {/* Name */}
+                  <View style={styles.nameContainer}>
+                    <Text style={[
+                      styles.nameText,
+                      entry.isCurrentUser && { color: colors.primary, fontWeight: '800' }
+                    ]}>
+                      {entry.name}
+                    </Text>
+                    {entry.isCurrentUser && (
+                      <View style={styles.youBadge}>
+                        <Text style={styles.youBadgeText}>YOU</Text>
+                      </View>
+                    )}
+                  </View>
 
-                {/* Streak Metric - High contrast */}
-                <View style={styles.streakContainer}>
-                  <Flame size={14} color={colors.textSecondary} />
-                  <Text style={styles.streakNumber}>
-                    {entry.streak}
-                  </Text>
-                </View>
-              </Animated.View>
-            );
-          })}
-        </ScrollView>
+                  {/* Streak Metric */}
+                  <View style={styles.streakContainer}>
+                    <Flame size={14} color={colors.textSecondary} />
+                    <Text style={styles.streakNumber}>
+                      {entry.streak}
+                    </Text>
+                  </View>
+                </Animated.View>
+              );
+            })}
+          </ScrollView>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -138,13 +188,17 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
     height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    // Removed borderBottomWidth to remove the line
   },
   backButton: {
     width: 44,
@@ -202,7 +256,7 @@ const styles = StyleSheet.create({
   },
   currentUserRow: {
     borderColor: colors.primary,
-    backgroundColor: '#FFFBF0', // Very subtle orange tint for user
+    backgroundColor: '#FFFBF0',
     borderWidth: 1,
   },
   rankContainer: {
@@ -252,7 +306,7 @@ const styles = StyleSheet.create({
   streakNumber: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1A1A1A', // Dark for visibility
+    color: '#1A1A1A',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });
