@@ -12,11 +12,14 @@ import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg'; 
 
-import * as AppleAuthentication from 'expo-apple-authentication';
-import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session'; // Added this import
+// --- AUTH IMPORTS ---
 import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { makeRedirectUri } from 'expo-auth-session';
+import { auth, GoogleAuthProvider, signInWithCredential } from '../src/config/firebase'; 
 
+// Ensure the browser closes on redirect
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
@@ -32,50 +35,46 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  // --- GOOGLE AUTH CONFIGURATION ---
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: "454639158764-fhrs5pbhuqv7sjdqr9cjutdcvgu1f708.apps.googleusercontent.com",
-    iosClientId: "454639158764-fhrs5pbhuqv7sjdqr9cjutdcvgu1f708.apps.googleusercontent.com",
-    webClientId: "454639158764-fhrs5pbhuqv7sjdqr9cjutdcvgu1f708.apps.googleusercontent.com",
-    
-    // Updated to use makeRedirectUri for better reliability
-    redirectUri: makeRedirectUri({
-      scheme: 'productivity-ai',
-      path: 'auth'
-    })
+
+  // --- FIREBASE GOOGLE AUTH SETUP ---
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: "204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com",
+    // This points to the Expo Proxy, which redirects to your unique scheme
+    redirectUri: "https://auth.expo.io/@goathezisplash123/productivity-ai",
   });
 
   useEffect(() => {
     if (response?.type === 'success') {
-      const { authentication } = response;
-      fetchUserInfo(authentication?.accessToken);
+      const { id_token } = response.params;
+      handleFirebaseSignIn(id_token);
     } else if (response?.type === 'error') {
-      console.log("Google Auth Error:", response.error);
-      Alert.alert("Google Auth Failed", "Ensure the URL is saved in Google Console.");
+      console.error("Google Auth Error:", response.error);
+      Alert.alert("Auth Failed", "Could not connect to Google.");
     }
   }, [response]);
 
-  const fetchUserInfo = async (token: string | undefined) => {
-    if (!token) return;
+  const handleFirebaseSignIn = async (idToken: string) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const res = await fetch("https://www.googleapis.com/userinfo/v2/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const user = await res.json();
-      
+      // 1. Sign in to Firebase
+      const credential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      const firebaseUser = userCredential.user;
+
+      // 2. Sync with YOUR Backend
       const backendUser = await apiService.socialLogin({
-        email: user.email,
-        name: user.name,
-        socialId: user.id,
+        email: firebaseUser.email,
+        name: firebaseUser.displayName,
+        socialId: firebaseUser.uid, 
         provider: 'google',
-        onboardingData: onboardingData 
+        onboardingData: onboardingData
       });
 
       handleAuthSuccess(backendUser);
-    } catch (error) {
-      Alert.alert("Google Login Error", "Could not fetch user info");
+
+    } catch (error: any) {
+      console.error("Firebase Login Error:", error);
+      Alert.alert("Login Failed", error.message);
       setLoading(false);
     }
   };
@@ -145,7 +144,7 @@ export default function AuthScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert(
         "Assessment Required",
-        "You cannot create an account without a personalized plan. Let's build your strategy first.",
+        "You cannot create an account without a personalized plan.",
         [
           { text: "Go to Onboarding", onPress: () => router.replace('/ghost-hours') },
           { text: "Cancel", style: 'cancel' }
@@ -159,7 +158,6 @@ export default function AuthScreen() {
 
     try {
       let responseUser;
-      
       if (isLogin) {
         responseUser = await apiService.login({ email, password });
       } else {
@@ -170,25 +168,10 @@ export default function AuthScreen() {
           onboardingData 
         });
       }
-
       handleAuthSuccess(responseUser);
-      
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const errorMessage = error.message || '';
-
-      if (isLogin && (errorMessage.includes('User not found') || errorMessage.includes('Invalid credentials'))) {
-        Alert.alert(
-          "Account Not Found",
-          "We couldn't find an account. Have you built your plan?",
-          [
-            { text: "Try Again", style: "cancel" },
-            { text: "Build Plan", onPress: () => router.replace('/ghost-hours') }
-          ]
-        );
-      } else {
-        Alert.alert('Authentication Failed', errorMessage);
-      }
+      Alert.alert('Authentication Failed', error.message);
       setLoading(false);
     }
   };
@@ -277,7 +260,6 @@ export default function AuthScreen() {
                 onPress={handleAppleLogin}
               >
                 <View style={styles.iconContainer}>
-                  {/* STANDARD APPLE LOGO */}
                   <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
                     <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
                   </Svg>
@@ -286,12 +268,12 @@ export default function AuthScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Google Login */}
+            {/* Google Login with Firebase */}
             <TouchableOpacity 
               style={styles.googleButton} 
               onPress={() => {
                 if (request) promptAsync();
-                else Alert.alert("Setup Required", "Please add valid Google Client IDs.");
+                else Alert.alert("Setup Required", "Google ID not configured in auth.tsx");
               }}
             >
               <View style={styles.iconContainer}>

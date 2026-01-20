@@ -2,7 +2,7 @@
   "expo": {
     "name": "productivity-ai",
     "slug": "productivity-ai",
-    "owner": "hezisplash133",
+    "owner": "goathezisplash123",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -23,7 +23,8 @@
       },
       "package": "com.hezisplash133.productivityai"
     },
-    "scheme": "productivity-ai",
+    // CHANGED THIS LINE BELOW:
+    "scheme": "productivity-ai-goat",
     "plugins": [
       "expo-router",
       "expo-apple-authentication"
