@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInDown, Layout } from 'react-native-reanimated';
-import { Check, X, Clock, AlertTriangle, ArrowRight, Plus, Minus } from 'lucide-react-native';
+import Animated, { FadeIn, SlideInDown, SlideInUp } from 'react-native-reanimated';
+import { Check, X, Clock, ArrowRight, Plus, Minus, Target, AlertCircle } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
 
@@ -27,7 +27,6 @@ const FRICTION_POINTS = [
 
 export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onComplete }) => {
   const [step, setStep] = useState<'outcome' | 'analysis' | 'recovery'>('outcome');
-  const [outcome, setOutcome] = useState<boolean | null>(null);
   const [friction, setFriction] = useState<string | null>(null);
   const [addedTime, setAddedTime] = useState(15);
 
@@ -35,16 +34,14 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
 
   const handleSuccess = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setOutcome(true);
     // Slight delay for animation before closing
     setTimeout(() => {
         onComplete({ completed: true });
-    }, 500);
+    }, 300);
   };
 
   const handleFailure = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setOutcome(false);
     setStep('analysis');
   };
 
@@ -71,34 +68,52 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
   // --- RENDER STEPS ---
 
   const renderOutcome = () => (
-    <Animated.View entering={FadeIn.duration(400)} style={styles.contentContainer}>
-      <Text style={styles.headerTitle}>MISSION REPORT</Text>
-      <Text style={styles.headerSubtitle}>Did you complete the objective?</Text>
+    <View style={styles.contentContainer}>
+      <Animated.View entering={SlideInDown.delay(100).springify()} style={styles.iconHeader}>
+        <View style={styles.badgeContainer}>
+            <Target size={16} color={colors.primary} />
+            <Text style={styles.badgeText}>MISSION REPORT</Text>
+        </View>
+        <Text style={styles.mainQuestion}>Did you secure the objective?</Text>
+      </Animated.View>
 
-      <View style={styles.outcomeRow}>
-        <TouchableOpacity 
-            style={[styles.outcomeBtn, styles.successBtn]} 
-            onPress={handleSuccess}
-            activeOpacity={0.8}
-        >
-            <View style={styles.iconCircleSuccess}>
-                <Check size={32} color="#FFFFFF" strokeWidth={3} />
-            </View>
-            <Text style={styles.successText}>MISSION ACCOMPLISHED</Text>
-        </TouchableOpacity>
+      <View style={styles.cardContainer}>
+        {/* Success Card */}
+        <Animated.View entering={SlideInUp.delay(200).springify()} style={{ width: '100%' }}>
+            <TouchableOpacity 
+                style={styles.successCard} 
+                onPress={handleSuccess}
+                activeOpacity={0.9}
+            >
+                <View style={styles.successIconBox}>
+                    <Check size={28} color="#FFFFFF" strokeWidth={3} />
+                </View>
+                <View style={styles.cardTextContent}>
+                    <Text style={styles.successTitle}>OBJECTIVE COMPLETE</Text>
+                    <Text style={styles.successSubtitle}>Task finished successfully.</Text>
+                </View>
+                <ArrowRight size={20} color="#15803D" />
+            </TouchableOpacity>
+        </Animated.View>
 
-        <TouchableOpacity 
-            style={[styles.outcomeBtn, styles.failBtn]} 
-            onPress={handleFailure}
-            activeOpacity={0.8}
-        >
-            <View style={styles.iconCircleFail}>
-                <X size={32} color="#EF4444" strokeWidth={3} />
-            </View>
-            <Text style={styles.failText}>NOT YET</Text>
-        </TouchableOpacity>
+        {/* Fail Card */}
+        <Animated.View entering={SlideInUp.delay(300).springify()} style={{ width: '100%' }}>
+            <TouchableOpacity 
+                style={styles.failCard} 
+                onPress={handleFailure}
+                activeOpacity={0.9}
+            >
+                <View style={styles.failIconBox}>
+                    <Clock size={28} color={colors.text} strokeWidth={2.5} />
+                </View>
+                <View style={styles.cardTextContent}>
+                    <Text style={styles.failTitle}>NOT YET</Text>
+                    <Text style={styles.failSubtitle}>I need more time or got blocked.</Text>
+                </View>
+            </TouchableOpacity>
+        </Animated.View>
       </View>
-    </Animated.View>
+    </View>
   );
 
   const renderAnalysis = () => (
@@ -112,6 +127,7 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
                 key={item.id}
                 style={[styles.gridItem, friction === item.id && styles.gridItemSelected]}
                 onPress={() => handleFrictionSelect(item.id)}
+                activeOpacity={0.7}
             >
                 <Text style={styles.gridIcon}>{item.icon}</Text>
                 <Text style={[styles.gridLabel, friction === item.id && styles.gridLabelSelected]}>
@@ -151,7 +167,7 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
   return (
     <View style={styles.container}>
       {/* White Background Fade In */}
-      <Animated.View entering={FadeIn.duration(500)} style={styles.whiteBackground} />
+      <Animated.View entering={FadeIn.duration(300)} style={styles.whiteBackground} />
       
       <View style={styles.safeArea}>
         {step === 'outcome' && renderOutcome()}
@@ -171,17 +187,128 @@ const styles = StyleSheet.create({
   },
   whiteBackground: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFFFFF', // Clean white sheet
   },
   safeArea: {
     width: '100%',
     padding: 24,
     alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
   },
   contentContainer: {
     width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
   },
+  
+  // --- Header Styles ---
+  iconHeader: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)', // Light orange pill
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 16,
+    gap: 6,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 1,
+  },
+  mainQuestion: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.text,
+    textAlign: 'center',
+    lineHeight: 34,
+  },
+
+  // --- Card Styles (New) ---
+  cardContainer: {
+    width: '100%',
+    gap: 16,
+  },
+  successCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4', // Very light green
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    padding: 20,
+    borderRadius: 24,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  successIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#16A34A', // Green
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  cardTextContent: {
+    flex: 1,
+  },
+  successTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#14532D', // Dark green text
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  successSubtitle: {
+    fontSize: 14,
+    color: '#15803D',
+    fontWeight: '500',
+  },
+
+  failCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB', // Light Gray
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    padding: 20,
+    borderRadius: 24,
+  },
+  failIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  failTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  failSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+
+  // --- Reuse existing styles for other steps ---
   headerTitle: {
     fontSize: 12,
     fontWeight: '800',
@@ -197,67 +324,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 40,
   },
-  
-  // Outcome Step
-  outcomeRow: {
-    gap: 16,
-    width: '100%',
-  },
-  outcomeBtn: {
-    width: '100%',
-    paddingVertical: 24,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  successBtn: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#DCFCE7',
-  },
-  failBtn: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FEE2E2',
-  },
-  iconCircleSuccess: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#10B981',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#10B981',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  iconCircleFail: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#EF4444',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  successText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#15803D',
-    letterSpacing: 0.5,
-  },
-  failText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#B91C1C',
-    letterSpacing: 0.5,
-  },
-
-  // Analysis Step
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -290,8 +356,6 @@ const styles = StyleSheet.create({
   gridLabelSelected: {
     color: colors.primaryDark,
   },
-
-  // Recovery Step
   timeControl: {
     flexDirection: 'row',
     alignItems: 'center',

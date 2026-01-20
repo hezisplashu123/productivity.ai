@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, TextInput, TouchableOpacity, 
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert 
@@ -8,8 +8,16 @@ import { StatusBar } from 'expo-status-bar';
 import { apiService } from '../src/services/api';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
-import { ArrowRight, Lock, Mail, User, HelpCircle } from 'lucide-react-native';
+import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import Svg, { Path } from 'react-native-svg'; 
+
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session'; // Added this import
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -20,27 +28,129 @@ export default function AuthScreen() {
   const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
 
   const [isLogin, setIsLogin] = useState(params.mode === 'login');
-  
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // Track failed attempts
-  const [failedAttempts, setFailedAttempts] = useState(0);
+  // --- GOOGLE AUTH CONFIGURATION ---
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId: "454639158764-fhrs5pbhuqv7sjdqr9cjutdcvgu1f708.apps.googleusercontent.com",
+    iosClientId: "454639158764-fhrs5pbhuqv7sjdqr9cjutdcvgu1f708.apps.googleusercontent.com",
+    webClientId: "454639158764-fhrs5pbhuqv7sjdqr9cjutdcvgu1f708.apps.googleusercontent.com",
+    
+    // Updated to use makeRedirectUri for better reliability
+    redirectUri: makeRedirectUri({
+      scheme: 'productivity-ai',
+      path: 'auth'
+    })
+  });
 
-  const handleForgotPassword = () => {
-    // In a real app, this would call an API to send a reset email
-    Alert.alert(
-      "Reset Password",
-      "We've sent a temporary password to your email.\n(Dev Note: Check your database manually or create a new account)",
-      [{ text: "OK" }]
-    );
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { authentication } = response;
+      fetchUserInfo(authentication?.accessToken);
+    } else if (response?.type === 'error') {
+      console.log("Google Auth Error:", response.error);
+      Alert.alert("Google Auth Failed", "Ensure the URL is saved in Google Console.");
+    }
+  }, [response]);
+
+  const fetchUserInfo = async (token: string | undefined) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      const res = await fetch("https://www.googleapis.com/userinfo/v2/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const user = await res.json();
+      
+      const backendUser = await apiService.socialLogin({
+        email: user.email,
+        name: user.name,
+        socialId: user.id,
+        provider: 'google',
+        onboardingData: onboardingData 
+      });
+
+      handleAuthSuccess(backendUser);
+    } catch (error) {
+      Alert.alert("Google Login Error", "Could not fetch user info");
+      setLoading(false);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      setLoading(true);
+      
+      let fullName = null;
+      if (credential.fullName?.givenName) {
+        fullName = `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim();
+      }
+
+      const backendUser = await apiService.socialLogin({
+        email: credential.email, 
+        socialId: credential.user, 
+        name: fullName,
+        provider: 'apple',
+        onboardingData: onboardingData
+      });
+
+      handleAuthSuccess(backendUser);
+
+    } catch (e: any) {
+      if (e.code !== 'ERR_CANCELED') {
+        Alert.alert('Apple Login Failed', e.message);
+      }
+      setLoading(false);
+    }
+  };
+
+  const handleAuthSuccess = (responseUser: any) => {
+    setUser(responseUser);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (responseUser.onboardingData) {
+      router.replace('/home');
+    } else {
+      Alert.alert(
+        "Setup Required",
+        "We need to calibrate your profile before we begin.",
+        [
+          { 
+            text: "Start Assessment", 
+            onPress: () => router.replace('/ghost-hours') 
+          }
+        ]
+      );
+    }
+    setLoading(false);
   };
 
   const handleSubmit = async () => {
     if (!email || !password || (!isLogin && !name)) {
       Alert.alert('Missing Fields', 'Please fill in all fields.');
+      return;
+    }
+
+    if (!isLogin && !onboardingData) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        "Assessment Required",
+        "You cannot create an account without a personalized plan. Let's build your strategy first.",
+        [
+          { text: "Go to Onboarding", onPress: () => router.replace('/ghost-hours') },
+          { text: "Cancel", style: 'cancel' }
+        ]
+      );
       return;
     }
 
@@ -61,35 +171,24 @@ export default function AuthScreen() {
         });
       }
 
-      // Success! Reset attempts
-      setFailedAttempts(0);
-      setUser(responseUser);
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/home');
+      handleAuthSuccess(responseUser);
       
     } catch (error: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      
-      // Increment failed attempts
-      const newAttempts = failedAttempts + 1;
-      setFailedAttempts(newAttempts);
+      const errorMessage = error.message || '';
 
-      // INDUSTRY STANDARD: Trigger popup after 3rd failure
-      if (isLogin && newAttempts >= 3) {
+      if (isLogin && (errorMessage.includes('User not found') || errorMessage.includes('Invalid credentials'))) {
         Alert.alert(
-          "Trouble Logging In?",
-          "It looks like you're having trouble. Would you like to reset your password?",
+          "Account Not Found",
+          "We couldn't find an account. Have you built your plan?",
           [
             { text: "Try Again", style: "cancel" },
-            { text: "Reset Password", onPress: handleForgotPassword }
+            { text: "Build Plan", onPress: () => router.replace('/ghost-hours') }
           ]
         );
       } else {
-        // Show specific error message
-        Alert.alert('Login Failed', error.message);
+        Alert.alert('Authentication Failed', errorMessage);
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -165,28 +264,58 @@ export default function AuthScreen() {
             )}
           </TouchableOpacity>
 
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or continue with</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <View style={styles.socialButtonsContainer}>
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity 
+                style={styles.appleCustomButton} 
+                onPress={handleAppleLogin}
+              >
+                <View style={styles.iconContainer}>
+                  {/* STANDARD APPLE LOGO */}
+                  <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
+                    <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
+                  </Svg>
+                </View>
+                <Text style={styles.appleButtonText}>Continue with Apple</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Google Login */}
+            <TouchableOpacity 
+              style={styles.googleButton} 
+              onPress={() => {
+                if (request) promptAsync();
+                else Alert.alert("Setup Required", "Please add valid Google Client IDs.");
+              }}
+            >
+              <View style={styles.iconContainer}>
+                <Svg width={24} height={24} viewBox="0 0 48 48">
+                  <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                  <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                  <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                  <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                </Svg>
+              </View>
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity 
             style={styles.switchButton} 
             onPress={() => {
               setIsLogin(!isLogin);
-              setFailedAttempts(0); // Reset attempts when switching modes
             }}
           >
             <Text style={styles.switchText}>
               {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
             </Text>
           </TouchableOpacity>
-
-          {/* Subtle UX: Show link after 1 fail, but Popup only after 3 fails */}
-          {isLogin && failedAttempts > 0 && (
-            <TouchableOpacity 
-              style={styles.forgotButton}
-              onPress={handleForgotPassword}
-            >
-              <HelpCircle size={14} color={colors.primary} style={{ marginRight: 6 }} />
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -212,7 +341,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    marginBottom: 40,
+    marginBottom: 32,
   },
   form: {
     gap: 16,
@@ -242,7 +371,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
+    marginTop: 8,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -257,23 +386,75 @@ const styles = StyleSheet.create({
   },
   switchButton: {
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 16,
   },
   switchText: {
     color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '500',
   },
-  forgotButton: {
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    color: colors.textLight,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  socialButtonsContainer: {
+    gap: 12,
+  },
+  appleCustomButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#000000', 
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 10,
-    padding: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  forgotText: {
-    color: colors.primary,
-    fontSize: 14,
+  appleButtonText: {
+    fontSize: 17,
     fontWeight: '600',
-  }
+    color: '#FFFFFF',
+  },
+  googleButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  iconContainer: {
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
 });

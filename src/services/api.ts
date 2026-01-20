@@ -1,6 +1,5 @@
 import { API_BASE_URL } from '../config/api';
 
-// 1. HEADERS
 const getHeaders = () => {
   return {
     'Content-Type': 'application/json',
@@ -9,44 +8,26 @@ const getHeaders = () => {
   };
 };
 
-// 2. IMPROVED RESPONSE HANDLER
 const handleResponse = async (response: Response) => {
   const text = await response.text();
-
-  // Check for HTML response (Ngrok error page, 404 page, etc.)
   if (text.trim().startsWith('<')) {
-    // Log the first 200 characters of the HTML to help debug
-    console.log('🛑 BLOCKED HTML RESPONSE. Preview:', text.substring(0, 200));
-    
-    // Throw a clear error
-    if (text.includes('ngrok')) {
-        throw new Error('Ngrok Tunnel Error. The URL in src/config/api.ts might be expired.');
-    }
-    
-    throw new Error(`API Error: Endpoint returned HTML instead of JSON. Check API_BASE_URL. Status: ${response.status}`);
+    console.log('🛑 BLOCKED HTML RESPONSE:', text.substring(0, 200));
+    throw new Error('Server Error: Endpoint returned HTML. Check API URL.');
   }
-
-  // If response is NOT ok (like 400, 401, 500)
   if (!response.ok) {
     let errorMessage = `Request failed: ${response.status}`;
     try {
-      // Try to parse the backend JSON error: { error: "Invalid email..." }
       const json = JSON.parse(text);
-      if (json.error) {
-        errorMessage = json.error; // Use the specific message from backend
-      }
+      if (json.error) errorMessage = json.error;
     } catch (e) {
-      // If parsing fails, use the raw text or status code
       errorMessage = text || errorMessage;
     }
     throw new Error(errorMessage);
   }
-
   return text ? JSON.parse(text) : null;
 };
 
 export const apiService = {
-  // Auth
   async register(userData: any) {
     return fetch(`${API_BASE_URL}/register`, {
       method: 'POST',
@@ -63,7 +44,20 @@ export const apiService = {
     }).then(handleResponse);
   },
 
-  // User Profile
+  async socialLogin(data: { 
+    email?: string | null; 
+    name?: string | null; 
+    provider: 'google' | 'apple';
+    socialId?: string | null;
+    onboardingData?: any;
+  }) {
+    return fetch(`${API_BASE_URL}/auth/social`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    }).then(handleResponse);
+  },
+
   async getUserProfile(email: string) {
     return fetch(`${API_BASE_URL}/users/${email}`, {
       method: 'GET',
@@ -71,7 +65,15 @@ export const apiService = {
     }).then(handleResponse);
   },
 
-  // Goals
+  // --- NEW: Update User ---
+  async updateUser(email: string, updates: any) {
+    return fetch(`${API_BASE_URL}/users/${email}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(updates),
+    }).then(handleResponse);
+  },
+
   async createGoal(email: string, title: string) {
     return fetch(`${API_BASE_URL}/goals`, {
       method: 'POST',
@@ -80,14 +82,14 @@ export const apiService = {
     }).then(handleResponse);
   },
 
-  async getGoals(email: string) {
-    return fetch(`${API_BASE_URL}/users/${email}/goals`, {
-      method: 'GET',
+  async updateGoal(goalId: string, updates: any) {
+    return fetch(`${API_BASE_URL}/goals/${goalId}`, {
+      method: 'PATCH',
       headers: getHeaders(),
+      body: JSON.stringify(updates),
     }).then(handleResponse);
   },
 
-  // Tasks
   async addTasksToGoal(goalId: string, tasks: any[]) {
     return fetch(`${API_BASE_URL}/goals/${goalId}/tasks`, {
       method: 'POST',
@@ -104,7 +106,6 @@ export const apiService = {
     }).then(handleResponse);
   },
 
-  // Leaderboard
   async getLeaderboard() {
     return fetch(`${API_BASE_URL}/leaderboard`, {
       method: 'GET',

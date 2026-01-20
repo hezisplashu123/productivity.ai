@@ -18,6 +18,7 @@ interface AppContextType {
   addGoal: (title: string) => Promise<Goal | null>;
   updateGoal: (goalId: string, updates: Partial<Goal>) => void;
   deleteGoal: (goalId: string) => void;
+  archiveGoal: (goalId: string) => void;
   addTasks: (goalId: string, tasks: any[]) => Promise<void>;
   overrideTasks: (goalId: string, tasks: any[]) => void;
   completeTask: (taskId: string) => void;
@@ -26,6 +27,7 @@ interface AppContextType {
   setCurrentGoal: (goal: Goal | null) => void;
   rateProductivity: (taskId: string, rating: number) => void;
   refreshData: () => void;
+  saveOnboarding: (data: any) => Promise<void>; // --- NEW
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -36,14 +38,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
 
-  // Load data from Backend when User logs in
   const refreshData = useCallback(async () => {
     if (!user?.email) return;
     try {
       const profile = await apiService.getUserProfile(user.email);
       setGoals(profile.goals || []);
-      
-      // Flatten tasks from all goals
       const allTasks: Task[] = [];
       profile.goals.forEach((g: any) => {
         if (g.tasks) allTasks.push(...g.tasks);
@@ -58,15 +57,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user) refreshData();
   }, [user, refreshData]);
 
-  // --- ACTIONS ---
-
   const addGoal = useCallback(async (title: string) => {
     if (!user?.email) return null;
     try {
-      // Save to Backend
       const newGoal = await apiService.createGoal(user.email, title);
-      
-      // Update Local State
       setGoals((prev) => [newGoal, ...prev]);
       setCurrentGoal(newGoal);
       return newGoal;
@@ -76,12 +70,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
+  const updateGoal = useCallback(async (goalId: string, updates: Partial<Goal>) => {
+    setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g)));
+    if (currentGoal?.id === goalId) {
+      setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
+    }
+    try {
+      await apiService.updateGoal(goalId, updates);
+    } catch (e) {
+      console.error("Update Goal API Error", e);
+    }
+  }, [currentGoal]);
+
+  const archiveGoal = useCallback(async (goalId: string) => {
+    const updates = { status: 'archived' as const, completedAt: new Date() };
+    setGoals((prev) => prev.map(g => g.id === goalId ? { ...g, ...updates } : g));
+    if (currentGoal?.id === goalId) setCurrentGoal(null);
+    try {
+      await apiService.updateGoal(goalId, updates);
+    } catch (e) {
+      console.error("Archive Goal API Error", e);
+    }
+  }, [currentGoal]);
+
+  const deleteGoal = useCallback((goalId: string) => {
+    setGoals((prev) => prev.filter((g) => g.id !== goalId));
+    setTasks((prev) => prev.filter((t) => t.goalId !== goalId));
+    if (currentGoal?.id === goalId) setCurrentGoal(null);
+  }, [currentGoal]);
+
   const addTasks = useCallback(async (goalId: string, stagedTasks: any[]) => {
     try {
-      // Save to Backend
       const createdTasks = await apiService.addTasksToGoal(goalId, stagedTasks);
-      
-      // Update Local State
       setTasks((prev) => [...createdTasks, ...prev]);
     } catch (e) {
       console.error("Add Tasks Error", e);
@@ -89,10 +109,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
-    // Optimistic Update
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
-    
-    // Save to Backend
     try {
       await apiService.updateTask(taskId, updates);
     } catch (e) {
@@ -104,43 +121,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateTask(taskId, { status: 'completed', completed: true, completedAt: new Date() });
   }, [updateTask]);
 
-  // -- Boilerplate / Local Only for now --
-  const updateGoal = useCallback((goalId: string, updates: Partial<Goal>) => {
-    setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g)));
-    if (currentGoal?.id === goalId) {
-      setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
-    }
-  }, [currentGoal]);
-
-  const deleteGoal = useCallback((goalId: string) => {
-    setGoals((prev) => prev.filter((g) => g.id !== goalId));
-    setTasks((prev) => prev.filter((t) => t.goalId !== goalId));
-    if (currentGoal?.id === goalId) setCurrentGoal(null);
-  }, [currentGoal]);
-
   const overrideTasks = useCallback((goalId: string, stagedTasks: any[]) => {
-    // Complex logic handled simpler by just adding for MVP
     addTasks(goalId, stagedTasks);
   }, [addTasks]);
 
-  const toggleSubTask = useCallback((taskId: string) => {
-    // Legacy support
-  }, []);
+  const toggleSubTask = useCallback((taskId: string) => {}, []);
 
   const rateProductivity = useCallback((taskId: string, rating: number) => {
     updateTask(taskId, { productivityRating: rating });
   }, [updateTask]);
+
+  // --- NEW: Save Onboarding for Existing User ---
+  const saveOnboarding = useCallback(async (data: any) => {
+    if (!user?.email) return;
+    try {
+      const updatedUser = await apiService.updateUser(user.email, { onboardingData: data });
+      setUser(updatedUser); // Update local user state
+    } catch (e) {
+      console.error("Save Onboarding Error", e);
+    }
+  }, [user]);
 
   return (
     <AppContext.Provider
       value={{
         user, setUser,
         goals, tasks, currentGoal,
-        addGoal, updateGoal, deleteGoal,
+        addGoal, updateGoal, deleteGoal, archiveGoal,
         addTasks, overrideTasks, completeTask,
         toggleSubTask, updateTask,
         setCurrentGoal, rateProductivity,
-        refreshData
+        refreshData, saveOnboarding
       }}
     >
       {children}

@@ -7,7 +7,10 @@ import Animated, {
   withTiming,
   useAnimatedStyle,
   withSpring,
+  withRepeat,
+  withSequence,
   Easing,
+  interpolate,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
@@ -22,9 +25,12 @@ export interface TaskGoal {
     duration: number;
     isCompleted: boolean;
   }[];
+  isFullyComplete?: boolean;
 }
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedView = Animated.createAnimatedComponent(View);
+const AnimatedText = Animated.createAnimatedComponent(Text);
 
 const CIRCLE_SIZE = 160; 
 const STROKE_WIDTH = 14;
@@ -38,17 +44,32 @@ const ROTATION = 135;
 const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress: (g: TaskGoal) => void }) => {
   const animatedProgress = useSharedValue(0);
   const scale = useSharedValue(1);
+  
+  // Single master value for the breathing glow animation (0 to 1)
+  const glowPhase = useSharedValue(0);
 
   const completedCount = taskGoal.subTasks ? taskGoal.subTasks.filter((st) => st.isCompleted).length : 0;
   const totalCount = taskGoal.subTasks ? taskGoal.subTasks.length : 1;
   const percentage = totalCount > 0 ? completedCount / totalCount : 0;
+  const isComplete = percentage === 1;
 
   useEffect(() => {
     animatedProgress.value = withTiming(percentage, {
       duration: 1200,
       easing: Easing.out(Easing.cubic),
     });
-  }, [percentage]);
+
+    if (isComplete) {
+      // Continuous smooth breathing animation
+      glowPhase.value = withRepeat(
+        withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true // Reverse direction to make it breathe in and out
+      );
+    } else {
+        glowPhase.value = 0;
+    }
+  }, [percentage, isComplete]);
 
   const handlePressIn = () => {
     scale.value = withSpring(0.96, { damping: 15 });
@@ -68,32 +89,61 @@ const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress:
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
+    borderColor: isComplete ? '#F59E0B' : '#F1F5F9',
   }));
 
-  const gradientId = `neon-blue-${taskGoal.id}`;
+  // Layer 1: Wide expanding ring (Radiates outward)
+  const glowLayer1Style = useAnimatedStyle(() => ({
+    opacity: interpolate(glowPhase.value, [0, 1], [0.4, 0.0]), // Fades out as it expands
+    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [1.0, 1.15]) }], // Expands outward
+  }));
+
+  // Layer 2: Intense backing glow (Pulses intensity)
+  const glowLayer2Style = useAnimatedStyle(() => ({
+    opacity: interpolate(glowPhase.value, [0, 1], [0.2, 0.5]),
+    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [0.98, 1.02]) }],
+  }));
+
+  // Text Pulse: Makes the "TAP TO CLAIM" text breathe
+  const textPulseStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(glowPhase.value, [0, 1], [0.7, 1]),
+    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [0.95, 1.05]) }],
+  }));
+
+  const gradientId = `neon-${isComplete ? 'gold' : 'blue'}-${taskGoal.id}`;
 
   return (
     <Animated.View style={[styles.container, cardStyle]}>
+      {isComplete && (
+        <>
+          {/* Layer 1: Wide expanding ring */}
+          <AnimatedView style={[styles.glowRing, glowLayer1Style]} />
+          {/* Layer 2: Intense backing glow */}
+          <AnimatedView style={[styles.glowBackground, glowLayer2Style]} />
+        </>
+      )}
+      
       <Pressable 
         onPress={() => onPress(taskGoal)}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        style={styles.card}
+        style={[styles.card, isComplete && styles.completedCard]}
       >
         <View style={styles.gaugeContainer}>
           <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
             <Defs>
               <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-                <Stop offset="0%" stopColor="#00F0FF" />
-                <Stop offset="100%" stopColor="#2563EB" />
+                <Stop offset="0%" stopColor={isComplete ? "#F59E0B" : "#00F0FF"} />
+                <Stop offset="100%" stopColor={isComplete ? "#FBBF24" : "#2563EB"} />
               </LinearGradient>
             </Defs>
 
+            {/* Track */}
             <Circle
               cx={CIRCLE_SIZE / 2}
               cy={CIRCLE_SIZE / 2}
               r={RADIUS}
-              stroke="#F1F5F9"
+              stroke={isComplete ? "rgba(245, 158, 11, 0.1)" : "#F1F5F9"}
               strokeWidth={STROKE_WIDTH}
               fill="transparent"
               strokeLinecap="round"
@@ -102,6 +152,7 @@ const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress:
               origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
             />
 
+            {/* Progress Fill */}
             <AnimatedCircle
               cx={CIRCLE_SIZE / 2}
               cy={CIRCLE_SIZE / 2}
@@ -118,16 +169,25 @@ const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress:
           </Svg>
           
           <View style={styles.centerContent}>
-            <Text style={styles.percentText}>{Math.round(percentage * 100)}%</Text>
-            {percentage === 1 && (
-               <Text style={styles.completedLabel}>DONE</Text>
+            {isComplete ? (
+                <>
+                    <Text style={[styles.percentText, { color: '#D97706' }]}>100%</Text>
+                    <Text style={styles.completedLabel}>COMPLETE</Text>
+                    <AnimatedText style={[styles.tapToClaimLabel, textPulseStyle]}>
+                        TAP TO CLAIM
+                    </AnimatedText>
+                </>
+            ) : (
+                <Text style={styles.percentText}>{Math.round(percentage * 100)}%</Text>
             )}
           </View>
         </View>
 
         <View style={styles.infoContainer}>
-          <Text style={styles.title} numberOfLines={1}>{taskGoal.title}</Text>
-          <Text style={styles.description}>
+          <Text style={[styles.title, isComplete && { color: '#B45309' }]} numberOfLines={1}>
+            {taskGoal.title}
+          </Text>
+          <Text style={[styles.description, isComplete && { color: '#D97706' }]}>
             {completedCount} / {totalCount} Steps
           </Text>
         </View>
@@ -138,6 +198,24 @@ const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress:
 
 const styles = StyleSheet.create({
   container: { width: '48%', marginBottom: 16 },
+  glowBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#F59E0B',
+    borderRadius: 24,
+    zIndex: -1,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  glowRing: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    zIndex: -2,
+  },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -151,6 +229,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 3,
+  },
+  completedCard: {
+    backgroundColor: '#FFFBEB', // Light gold bg
+    borderColor: '#FCD34D',
   },
   gaugeContainer: {
     position: 'relative',
@@ -179,10 +261,22 @@ const styles = StyleSheet.create({
   },
   completedLabel: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#10B981',
-    marginTop: 2,
+    fontWeight: '900',
+    color: '#F59E0B',
+    marginTop: 4,
     letterSpacing: 1,
+  },
+  tapToClaimLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#B45309', // Darker gold/brown for contrast
+    marginTop: 4,
+    letterSpacing: 0.5,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
   infoContainer: {
     alignItems: 'center',

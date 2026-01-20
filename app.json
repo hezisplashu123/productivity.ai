@@ -2,6 +2,7 @@
   "expo": {
     "name": "productivity-ai",
     "slug": "productivity-ai",
+    "owner": "hezisplash133",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -13,18 +14,20 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hezisplash133.productivityai"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FFF8E7"
-      }
+      },
+      "package": "com.hezisplash133.productivityai"
     },
     "scheme": "productivity-ai",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-apple-authentication"
     ],
     "sdkVersion": "54.0.0"
   }
 }
-

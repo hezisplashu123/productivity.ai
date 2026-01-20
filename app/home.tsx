@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
@@ -7,9 +7,10 @@ import { StatusBar } from 'expo-status-bar';
 
 // Components
 import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
-import TaskReactorCircle from '../src/components/TaskReactorCircle';
+import TaskReactorCircle, { TaskGoal } from '../src/components/TaskReactorCircle';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
-import { BottomNav } from '../src/components/BottomNav'; // Import New Component
+import { BottomNav } from '../src/components/BottomNav'; 
+import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal'; // Import New Modal
 
 // Context & Constants
 import { lightColors as colors } from '../src/constants/colors';
@@ -17,21 +18,21 @@ import { useApp } from '../src/context/AppContext';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const context = useApp();
+  const { goals, tasks, archiveGoal } = useApp();
   
-  const goals = context?.goals || [];
-  const tasks = context?.tasks || [];
+  // State for celebration modal
+  const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
 
   const reactorGoals = useMemo(() => {
     if (!Array.isArray(goals)) return [];
     
-    return goals.map(goal => {
+    // Filter out archived goals, show active and completed
+    const visibleGoals = goals.filter(g => g.status !== 'archived');
+
+    return visibleGoals.map(goal => {
       const goalTasks = Array.isArray(tasks) ? tasks.filter(t => t.goalId === goal.id) : [];
       
-      const totalTime = goalTasks.reduce((sum, t) => {
-        const duration = (t && typeof t.duration === 'number') ? t.duration : 0;
-        return sum + duration;
-      }, 0);
+      const totalTime = goalTasks.reduce((sum, t) => sum + (t.duration || 0), 0);
 
       return {
         id: goal.id,
@@ -41,7 +42,7 @@ export default function HomeScreen() {
         subTasks: goalTasks.map(t => ({
           id: t.id,
           title: t.title || 'Untitled Task',
-          duration: (t && typeof t.duration === 'number') ? t.duration : 0,
+          duration: t.duration || 0,
           isCompleted: t?.status === 'completed'
         }))
       };
@@ -61,8 +62,23 @@ export default function HomeScreen() {
 
   const { dayName, dateNum } = formatDate();
 
-  const handleFlamePress = () => {
-    router.push('/leaderboard');
+  const handleGoalPress = (goal: TaskGoal) => {
+    const isFullyComplete = goal.subTasks.length > 0 && goal.subTasks.every(t => t.isCompleted);
+    
+    if (isFullyComplete) {
+      // Show celebration modal logic
+      setCelebrationGoal(goal);
+    } else {
+      // Normal navigation logic
+      router.push({ pathname: '/goal-detail', params: { goalId: goal.id }});
+    }
+  };
+
+  const handleArchive = () => {
+    if (celebrationGoal) {
+      archiveGoal(celebrationGoal.id);
+      setCelebrationGoal(null);
+    }
   };
 
   return (
@@ -76,17 +92,9 @@ export default function HomeScreen() {
                 <Text style={styles.dayLabel}>{dayName}</Text>
                 <Text style={styles.dateLabel}>{dateNum}</Text>
               </View>
-
-              <TouchableOpacity
-                style={styles.devResetButton}
-                onPress={() => router.replace('/welcome')}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.devResetText}>RESET</Text>
-              </TouchableOpacity>
             </View>
 
-            <AnimatedStreakFlame onPress={handleFlamePress} />
+            <AnimatedStreakFlame onPress={() => router.push('/leaderboard')} />
           </View>
 
           <ScrollView 
@@ -112,15 +120,26 @@ export default function HomeScreen() {
                   <TaskReactorCircle
                     key={reactor.id}
                     taskGoal={reactor}
-                    onPress={(g: any) => router.push({ pathname: '/goal-detail', params: { goalId: g.id }})}
+                    onPress={handleGoalPress}
                   />
                 ))}
               </View>
             )}
           </ScrollView>
 
-          {/* Replaced Navigation */}
           <BottomNav activeTab="Home" />
+          
+          {/* Celebration Modal */}
+          {celebrationGoal && (
+            <MissionAccomplishedModal
+              visible={!!celebrationGoal}
+              goalTitle={celebrationGoal.title}
+              totalTime={celebrationGoal.totalTime}
+              taskCount={celebrationGoal.subTasks.length}
+              onArchive={handleArchive}
+              onClose={() => setCelebrationGoal(null)}
+            />
+          )}
           
         </SafeAreaView>
       </ErrorBoundary>
@@ -141,15 +160,6 @@ const styles = StyleSheet.create({
   dateBox: { flexDirection: 'column' },
   dayLabel: { fontSize: 11, fontWeight: '800', color: '#BDBDBD', letterSpacing: 1.5 },
   dateLabel: { fontSize: 24, fontWeight: '900', color: '#1A1A1A', marginTop: 2 },
-  devResetButton: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  devResetText: { fontSize: 10, fontWeight: '700', color: colors.textSecondary },
   
   scrollContent: { paddingHorizontal: 24, paddingBottom: 150 },
   sectionHeader: {
