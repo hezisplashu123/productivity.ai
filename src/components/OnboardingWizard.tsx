@@ -1,32 +1,39 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import Animated, { useSharedValue, withSpring, interpolate, FadeIn } from 'react-native-reanimated';
-import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Users, Smartphone, Gamepad2, BedDouble, Search, MessagesSquare, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon } from 'lucide-react-native';
+import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
+import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, BedDouble, MessagesSquare, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon, GraduationCap, Code, PenTool, TrendingUp } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
-import { ScaleButton } from './ScaleButton';
 import * as Haptics from 'expo-haptics';
 
+// --- NEW DATA: IDENTITIES ---
+const IDENTITIES = [
+  { id: 'student', label: 'Student', description: 'Assignments, Exams, Studying.', icon: GraduationCap },
+  { id: 'creative', label: 'Creative', description: 'Design, Writing, Art, Media.', icon: PenTool },
+  { id: 'developer', label: 'Developer', description: 'Coding, Engineering, Data.', icon: Code },
+  { id: 'founder', label: 'Founder/Exec', description: 'Strategy, Management, Growth.', icon: TrendingUp },
+  { id: 'professional', label: 'Professional', description: 'Corporate, Admin, Operations.', icon: Briefcase },
+];
+
 const ARCHETYPES = [
-  { id: 'architect', label: 'The Architect', description: 'I need a plan before starting.', icon: Briefcase },
-  { id: 'firefighter', label: 'The Firefighter', description: 'I thrive on urgency and chaos.', icon: Flame },
-  { id: 'sprinter', label: 'The Sprinter', description: 'Bursts of energy, then rest.', icon: Zap },
-  { id: 'deep_worker', label: 'The Deep Worker', description: 'I need total silence.', icon: Brain },
+  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Briefcase },
+  { id: 'firefighter', label: 'The Firefighter', description: 'I only work when the deadline is scary.', icon: Flame },
+  { id: 'sprinter', label: 'The Sprinter', description: 'I work in intense bursts, then crash.', icon: Zap },
+  { id: 'deep_worker', label: 'The Deep Worker', description: 'I need long hours of total silence.', icon: Brain },
 ];
 
 const VILLAINS = [
-  { id: 'doomscrolling', label: 'Doomscrolling', description: 'TikTok and Reels loops.', icon: Smartphone },
-  { id: 'side_quests', label: 'Side Quests', description: 'Avoiding work with chores.', icon: Gamepad2 },
-  { id: 'rotting', label: 'Rotting', description: 'Brain fog and low energy.', icon: BedDouble },
-  { id: 'yap_fatigue', label: 'Yap Fatigue', description: 'Drained by too many meetings.', icon: MessagesSquare },
+  { id: 'doomscrolling', label: 'The Scroll', description: 'Getting sucked into social media loops.', icon: Smartphone },
+  { id: 'side_quests', label: 'Side Quests', description: 'Cleaning the room to avoid the real task.', icon: Gamepad2 },
+  { id: 'rotting', label: 'Brain Fog', description: 'Feeling paralyzed and low energy.', icon: BedDouble },
+  { id: 'yap_fatigue', label: 'Over-Communication', description: 'Drained by too many messages/calls.', icon: MessagesSquare },
 ];
 
 const MENTAL_BLOCKS = [
-  { id: 'perfectionism', label: 'Perfectionism', description: 'Fear of doing it wrong.', icon: Target },
-  { id: 'overwhelm', label: 'Overwhelm', description: 'The project feels too big.', icon: Activity },
+  { id: 'perfectionism', label: 'Perfectionism', description: 'If it\'s not perfect, I won\'t start.', icon: Target },
+  { id: 'overwhelm', label: 'Overwhelm', description: 'The project feels too massive.', icon: Activity },
   { id: 'procrastination', label: 'Resistance', description: 'I just don\'t feel like it yet.', icon: AlertTriangle },
-  { id: 'boredom', label: 'Boredom', description: 'Lack of stimulating interest.', icon: Anchor },
+  { id: 'boredom', label: 'Boredom', description: 'The task is dull and painful.', icon: Anchor },
 ];
 
 const FOCUS_WINDOWS = [
@@ -39,19 +46,37 @@ const FOCUS_WINDOWS = [
 
 export const OnboardingWizard = ({ onComplete }: any) => {
   const [currentStep, setCurrentStep] = useState(0);
-  const insets = useSafeAreaInsets();
-  const [data, setData] = useState({ workArchetype: null, frictionVillain: null, mentalBlock: null, focusWindow: null });
+  const [data, setData] = useState({ 
+    identity: null, // NEW FIELD
+    workArchetype: null, 
+    frictionVillain: null, 
+    mentalBlock: null, 
+    focusWindow: null 
+  });
+  
   const stepTransition = useSharedValue(0);
 
   useEffect(() => { stepTransition.value = 0; stepTransition.value = withSpring(1); }, [currentStep]);
 
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (currentStep < 3) setCurrentStep(currentStep + 1);
+    if (currentStep < 4) setCurrentStep(currentStep + 1); // Increased steps to 4
     else onComplete(data);
   };
 
-  const canProceed = data.workArchetype && (currentStep < 1 || data.frictionVillain) && (currentStep < 2 || data.mentalBlock) && (currentStep < 3 || data.focusWindow);
+  const steps = [
+    { title: "Who are you?", data: IDENTITIES, key: 'identity' },
+    { title: "How do you work?", data: ARCHETYPES, key: 'workArchetype' },
+    { title: "Your Nemesis?", data: VILLAINS, key: 'frictionVillain' },
+    { title: "The Inner Barrier.", data: MENTAL_BLOCKS, key: 'mentalBlock' },
+    { title: "Peak Energy.", data: FOCUS_WINDOWS, key: 'focusWindow' }
+  ];
+
+  const currentStepData = steps[currentStep];
+  const isLastStep = currentStep === 4;
+  
+  // @ts-ignore
+  const canProceed = data[currentStepData.key] !== null;
 
   const PillCard = ({ item, isSelected, onPress }: any) => (
     <TouchableOpacity style={[styles.pillCard, isSelected && styles.selectedCard]} onPress={onPress} activeOpacity={0.8}>
@@ -65,12 +90,19 @@ export const OnboardingWizard = ({ onComplete }: any) => {
     <View style={styles.container}>
       <SafeAreaView style={{ flex: 1 }}>
         <View style={styles.content}>
-          <Text style={styles.stepTitle}>{["How do you work?", "Your Nemesis?", "The Inner Barrier.", "Peak Energy."][currentStep]}</Text>
+          <Text style={styles.stepTitle}>{currentStepData.title}</Text>
           <View style={{ flex: 1 }}>
-            {currentStep < 3 ? (
+            {!isLastStep ? (
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-                {(currentStep === 0 ? ARCHETYPES : currentStep === 1 ? VILLAINS : MENTAL_BLOCKS).map(item => (
-                  <PillCard key={item.id} item={item} isSelected={(currentStep === 0 ? data.workArchetype : currentStep === 1 ? data.frictionVillain : data.mentalBlock) === item.id} onPress={() => setData({ ...data, [currentStep === 0 ? 'workArchetype' : currentStep === 1 ? 'frictionVillain' : 'mentalBlock']: item.id })} />
+                {currentStepData.data.map((item: any) => (
+                  <PillCard 
+                    key={item.id} 
+                    item={item} 
+                    // @ts-ignore
+                    isSelected={data[currentStepData.key] === item.id} 
+                    // @ts-ignore
+                    onPress={() => setData({ ...data, [currentStepData.key]: item.id })} 
+                  />
                 ))}
               </ScrollView>
             ) : (
@@ -86,7 +118,10 @@ export const OnboardingWizard = ({ onComplete }: any) => {
           </View>
         </View>
         <View style={styles.footer}>
-          <TouchableOpacity style={[styles.nextBtn, !canProceed && { opacity: 0.5 }]} disabled={!canProceed} onPress={handleNext}><Text style={styles.nextText}>{currentStep === 3 ? 'Finish' : 'Next'}</Text><ArrowRight size={20} color="#FFF" /></TouchableOpacity>
+          <TouchableOpacity style={[styles.nextBtn, !canProceed && { opacity: 0.5 }]} disabled={!canProceed} onPress={handleNext}>
+            <Text style={styles.nextText}>{isLastStep ? 'Finish' : 'Next'}</Text>
+            <ArrowRight size={20} color="#FFF" />
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     </View>

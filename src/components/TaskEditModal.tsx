@@ -9,9 +9,7 @@ import {
   TextInput, 
   ActivityIndicator,
   Platform,
-  KeyboardAvoidingView,
-  TouchableWithoutFeedback,
-  Keyboard
+  KeyboardAvoidingView
 } from 'react-native';
 import { X, Minus, Plus, Send, Sparkles, Info, CheckCircle2, Circle } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
@@ -42,6 +40,11 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
   const [feedback, setFeedback] = useState('');
   const [isRefining, setIsRefining] = useState(false);
 
+  // --- FIX: Hooks must be called before conditional returns ---
+  const animatedContainerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
   useEffect(() => {
     if (visible) {
       // Slide Up
@@ -57,6 +60,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
     }
   }, [visible]);
 
+  // --- FIX: Conditional return moved after all hooks ---
   if (!task) return null;
 
   const handleTimeChange = (diff: number) => {
@@ -88,10 +92,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
       setIsRefining(false);
     }
   };
-
-  const animatedContainerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
 
   return (
     <Modal visible={visible} transparent animationType="none">
@@ -267,8 +267,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', 
+    alignItems: 'center', 
     gap: 6,
     marginBottom: 8,
   },
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB', 
     padding: 16, 
     borderRadius: 16, 
-    borderWidth: 1,
+    borderWidth: 1, 
     borderColor: '#F3F4F6'
   },
   descriptionText: { 
@@ -352,9 +352,6 @@ const styles = StyleSheet.create({
     fontWeight: '800', 
     color: '#9CA3AF', 
     marginTop: -4 
-  },
-  footer: {
-    marginTop: 'auto',
   },
   completeBtn: { 
     flexDirection: 'row', 

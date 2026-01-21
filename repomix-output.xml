@@ -67,12 +67,14 @@ backend/prisma/migrations/20260114220654_init_db/migration.sql
 backend/prisma/migrations/20260115212653_add_streak_fields/migration.sql
 backend/prisma/migrations/20260120024253_add_social_auth/migration.sql
 backend/prisma/migrations/20260120031137_add_social_id/migration.sql
+backend/prisma/migrations/20260121225651_add_journey_fields/migration.sql
 backend/prisma/migrations/migration_lock.toml
 backend/prisma/schema.prisma
 backend/README.md
 backend/src/index.ts
 backend/src/lib/prisma.ts
 backend/src/prisma/seed.ts
+backend/src/services/ai.service.ts
 backend/tsconfig.json
 package.json
 QUICK_START.md
@@ -103,6 +105,7 @@ src/components/habit-profiler/README.md
 src/components/HabitProfiler.tsx
 src/components/LeaderboardModal.tsx
 src/components/LinearSlider.tsx
+src/components/LongTermSetupModal.tsx
 src/components/MagicInput.tsx
 src/components/MinimalistTimeline.tsx
 src/components/MissionAccomplishedModal.tsx
@@ -150,6 +153,173 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="backend/prisma/migrations/20260121225651_add_journey_fields/migration.sql">
+-- AlterTable
+ALTER TABLE "Goal" ADD COLUMN     "startDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "targetDate" TIMESTAMP(3),
+ADD COLUMN     "type" TEXT NOT NULL DEFAULT 'project';
+</file>
+
+<file path="src/components/LongTermSetupModal.tsx">
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
+import { Calendar, ArrowRight, Clock, Minus, Plus } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+interface LongTermSetupModalProps {
+  visible: boolean;
+  goalTitle: string;
+  aiReason: string;
+  onConfirm: (date: Date, dailyMinutes: number) => void; // Updated signature
+  onCancel: () => void;
+}
+
+export const LongTermSetupModal = ({ visible, goalTitle, aiReason, onConfirm, onCancel }: LongTermSetupModalProps) => {
+  const [date, setDate] = useState(new Date(Date.now() + 86400000 * 30));
+  const [showPicker, setShowPicker] = useState(false);
+  
+  // New State for Daily Time
+  const [dailyMinutes, setDailyMinutes] = useState(45); 
+
+  if (!visible) return null;
+
+  const handleConfirm = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onConfirm(date, dailyMinutes);
+  };
+
+  const handleTimeChange = (delta: number) => {
+    const newVal = Math.max(15, Math.min(240, dailyMinutes + delta)); // Min 15m, Max 4h
+    if (newVal !== dailyMinutes) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setDailyMinutes(newVal);
+    }
+  };
+
+  const daysUntil = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') setShowPicker(false);
+    if (selectedDate) setDate(selectedDate);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="none">
+      <View style={styles.overlay}>
+        <Animated.View entering={FadeInUp.springify()} exiting={FadeOutDown} style={styles.card}>
+          
+          <View style={styles.headerRow}>
+            <View style={styles.iconContainer}>
+              <Calendar size={28} color={colors.primary} />
+            </View>
+            <View style={{flex: 1}}>
+              <Text style={styles.title}>Journey Detected</Text>
+              <Text style={styles.subtitle} numberOfLines={2}>"{goalTitle}" is a long-term goal.</Text>
+            </View>
+          </View>
+
+          {/* SECTION 1: DEADLINE */}
+          <View style={styles.section}>
+            <Text style={styles.label}>WHEN DO YOU WANT TO FINISH?</Text>
+            <TouchableOpacity 
+              style={styles.dateButton} 
+              onPress={() => setShowPicker(!showPicker)}
+            >
+              <Text style={styles.dateText}>{date.toDateString()}</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{daysUntil} DAYS</Text>
+              </View>
+            </TouchableOpacity>
+
+            {showPicker && (
+              <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : undefined}>
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? "spinner" : "default"}
+                  minimumDate={new Date()}
+                  onChange={onDateChange}
+                  textColor={colors.text}
+                />
+              </View>
+            )}
+          </View>
+
+          {/* SECTION 2: DAILY CAPACITY */}
+          <View style={styles.section}>
+            <Text style={styles.label}>DAILY TIME COMMITMENT</Text>
+            <View style={styles.timeControl}>
+              <TouchableOpacity style={styles.stepperBtn} onPress={() => handleTimeChange(-15)}>
+                <Minus size={20} color={colors.text} />
+              </TouchableOpacity>
+              
+              <View style={styles.timeDisplay}>
+                <Clock size={16} color={colors.primary} style={{marginBottom: 4}} />
+                <Text style={styles.timeValue}>
+                  {dailyMinutes >= 60 ? `${Math.floor(dailyMinutes/60)}h ${dailyMinutes%60 > 0 ? dailyMinutes%60 + 'm' : ''}` : `${dailyMinutes}m`}
+                </Text>
+                <Text style={styles.timeSub}>PER DAY</Text>
+              </View>
+
+              <TouchableOpacity style={styles.stepperBtn} onPress={() => handleTimeChange(15)}>
+                <Plus size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={onCancel}>
+              <Text style={styles.secondaryText}>Switch to Single Project</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleConfirm}>
+              <Text style={styles.primaryText}>Design Plan</Text>
+              <ArrowRight size={18} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
+  card: { backgroundColor: '#FFF', borderRadius: 24, padding: 24 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 16 },
+  iconContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  title: { fontSize: 20, fontWeight: '800', color: colors.text },
+  subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  
+  section: { marginBottom: 24 },
+  label: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, marginBottom: 12, letterSpacing: 1 },
+  
+  dateButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#F9FAFB', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' },
+  dateText: { fontSize: 16, fontWeight: '700', color: colors.text },
+  badge: { backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  badgeText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  
+  iosPickerContainer: { marginTop: 10, backgroundColor: '#F9FAFB', borderRadius: 12, overflow: 'hidden' },
+
+  // Time Control Styles
+  timeControl: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F9FAFB', borderRadius: 16, padding: 8, borderWidth: 1, borderColor: '#E5E7EB' },
+  stepperBtn: { width: 48, height: 48, backgroundColor: '#FFF', borderRadius: 14, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  timeDisplay: { alignItems: 'center', flex: 1 },
+  timeValue: { fontSize: 22, fontWeight: '800', color: colors.text },
+  timeSub: { fontSize: 10, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.5 },
+
+  actions: { gap: 12, marginTop: 8 },
+  primaryBtn: { backgroundColor: colors.primary, padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  primaryText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  secondaryBtn: { padding: 12, alignItems: 'center' },
+  secondaryText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
+});
+</file>
 
 <file path="app/focus-session.tsx">
 import React, { useState, useEffect, useRef } from 'react';
@@ -876,42 +1046,6 @@ module.exports = function(api) {
 };
 </file>
 
-<file path="backend/package.json">
-{
-  "name": "productivity-ai-backend",
-  "version": "1.0.0",
-  "description": "Backend server for Productivity AI",
-  "main": "dist/index.js",
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx src/prisma/seed.ts"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@prisma/client": "^5.19.0",
-    "cors": "^2.8.5",
-    "express": "^4.19.2"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.14.0",
-    "prisma": "^5.19.0",
-    "tsx": "^4.16.0",
-    "typescript": "^5.3.3"
-  },
-  "prisma": {
-    "seed": "tsx src/prisma/seed.ts"
-  }
-}
-</file>
-
 <file path="backend/prisma/migrations/20260114220654_init_db/migration.sql">
 -- CreateTable
 CREATE TABLE "User" (
@@ -995,6 +1129,298 @@ CREATE UNIQUE INDEX "User_socialId_key" ON "User"("socialId");
 # Please do not edit this file manually
 # It should be added in your version-control system (i.e. Git)
 provider = "postgresql"
+</file>
+
+<file path="backend/src/services/ai.service.ts">
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/**
+ * 🧠 IDENTITY PROTOCOLS
+ */
+const IDENTITY_FRAMEWORK: Record<string, string> = {
+  'student': "CONTEXT: User is a STUDENT. Critical variables: Exam date, specific subject module, existing notes vs. starting from scratch. TONE: Academic Coach.",
+  'developer': "CONTEXT: User is a DEVELOPER. Critical variables: New feature vs. bug fix, local env setup status, specific library/framework constraints. TONE: Senior Tech Lead.",
+  'creative': "CONTEXT: User is a CREATIVE. Critical variables: Ideation phase vs. execution phase, rough draft vs. final polish, specific software tool. TONE: Creative Director.",
+  'founder': "CONTEXT: User is a FOUNDER. Critical variables: Strategic planning vs. urgent execution, delegation potential, ROI of the task. TONE: Board Member.",
+  'professional': "CONTEXT: User is a PROFESSIONAL. Critical variables: Hard deadline, stakeholder requirements, specific document/email format. TONE: Project Manager."
+};
+
+/**
+ * 🧠 ACTION PROTOCOLS
+ */
+const GRANULARITY_INSTRUCTIONS: Record<string, string> = {
+  'architect': "STRATEGY: 'The Blueprint'. The first task MUST be a detailed bullet-point list. Do not let them start 'working' until the plan is set.",
+  'firefighter': "STRATEGY: 'Triage Mode'. Ignore structure. Point them to the single most painful/urgent sub-task immediately.",
+  'sprinter': "STRATEGY: 'Interval Training'. Tasks must be 20 minutes MAX. High intensity, clear finish line.",
+  'deep_worker': "STRATEGY: 'Monk Mode'. Group all prep work into Task 1. Task 2 is a long, uninterrupted execution block."
+};
+
+const EXTERNAL_DEFENSE: Record<string, string> = {
+  'doomscrolling': "DEFENSE: 'Friction Injection'. Instruct user to check phone battery, then place it face down. Enable 'Do Not Disturb'.",
+  'side_quests': "DEFENSE: 'Tunnel Vision'. Explicitly forbid specific side-tasks (e.g., 'Do not check email', 'Do not clean the desk').",
+  'rotting': "DEFENSE: 'The 2-Minute Rule'. The first task must be so easy it requires zero willpower.",
+  'yap_fatigue': "DEFENSE: 'Hermit Protocol'. Instruct user to put headphones on to signal 'Do Not Disturb'.",
+};
+
+const INTERNAL_DEFENSE: Record<string, string> = {
+  'perfectionism': "MINDSET: 'Trash Draft'. Command them to write a 'bad' version first. Forbid editing.",
+  'overwhelm': "MINDSET: 'One Brick'. The tasks should only reveal the immediate next step, not the whole project.",
+  'procrastination': "MINDSET: 'Activation Energy'. Frame the task as 'Just setting up', not 'Doing the work'.",
+  'boredom': "MINDSET: 'Time Attack'. Assign aggressive time limits to tasks to create artificial urgency."
+};
+
+/** 
+ * 🧠 STEP 1: THE CLARIFIER
+ */
+export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
+  const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
+  
+  const systemPrompt = `
+    You are an elite Project Manager and Interrogator.
+    ${identityPrompt}
+    
+    The user has a goal: "${goal}".
+    
+    Your job is NOT to be polite. Your job is to find the "Execution Gap"—the missing piece of information that makes the difference between a vague plan and a concrete strategy.
+    
+    ANALYZE THE GOAL:
+    1. Is the *starting state* clear? (Are they starting from zero or finishing something?)
+    2. Is the *constraint* clear? (Is there a word count, a specific bug, a deadline?)
+    3. Is the *tool* clear? (Are they using Excel, VS Code, a physical notebook?)
+    
+    MISSION:
+    Ask ONE high-precision question (max 15-20 words) that forces the user to define the SCOPE or METHOD.
+    
+    OUTPUT JSON:
+    { "question": "..." }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: goal }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      temperature: 0.7, 
+    });
+    const result = JSON.parse(completion.choices[0].message.content || "{}");
+    return result.question || "What is the immediate specific outcome you need to see in the next hour?";
+  } catch (error) {
+    return "To plan this effectively, are you starting from scratch or continuing previous work?";
+  }
+};
+
+/**
+ * 🧠 STEP 1.5: THE CLASSIFIER
+ */
+export const analyzeGoalType = async (goal: string) => {
+  const systemPrompt = `
+    Analyze this goal: "${goal}".
+    
+    Is this a "PROJECT" (finite set of tasks done in 1-3 sessions, e.g., "Build a website", "Write an essay")
+    OR a "JOURNEY" (repetitive/cumulative effort over days/weeks, e.g., "Lose 10lbs", "Learn Spanish", "Study for SATs", "Gym Routine")?
+    
+    OUTPUT JSON:
+    { 
+      "type": "project" | "journey",
+      "reason": "Short explanation of why",
+      "suggested_duration_days": 30
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+    });
+    return JSON.parse(completion.choices[0].message.content || '{"type": "project"}');
+  } catch (error) {
+    return { type: 'project' };
+  }
+};
+
+/** 
+ * 🧠 STEP 2: THE STRATEGIST
+ */
+export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "") => {
+  const onboarding = userProfile.onboardingData || {};
+  
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
+  const breakdownRule = GRANULARITY_INSTRUCTIONS[onboarding.workArchetype] || "Standard breakdown.";
+  const externalRule = EXTERNAL_DEFENSE[onboarding.frictionVillain] || "Minimize noise.";
+  const internalRule = INTERNAL_DEFENSE[onboarding.mentalBlock] || "Just execute.";
+
+  const systemPrompt = `
+    You are the user's specialized Chief of Staff.
+    
+    USER PROFILE:
+    - ${identityPrompt}
+    - Strategy: ${breakdownRule}
+    - Enemy: ${externalRule}
+    - Mindset: ${internalRule}
+    
+    GOAL: "${goal}"
+    CONTEXT: "${clarification}"
+
+    MISSION:
+    Create a "High-Resolution" Execution Plan.
+    Use the CONTEXT provided to tailor the starting point.
+
+    CRITICAL CONSTRAINTS:
+    1. THE PHONE IS THE TOOL: The user is holding their phone. It is their timer. Tell them to use it (e.g., "Set phone on desk, face up").
+    2. MICRO-SCRIPTS: Give exact instructions (e.g., "Open file X", "Write header Y").
+    3. FIRST TASK IS MOMENTUM: Duration 2-5 mins.
+    4. NO VAGUE VERBS: Ban words like "Plan", "Think", "Prepare". Use "Draft", "Compile", "Sketch".
+
+    OUTPUT FORMAT (JSON):
+    {
+      "short_title": "2-Word Mission Name (e.g. 'Project Alpha')",
+      "tasks": [ 
+        { 
+          "title": "Action Verb + Object", 
+          "duration": 25, 
+          "description": "2 sentences. 1: The physical action. 2: A defense against their specific villain." 
+        } 
+      ]
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini", 
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+
+    const content = completion.choices[0].message.content;
+    if (!content) throw new Error("No content received");
+
+    const result = JSON.parse(content);
+    const trimmedTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : "Mission Alpha";
+
+    return { 
+      shortTitle: trimmedTitle, 
+      tasks: result.tasks || [] 
+    };
+
+  } catch (error) {
+    console.error("❌ OpenAI API Error:", error);
+    return null; 
+  }
+};
+
+/**
+ * 🧠 STEP 2 (VARIANT): THE COACH (Daily Generator)
+ */
+export const generateDailyPlan = async (
+  goal: string, 
+  userProfile: any, 
+  dayNumber: number, 
+  totalDays: number,
+  dailyMinutes: number = 45 // Default if not provided
+) => {
+  const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || "";
+  
+  const systemPrompt = `
+    You are an expert Coach & Chief of Staff.
+    ${identityPrompt}
+    
+    MAIN GOAL: "${goal}"
+    CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
+    TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
+    
+    MISSION:
+    Generate a tactical plan for TODAY (Day ${dayNumber}) that fits exactly within ${dailyMinutes} minutes.
+    
+    RULES:
+    1. STRICT TIME LIMIT: The sum of all task durations MUST equal exactly ${dailyMinutes} minutes.
+    2. TASK COUNT: 
+       - If budget < 30m: 1-2 tasks.
+       - If budget > 60m: 3-4 tasks.
+    3. PROGRESSION:
+       - Day 1: Setup & Foundational Reps.
+       - Middle Days: Deep Work / Heavy Lifting.
+       - Final Days: Review & Final Polish.
+    4. MICRO-SCRIPTS: Instructions must be specific physical actions.
+    
+    OUTPUT JSON:
+    {
+      "short_title": "Day ${dayNumber} Theme",
+      "tasks": [ 
+        { 
+          "title": "Specific Exercise/Task", 
+          "duration": 15, 
+          "description": "Specific instruction for this session." 
+        } 
+      ]
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+    });
+    const result = JSON.parse(completion.choices[0].message.content || "{}");
+    return { 
+      shortTitle: result.short_title || `Day ${dayNumber}`, 
+      tasks: result.tasks || [] 
+    };
+  } catch (error) {
+    return null;
+  }
+};
+
+/** 
+ * 🧠 STEP 3: THE FIXER
+ */
+export const refineSingleTask = async (task: any, feedback: string, userProfile: any) => {
+  const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
+
+  const systemPrompt = `
+    You are a pragmatic Chief of Staff.
+    ${identityPrompt}
+    
+    ORIGINAL TASK: "${task.title}"
+    USER OBSTACLE: "${feedback}"
+    
+    MISSION:
+    Rewrite this task to bypass the obstacle.
+    - If they lack energy -> Simplify to the absolute bare minimum (e.g., "Just read 1 page").
+    - If they lack time -> Compress to a sprint.
+    - If they lack equipment -> Find a workaround.
+    
+    Keep the tone encouraging but directive.
+
+    OUTPUT JSON:
+    { "title": "New Task Name", "duration": 15, "description": "Specific tactical instructions..." }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+    });
+
+    const content = completion.choices[0].message.content;
+    if (!content) return task;
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error("❌ Task Refinement Error:", error);
+    return task;
+  }
+};
 </file>
 
 <file path="src/components/ActiveTaskCard.tsx">
@@ -7401,287 +7827,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/TaskEditModal.tsx">
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Platform } from 'react-native';
-import { X, Minus, Plus, CheckCircle2, Circle, Info } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  withTiming, 
-  FadeIn, 
-  FadeOut 
-} from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-
-const { height } = Dimensions.get('window');
-
-export const TaskEditModal = ({ visible, task, onClose, onUpdate }: any) => {
-  // Manual animation value for total control
-  const translateY = useSharedValue(height);
-
-  useEffect(() => {
-    if (visible) {
-      // Snappy spring with high damping = NO JUMP/BOUNCE
-      translateY.value = withSpring(0, {
-        damping: 40,
-        stiffness: 300,
-        mass: 0.8,
-      });
-    } else {
-      translateY.value = height;
-    }
-  }, [visible]);
-
-  const animatedContainerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  if (!task) return null;
-
-  const handleTimeChange = (diff: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onUpdate(task.id, { duration: Math.max(5, task.duration + diff) });
-  };
-
-  const toggleComplete = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const isNowCompleted = task.status !== 'completed';
-    onUpdate(task.id, { 
-      status: isNowCompleted ? 'completed' : 'queued',
-      completed: isNowCompleted
-    });
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="none">
-      <View style={styles.overlay}>
-        {/* Rapid Background Fade */}
-        <Animated.View 
-          entering={FadeIn.duration(200)} 
-          exiting={FadeOut.duration(200)}
-          style={StyleSheet.absoluteFill}
-        >
-          <TouchableOpacity 
-            style={styles.dismissArea} 
-            activeOpacity={1} 
-            onPress={onClose} 
-          />
-        </Animated.View>
-        
-        {/* Manual Slide Container */}
-        <Animated.View style={[styles.container, animatedContainerStyle]}>
-          <View style={styles.handle} />
-          
-          <View style={styles.header}>
-            <Text style={styles.headerLabel}>EDIT PARAMETERS</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.title}>{task.title}</Text>
-
-          <View style={styles.descriptionCard}>
-            <View style={styles.descTitleRow}>
-                <Info size={12} color={colors.primary} />
-                <Text style={styles.descTitle}>AI CONTEXT</Text>
-            </View>
-            <Text style={styles.descriptionText}>
-              {task.description || "The AI suggested this step to optimize your focus session for this mission."}
-            </Text>
-          </View>
-
-          <View style={styles.editorSection}>
-            <Text style={styles.sectionLabel}>FOCUS DURATION</Text>
-            <View style={styles.stepper}>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => handleTimeChange(-5)}>
-                <Minus size={22} color="#1A1A1A" />
-              </TouchableOpacity>
-              
-              <View style={styles.timeValueBox}>
-                <Text style={styles.timeValue}>{task.duration}</Text>
-                <Text style={styles.minLabel}>MINS</Text>
-              </View>
-
-              <TouchableOpacity style={styles.stepBtn} onPress={() => handleTimeChange(5)}>
-                <Plus size={22} color="#1A1A1A" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <TouchableOpacity 
-            style={[styles.completeBtn, task.status === 'completed' && styles.completeBtnActive]} 
-            onPress={toggleComplete}
-            activeOpacity={0.8}
-          >
-            {task.status === 'completed' ? (
-              <CheckCircle2 size={20} color="#FFFFFF" fill="rgba(255,255,255,0.2)" />
-            ) : (
-              <Circle size={20} color="#FFFFFF" opacity={0.5} />
-            )}
-            <Text style={styles.completeBtnText}>
-              {task.status === 'completed' ? 'MARK AS INCOMPLETE' : 'MARK AS FINISHED'}
-            </Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-};
-
-const styles = StyleSheet.create({
-  overlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.3)', 
-    justifyContent: 'flex-end' 
-  },
-  dismissArea: { 
-    flex: 1,
-    backgroundColor: 'transparent'
-  },
-  container: { 
-    backgroundColor: '#FFFFFF', 
-    borderTopLeftRadius: 32, 
-    borderTopRightRadius: 32, 
-    padding: 24, 
-    paddingBottom: Platform.OS === 'ios' ? 45 : 30,
-    // Add border to blend with bottom edge
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#F0F0F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 20,
-  },
-  handle: { 
-    width: 36, 
-    height: 4, 
-    backgroundColor: '#F3F4F6', 
-    borderRadius: 2, 
-    alignSelf: 'center', 
-    marginBottom: 20 
-  },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 12 
-  },
-  headerLabel: { 
-    fontSize: 10, 
-    fontWeight: '900', 
-    color: colors.primary, 
-    letterSpacing: 1.5 
-  },
-  closeBtn: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 16, 
-    backgroundColor: '#F9FAFB', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  title: { 
-    fontSize: 22, 
-    fontWeight: '800', 
-    color: '#1A1A1A', 
-    marginBottom: 16,
-    lineHeight: 28 
-  },
-  descriptionCard: { 
-    backgroundColor: '#F9FAFB', 
-    padding: 16, 
-    borderRadius: 20, 
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#F3F4F6'
-  },
-  descTitleRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6, 
-    marginBottom: 6 
-  },
-  descTitle: { 
-    fontSize: 9, 
-    fontWeight: '900', 
-    color: colors.primary, 
-    letterSpacing: 1 
-  },
-  descriptionText: { 
-    fontSize: 14, 
-    color: '#6B7280', 
-    lineHeight: 20,
-    fontWeight: '500'
-  },
-  editorSection: { 
-    alignItems: 'center', 
-    marginBottom: 32 
-  },
-  sectionLabel: { 
-    fontSize: 10, 
-    fontWeight: '800', 
-    color: '#9CA3AF', 
-    letterSpacing: 1.2, 
-    marginBottom: 16 
-  },
-  stepper: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 40 
-  },
-  stepBtn: { 
-    width: 56, 
-    height: 56, 
-    borderRadius: 28, 
-    backgroundColor: '#FFFFFF', 
-    borderWidth: 1, 
-    borderColor: '#E5E7EB', 
-    justifyContent: 'center', 
-    alignItems: 'center',
-  },
-  timeValueBox: { 
-    alignItems: 'center',
-    minWidth: 80
-  },
-  timeValue: { 
-    fontSize: 48, 
-    fontWeight: '900', 
-    color: '#1A1A1A' 
-  },
-  minLabel: { 
-    fontSize: 11, 
-    fontWeight: '800', 
-    color: '#9CA3AF', 
-    marginTop: -8 
-  },
-  completeBtn: { 
-    flexDirection: 'row', 
-    backgroundColor: '#1A1A1A', 
-    paddingVertical: 18, 
-    borderRadius: 20, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 10,
-  },
-  completeBtnActive: { 
-    backgroundColor: colors.success 
-  },
-  completeBtnText: { 
-    color: '#FFFFFF', 
-    fontSize: 14, 
-    fontWeight: '800', 
-    letterSpacing: 1 
-  },
-});
-</file>
-
 <file path="src/components/TimeCard.tsx">
 import React from 'react';
 import {
@@ -9352,6 +9497,43 @@ services:
 
 volumes:
   postgres_data:
+</file>
+
+<file path="backend/package.json">
+{
+  "name": "productivity-ai-backend",
+  "version": "1.0.0",
+  "description": "Backend server for Productivity AI",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "tsx src/prisma/seed.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.19.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "openai": "^4.28.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "prisma": "^5.19.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.3.3"
+  },
+  "prisma": {
+    "seed": "tsx src/prisma/seed.ts"
+  }
+}
 </file>
 
 <file path="backend/README.md">
@@ -12001,490 +12183,385 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/TaskStagingModal.tsx">
+<file path="src/components/TaskEditModal.tsx">
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ScrollView,
-  Dimensions,
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Modal, 
+  TouchableOpacity, 
+  Dimensions, 
+  TextInput, 
+  ActivityIndicator,
   Platform,
-  TextInput,
+  KeyboardAvoidingView
 } from 'react-native';
+import { X, Minus, Plus, Send, Sparkles, Info, CheckCircle2, Circle } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
 import Animated, { 
-  FadeInDown, 
-  FadeInRight,
-  FadeOutLeft,
-  ZoomIn,
-  LinearTransition // FIXED: Changed from Layout to LinearTransition
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  FadeIn, 
+  FadeOut 
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { lightColors as colors } from '../constants/colors';
-import { Clock, Play, X, ChevronLeft, Minus, Plus, Info } from 'lucide-react-native';
+import { useApp } from '../context/AppContext';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
-// --- UPDATED TEST SCENARIOS WITH DESCRIPTIONS ---
-export const TEST_SCENARIOS = {
-  scenario_1: {
-    goal: "Study for Physics Midterm",
-    tasks: [
-      { 
-        id: '1', 
-        title: "Review Kinematics Notes", 
-        duration: 20,
-        description: "Go through chapters 1-3 focusing specifically on projectile motion and relative velocity equations. Highlight key derivations for the exam cheat sheet."
-      },
-      { 
-        id: '2', 
-        title: "Practice Problem Set A", 
-        duration: 45,
-        description: "Solve the remaining 15 problems from last week's worksheet. Focus on energy conservation and work-power calculations."
-      },
-      { 
-        id: '3', 
-        title: "Quick Quiz", 
-        duration: 15, 
-        description: "Take a timed mock quiz on the student portal to test recall speed of common constants and units."
-      },
-    ]
-  },
-  scenario_2: {
-    goal: "Launch Dropshipping Store",
-    tasks: [
-      { 
-        id: 'a', 
-        title: "Competitor Research", 
-        duration: 60,
-        description: "Analyze the top 5 competitors in the niche. Document their pricing strategy, shipping times, and most successful ad creative styles."
-      },
-      { 
-        id: 'b', 
-        title: "Setup Shopify Theme", 
-        duration: 30,
-        description: "Apply the 'Sense' theme. Upload the main logo, set the primary brand colors to amber, and configure the header navigation menu."
-      },
-      { 
-        id: 'c', 
-        title: "Write Product Descriptions", 
-        duration: 45,
-        description: "Craft high-converting copy for 3 hero products. Focus on problem-solution framing and include technical specifications in a bulleted list."
-      },
-    ]
-  }
-};
-
-interface StagingTask {
-  id: string;
-  title: string;
-  duration: number;
-  description: string;
-}
-
-interface TaskStagingModalProps {
+interface TaskEditModalProps {
   visible: boolean;
-  goalTitle: string;
-  onConfirm: (finalTasks: StagingTask[]) => void;
+  task: any;
   onClose: () => void;
+  onUpdate: (id: string, updates: any) => void;
 }
 
-export const TaskStagingModal: React.FC<TaskStagingModalProps> = ({
-  visible,
-  goalTitle,
-  onConfirm,
-  onClose,
-}) => {
-  const [tasks, setTasks] = useState<StagingTask[]>(TEST_SCENARIOS.scenario_1.tasks);
-  const [editingTask, setEditingTask] = useState<StagingTask | null>(null);
+export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onClose, onUpdate }) => {
+  const { reportTaskIssue } = useApp();
+  
+  // Animation & State
+  const translateY = useSharedValue(height);
+  const [feedback, setFeedback] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
+
+  // --- FIX: Hooks must be called before conditional returns ---
+  const animatedContainerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
 
   useEffect(() => {
     if (visible) {
-      setTasks([...TEST_SCENARIOS.scenario_1.tasks]);
-      setEditingTask(null);
+      // Slide Up
+      translateY.value = withSpring(0, {
+        damping: 40,
+        stiffness: 300,
+        mass: 0.8,
+      });
+      setFeedback('');
+    } else {
+      // Slide Down
+      translateY.value = height;
     }
   }, [visible]);
 
-  const handleUpdateDuration = (taskId: string, newDuration: number) => {
-    const validDuration = Math.max(5, newDuration);
-    setTasks(prev => prev.map(t => 
-      t.id === taskId ? { ...t, duration: validDuration } : t
-    ));
-    if (editingTask?.id === taskId) {
-      setEditingTask(prev => prev ? { ...prev, duration: validDuration } : null);
+  // --- FIX: Conditional return moved after all hooks ---
+  if (!task) return null;
+
+  const handleTimeChange = (diff: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onUpdate(task.id, { duration: Math.max(5, (task.duration || 15) + diff) });
+  };
+
+  const toggleComplete = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onUpdate(task.id, { 
+      status: task.status === 'completed' ? 'queued' : 'completed' 
+    });
+  };
+
+  const handleReportToAI = async () => {
+    if (!feedback.trim()) return;
+    
+    setIsRefining(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    try {
+      // Calls the AI refinement logic in AppContext
+      await reportTaskIssue(task.id, feedback);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onClose(); // Close to show the updated task
+    } catch (error) {
+      console.error("Refinement failed:", error);
+    } finally {
+      setIsRefining(false);
     }
   };
 
-  const handleInitialize = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onConfirm(tasks);
-  };
-
-  // --- RENDER SUB-VIEWS ---
-
-  const renderEditView = (task: StagingTask) => (
-    <Animated.View 
-      entering={FadeInRight.duration(300)} 
-      exiting={FadeOutLeft.duration(300)}
-      style={styles.editContainer}
-    >
-      <TouchableOpacity 
-        onPress={() => setEditingTask(null)}
-        style={styles.backButton}
+  return (
+    <Modal visible={visible} transparent animationType="none">
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={{ flex: 1 }}
       >
-        <ChevronLeft size={24} color={colors.primary} />
-        <Text style={styles.backText}>Back to List</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.editHeader}>Task Parameters</Text>
-      <Text style={styles.editTitle}>{task.title}</Text>
-      
-      <View style={styles.descriptionBox}>
-        <View style={styles.descHeader}>
-          <Info size={16} color={colors.primary} />
-          <Text style={styles.descLabel}>AI ANALYSIS</Text>
-        </View>
-        <Text style={styles.descriptionText}>{task.description}</Text>
-      </View>
-
-      <View style={styles.durationEditor}>
-        <Text style={styles.durationLabel}>ADJUST FOCUS TIME</Text>
-        <View style={styles.stepper}>
-          <TouchableOpacity 
-            style={styles.stepBtn}
-            onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                handleUpdateDuration(task.id, task.duration - 5);
-            }}
-          >
-            <Minus size={24} color={colors.text} />
-          </TouchableOpacity>
-          
-          <View style={styles.durationValueContainer}>
-            <Text style={styles.durationValue}>{task.duration}</Text>
-            <Text style={styles.minLabel}>MINS</Text>
-          </View>
-
-          <TouchableOpacity 
-            style={styles.stepBtn}
-            onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                handleUpdateDuration(task.id, task.duration + 5);
-            }}
-          >
-            <Plus size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <TouchableOpacity 
-        style={styles.saveButton}
-        onPress={() => setEditingTask(null)}
-      >
-        <Text style={styles.saveButtonText}>SAVE PARAMETERS</Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-
-  const renderListView = () => (
-    <Animated.View 
-      entering={FadeInRight.duration(300)} 
-      exiting={FadeOutLeft.duration(300)}
-      style={{ flex: 1 }}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.topLabel}>MISSION STAGING</Text>
-          <Text style={styles.goalTitle} numberOfLines={2}>
-            {goalTitle || TEST_SCENARIOS.scenario_1.goal}
-          </Text>
-        </View>
-        <TouchableOpacity onPress={onClose} style={styles.closeCircle}>
-          <X size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView 
-        style={styles.list} 
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {tasks.map((task, index) => (
+        <View style={styles.overlay}>
+          {/* Background Fade */}
           <Animated.View 
-            key={task.id}
-            entering={FadeInDown.delay(index * 100).duration(500)}
-            layout={LinearTransition.springify()} // FIXED: Using LinearTransition
+            entering={FadeIn.duration(200)} 
+            exiting={FadeOut.duration(200)}
+            style={StyleSheet.absoluteFill}
           >
             <TouchableOpacity 
-              style={styles.taskRow}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                setEditingTask(task);
-              }}
+              style={styles.dismissArea} 
+              activeOpacity={1} 
+              onPress={onClose} 
+            />
+          </Animated.View>
+          
+          {/* Main Slide-up Container */}
+          <Animated.View style={[styles.container, animatedContainerStyle]}>
+            <View style={styles.handle} />
+            
+            <View style={styles.header}>
+              <Text style={styles.headerLabel}>EDIT PARAMETERS</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <X size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.title}>{task.title}</Text>
+
+            {/* AI Context Card */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                  <Info size={12} color={colors.primary} />
+                  <Text style={styles.sectionLabel}>AI TACTICAL CONTEXT</Text>
+              </View>
+              <View style={styles.descriptionCard}>
+                <Text style={styles.descriptionText}>
+                  {task.description || "No specific instructions provided."}
+                </Text>
+              </View>
+            </View>
+
+            {/* AI Refinement / Report Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                  <Sparkles size={12} color={colors.primary} />
+                  <Text style={styles.sectionLabel}>REPORT ISSUE TO AI</Text>
+              </View>
+              <View style={styles.reportRow}>
+                <TextInput
+                  style={styles.reportInput}
+                  placeholder="Tell the AI why you can't do this..."
+                  placeholderTextColor={colors.textLight}
+                  value={feedback}
+                  onChangeText={setFeedback}
+                  multiline
+                />
+                <TouchableOpacity 
+                  style={[styles.sendBtn, !feedback.trim() && styles.sendBtnDisabled]}
+                  onPress={handleReportToAI}
+                  disabled={!feedback.trim() || isRefining}
+                >
+                  {isRefining ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Send size={18} color="#FFF" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Duration Editor */}
+            <View style={styles.editorSection}>
+              <Text style={styles.sectionLabel}>ADJUST DURATION</Text>
+              <View style={styles.stepper}>
+                <TouchableOpacity style={styles.stepBtn} onPress={() => handleTimeChange(-5)}>
+                  <Minus size={22} color="#1A1A1A" />
+                </TouchableOpacity>
+                
+                <View style={styles.timeValueBox}>
+                  <Text style={styles.timeValue}>{task.duration || 0}</Text>
+                  <Text style={styles.minLabel}>MINS</Text>
+                </View>
+
+                <TouchableOpacity style={styles.stepBtn} onPress={() => handleTimeChange(5)}>
+                  <Plus size={22} color="#1A1A1A" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Primary Action Button */}
+            <TouchableOpacity 
+              style={[styles.completeBtn, task.status === 'completed' && styles.completeBtnActive]} 
+              onPress={toggleComplete}
+              activeOpacity={0.8}
             >
-              <View style={styles.taskInfo}>
-                <Text style={styles.taskTitle}>{task.title}</Text>
-                <Text style={styles.tapToEdit}>Tap to view details</Text>
-              </View>
-              
-              <View style={styles.timeBadge}>
-                <Text style={styles.timeText}>{task.duration}m</Text>
-              </View>
+              {task.status === 'completed' ? (
+                <CheckCircle2 size={20} color="#FFFFFF" fill="rgba(255,255,255,0.2)" />
+              ) : (
+                <Circle size={20} color="#FFFFFF" opacity={0.5} />
+              )}
+              <Text style={styles.completeBtnText}>
+                {task.status === 'completed' ? 'MARK AS INCOMPLETE' : 'MARK AS FINISHED'}
+              </Text>
             </TouchableOpacity>
           </Animated.View>
-        ))}
-      </ScrollView>
-
-      <View style={styles.footer}>
-        <TouchableOpacity 
-          style={styles.primaryButton}
-          onPress={handleInitialize}
-          activeOpacity={0.9}
-        >
-          <Text style={styles.buttonText}>INITIALIZE SEQUENCE</Text>
-          <Play size={18} color="#FFFFFF" fill="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
-  );
-
-  return (
-    <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.overlay}>
-        <Animated.View 
-          entering={ZoomIn.duration(400)} 
-          style={styles.modalContainer}
-        >
-          {editingTask ? renderEditView(editingTask) : renderListView()}
-        </Animated.View>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
+  overlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.4)', 
+    justifyContent: 'flex-end' 
+  },
+  dismissArea: { 
     flex: 1,
-    backgroundColor: colors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'transparent'
   },
-  modalContainer: {
-    width: '100%',
-    height: height * 0.8,
-    backgroundColor: colors.backgroundCard,
-    borderRadius: 32,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: colors.border,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+  container: { 
+    backgroundColor: '#FFFFFF', 
+    borderTopLeftRadius: 32, 
+    borderTopRightRadius: 32, 
+    padding: 24, 
+    paddingBottom: Platform.OS === 'ios' ? 45 : 30,
+    borderTopWidth: 1,
+    borderColor: '#F0F0F0',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+  handle: { 
+    width: 36, 
+    height: 4, 
+    backgroundColor: '#F3F4F6', 
+    borderRadius: 2, 
+    alignSelf: 'center', 
+    marginBottom: 20 
+  },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 12 
+  },
+  headerLabel: { 
+    fontSize: 10, 
+    fontWeight: '900', 
+    color: colors.primary, 
+    letterSpacing: 1.5 
+  },
+  closeBtn: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 16, 
+    backgroundColor: '#F9FAFB', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  title: { 
+    fontSize: 22, 
+    fontWeight: '800', 
+    color: '#1A1A1A', 
     marginBottom: 24,
+    lineHeight: 28 
   },
-  topLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 2,
-    marginBottom: 4,
-  },
-  goalTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    lineHeight: 30,
-    maxWidth: '85%',
-  },
-  closeCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.backgroundLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  list: {
-    flex: 1,
+  section: {
     marginBottom: 20,
   },
-  listContent: {
-    paddingBottom: 10,
-  },
-  taskRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  taskInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  taskTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  tapToEdit: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  timeBadge: {
-    backgroundColor: colors.glow,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  timeText: {
-    color: colors.primary,
-    fontWeight: '800',
-    fontSize: 15,
-  },
-  footer: {
-    marginTop: 10,
-  },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    paddingVertical: 20,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-
-  // Edit View Styles
-  editContainer: {
-    flex: 1,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-    marginLeft: -4,
-  },
-  backText: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  editHeader: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    letterSpacing: 2,
-    marginBottom: 8,
-  },
-  editTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 20,
-  },
-  descriptionBox: {
-    backgroundColor: colors.backgroundLight,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 30,
-  },
-  descHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  sectionHeaderRow: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
     gap: 6,
     marginBottom: 8,
   },
-  descLabel: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: colors.primary,
-    letterSpacing: 1,
+  sectionLabel: { 
+    fontSize: 10, 
+    fontWeight: '800', 
+    color: '#9CA3AF', 
+    letterSpacing: 1 
   },
-  descriptionText: {
-    fontSize: 15,
-    color: colors.text,
-    lineHeight: 22,
+  descriptionCard: { 
+    backgroundColor: '#F9FAFB', 
+    padding: 16, 
+    borderRadius: 16, 
+    borderWidth: 1, 
+    borderColor: '#F3F4F6'
   },
-  durationEditor: {
-    marginBottom: 40,
+  descriptionText: { 
+    fontSize: 14, 
+    color: '#4B5563', 
+    lineHeight: 20,
+    fontWeight: '500'
   },
-  durationLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    textAlign: 'center',
-    letterSpacing: 2,
-    marginBottom: 20,
-  },
-  stepper: {
+  reportRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 30,
-  },
-  stepBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.backgroundLight,
-    borderWidth: 2,
-    borderColor: colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  durationValueContainer: {
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  durationValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  minLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    marginTop: -4,
-  },
-  saveButton: {
-    backgroundColor: colors.text,
-    paddingVertical: 18,
+    backgroundColor: '#F9FAFB',
     borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 'auto',
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingRight: 8,
   },
-  saveButtonText: {
-    color: '#FFFFFF',
+  reportInput: {
+    flex: 1,
+    padding: 12,
     fontSize: 14,
-    fontWeight: '800',
-    letterSpacing: 1,
-  }
+    color: colors.text,
+    minHeight: 45,
+  },
+  sendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendBtnDisabled: {
+    backgroundColor: colors.textLight,
+  },
+  editorSection: { 
+    alignItems: 'center', 
+    marginBottom: 32,
+    marginTop: 10
+  },
+  stepper: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 40 
+  },
+  stepBtn: { 
+    width: 50, 
+    height: 50, 
+    borderRadius: 25, 
+    backgroundColor: '#FFFFFF', 
+    borderWidth: 1, 
+    borderColor: '#E5E7EB', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+  },
+  timeValueBox: { 
+    alignItems: 'center',
+    minWidth: 80
+  },
+  timeValue: { 
+    fontSize: 42, 
+    fontWeight: '900', 
+    color: '#1A1A1A' 
+  },
+  minLabel: { 
+    fontSize: 10, 
+    fontWeight: '800', 
+    color: '#9CA3AF', 
+    marginTop: -4 
+  },
+  completeBtn: { 
+    flexDirection: 'row', 
+    backgroundColor: '#1A1A1A', 
+    paddingVertical: 18, 
+    borderRadius: 20, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  completeBtnActive: { 
+    backgroundColor: colors.success 
+  },
+  completeBtnText: { 
+    color: '#FFFFFF', 
+    fontSize: 14, 
+    fontWeight: '800', 
+    letterSpacing: 1 
+  },
 });
 </file>
 
@@ -12835,7 +12912,9 @@ import {
   Target, 
   MoreHorizontal, 
   Trash2, 
-  Edit3
+  Edit3,
+  Calendar as CalendarIcon,
+  ChevronRight
 } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown, FadeIn, Layout } from 'react-native-reanimated';
@@ -12869,6 +12948,23 @@ export default function GoalDetailScreen() {
     return goalTasks.reduce((acc, t) => acc + (t.duration || 0), 0);
   }, [goalTasks]);
 
+  // Derived days for Journey Mode
+  const currentDay = useMemo(() => {
+    // If regular project or missing dates, default to 1
+    if (!goal || !goal.startDate) return 1;
+    const start = new Date(goal.startDate).getTime();
+    const now = Date.now();
+    // Calculate days elapsed (1-indexed)
+    return Math.max(1, Math.ceil((now - start) / (1000 * 60 * 60 * 24)));
+  }, [goal]);
+
+  const totalDays = useMemo(() => {
+    if (!goal || !goal.targetDate || !goal.startDate) return 30;
+    const start = new Date(goal.startDate).getTime();
+    const target = new Date(goal.targetDate).getTime();
+    return Math.max(1, Math.ceil((target - start) / (1000 * 60 * 60 * 24)));
+  }, [goal]);
+
   if (!goal) return null;
 
   // --- Actions ---
@@ -12900,7 +12996,7 @@ export default function GoalDetailScreen() {
     
     Alert.alert(
       "Abort Mission?",
-      "This will permanently delete the mission and all associated tasks. This action cannot be undone.",
+      "This will permanently delete the mission and all associated tasks.",
       [
         { text: "Cancel", style: "cancel" },
         { 
@@ -12935,6 +13031,40 @@ export default function GoalDetailScreen() {
     }
   };
 
+  // --- Render Helpers ---
+
+  const renderJourneyHeader = () => (
+    <View style={styles.journeyHeader}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calendarStrip}>
+        {Array.from({ length: 7 }).map((_, i) => {
+          // Show current day + next 6 days
+          const dayNum = currentDay + i;
+          const isToday = i === 0;
+          return (
+            <TouchableOpacity 
+              key={i} 
+              style={[styles.dayPill, isToday && styles.dayPillActive]}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.dayLabel, isToday && styles.dayLabelActive]}>DAY</Text>
+              <Text style={[styles.dayNumber, isToday && styles.dayLabelActive]}>{dayNum}</Text>
+            </TouchableOpacity>
+          );
+        })}
+        <View style={styles.dayPillBlur}>
+            <Text style={styles.dayLabel}>...</Text>
+        </View>
+      </ScrollView>
+      
+      <View style={styles.journeyProgress}>
+        <Text style={styles.journeyProgressText}>Day {currentDay} of {totalDays}</Text>
+        <View style={styles.journeyProgressBarBg}>
+            <View style={[styles.journeyProgressBarFill, { width: `${Math.min(100, (currentDay/totalDays)*100)}%` }]} />
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
@@ -12965,36 +13095,65 @@ export default function GoalDetailScreen() {
             contentContainerStyle={styles.scrollContent} 
             showsVerticalScrollIndicator={false}
         >
-            {/* Title Section */}
-            <View style={styles.titleSection}>
-                <View style={styles.tagContainer}>
-                    <Target size={12} color={colors.primary} />
-                    <Text style={styles.tagText}>MISSION PARAMETERS</Text>
+            {/* Conditional Rendering based on Goal Type */}
+            {goal.type === 'journey' ? (
+                <>
+                    {/* Journey Title Block */}
+                    <View style={styles.titleSection}>
+                        <View style={[styles.tagContainer, { backgroundColor: '#E0F2FE' }]}>
+                            <CalendarIcon size={12} color="#0284C7" />
+                            <Text style={[styles.tagText, { color: '#0284C7' }]}>LONG-TERM JOURNEY</Text>
+                        </View>
+                        <Text style={styles.pageTitle}>{goal.title}</Text>
+                    </View>
+                    
+                    {/* Calendar Strip */}
+                    {renderJourneyHeader()}
+                </>
+            ) : (
+                // Standard Project Title Block
+                <View style={styles.titleSection}>
+                    <View style={styles.tagContainer}>
+                        <Target size={12} color={colors.primary} />
+                        <Text style={styles.tagText}>MISSION PARAMETERS</Text>
+                    </View>
+                    <Text style={styles.pageTitle}>{goal.title}</Text>
+                    
+                    <View style={styles.metaRow}>
+                        <Text style={styles.metaText}>{goalTasks.length} Steps</Text>
+                        <View style={styles.dot} />
+                        <Text style={styles.metaText}>{Math.round(totalTime / 60)}h {(totalTime % 60)}m Total Focus</Text>
+                    </View>
                 </View>
-                <Text style={styles.pageTitle}>{goal.title}</Text>
-                
-                <View style={styles.metaRow}>
-                    <Text style={styles.metaText}>{goalTasks.length} Steps</Text>
-                    <View style={styles.dot} />
-                    <Text style={styles.metaText}>{Math.round(totalTime / 60)}h {(totalTime % 60)}m Total Focus</Text>
-                </View>
-            </View>
+            )}
 
-            {/* Progress Card */}
-            <View style={styles.progressCard}>
-                <View style={styles.progressInfo}>
-                    <Text style={styles.progressLabel}>Completion Status</Text>
-                    <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
+            {/* Progress Card (Only for projects, Journey has day progress) */}
+            {goal.type !== 'journey' && (
+                <View style={styles.progressCard}>
+                    <View style={styles.progressInfo}>
+                        <Text style={styles.progressLabel}>Completion Status</Text>
+                        <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
+                    </View>
+                    <View style={styles.progressBarBg}>
+                        <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+                    </View>
                 </View>
-                <View style={styles.progressBarBg}>
-                    <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-                </View>
-            </View>
+            )}
 
             {/* Task List */}
             <View style={styles.taskList}>
-                <Text style={styles.sectionHeader}>Execution Steps</Text>
+                <Text style={styles.sectionHeader}>
+                    {goal.type === 'journey' ? `Tasks for Day ${currentDay}` : "Execution Steps"}
+                </Text>
                 
+                {goalTasks.length === 0 && (
+                    <View style={{ padding: 20, alignItems: 'center' }}>
+                        <Text style={{color: colors.textSecondary, textAlign: 'center'}}>
+                            No tasks scheduled. Tap "Refine Directive" to generate more.
+                        </Text>
+                    </View>
+                )}
+
                 {goalTasks.map((task, index) => (
                     <Animated.View 
                         key={task.id} 
@@ -13037,10 +13196,22 @@ export default function GoalDetailScreen() {
                         </TouchableOpacity>
                     </Animated.View>
                 ))}
+
+                {/* Journey Mode: "Prepare Next Day" Button (Stub) */}
+                {goal.type === 'journey' && goalTasks.length > 0 && goalTasks.every(t => t.status === 'completed') && (
+                    <TouchableOpacity 
+                        style={styles.nextDayBtn} 
+                        onPress={() => Alert.alert("Coming Soon", "This would generate the plan for tomorrow based on your progress.")}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.nextDayText}>PREPARE DAY {currentDay + 1}</Text>
+                        <ChevronRight size={20} color="#FFF" />
+                    </TouchableOpacity>
+                )}
             </View>
         </ScrollView>
 
-        {/* Floating Action Button */}
+        {/* Floating Action Button - START SESSION */}
         <View style={styles.footer}>
           <TouchableOpacity 
             style={styles.primaryBtn} 
@@ -13062,7 +13233,7 @@ export default function GoalDetailScreen() {
           }}
         />
 
-        {/* --- Dropdown Menu Modal --- */}
+        {/* Menu Modal */}
         <Modal
           visible={menuVisible}
           transparent
@@ -13230,6 +13401,85 @@ const styles = StyleSheet.create({
     letterSpacing: 1 
   },
 
+  // --- Journey Styles ---
+  journeyHeader: { marginBottom: 24 },
+  calendarStrip: { flexDirection: 'row', gap: 10, paddingBottom: 16 },
+  dayPill: { 
+    width: 50, 
+    height: 60, 
+    borderRadius: 12, 
+    backgroundColor: '#F9FAFB', 
+    borderWidth: 1, 
+    borderColor: '#F3F4F6', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  dayPillActive: { 
+    backgroundColor: '#1A1A1A', 
+    borderColor: '#1A1A1A' 
+  },
+  dayPillBlur: { 
+    width: 50, 
+    height: 60, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    opacity: 0.5 
+  },
+  dayLabel: { 
+    fontSize: 10, 
+    fontWeight: '700', 
+    color: '#9CA3AF', 
+    marginBottom: 2 
+  },
+  dayNumber: { 
+    fontSize: 18, 
+    fontWeight: '800', 
+    color: '#1A1A1A' 
+  },
+  dayLabelActive: { 
+    color: '#FFFFFF' 
+  },
+  
+  journeyProgress: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12 
+  },
+  journeyProgressText: { 
+    fontSize: 13, 
+    fontWeight: '600', 
+    color: colors.textSecondary, 
+    width: 80 
+  },
+  journeyProgressBarBg: { 
+    flex: 1, 
+    height: 6, 
+    backgroundColor: '#F3F4F6', 
+    borderRadius: 3 
+  },
+  journeyProgressBarFill: { 
+    height: '100%', 
+    backgroundColor: colors.primary, 
+    borderRadius: 3 
+  },
+
+  nextDayBtn: { 
+    marginTop: 20, 
+    backgroundColor: '#059669', 
+    padding: 16, 
+    borderRadius: 16, 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    gap: 8 
+  },
+  nextDayText: { 
+    color: '#FFF', 
+    fontWeight: '800', 
+    fontSize: 14, 
+    letterSpacing: 1 
+  },
+
   // --- Menu Styles ---
   menuOverlay: {
     flex: 1,
@@ -13267,321 +13517,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#F3F4F6',
     marginHorizontal: 16,
-  },
-});
-</file>
-
-<file path="app/leaderboard.tsx">
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  Platform,
-  ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { ChevronLeft, Flame, Trophy } from 'lucide-react-native';
-import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { lightColors as colors } from '../src/constants/colors';
-import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
-import { useApp } from '../src/context/AppContext';
-import { apiService } from '../src/services/api';
-
-const { width } = Dimensions.get('window');
-
-// --- THEME COLORS FOR TOP 3 ---
-const TOP_RANK_COLORS = {
-  1: { number: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' }, // Goldish
-  2: { number: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' }, // Silverish
-  3: { number: '#B45309', bg: '#FFF7ED', border: '#FFEDD5' }, // Bronzish
-};
-
-interface LeaderboardEntry {
-  rank: number | string;
-  name: string;
-  streak: number;
-  isCurrentUser?: boolean;
-  id: string;
-}
-
-export default function LeaderboardScreen() {
-  const router = useRouter();
-  const { user } = useApp();
-  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchLeaderboard();
-  }, [user]);
-
-  const fetchLeaderboard = async () => {
-    setLoading(true);
-    try {
-      // 1. Fetch Top 10 from API
-      const apiData = await apiService.getLeaderboard();
-      
-      // 2. Format Data
-      const formattedData: LeaderboardEntry[] = apiData.map((item: any, index: number) => {
-        const isMe = user ? item.id === user.id : false;
-        return {
-          id: item.id,
-          rank: index + 1,
-          // Use local context name if it's the current user (ensures it matches Profile)
-          name: isMe && user?.name ? user.name : (item.name || 'Unknown Agent'),
-          streak: item.streak,
-          isCurrentUser: isMe
-        };
-      });
-
-      // 3. Check if Current User is in Top 10
-      const isUserInTop10 = formattedData.some(item => item.isCurrentUser);
-
-      // 4. If not in Top 10, fetch user stats specifically and append
-      if (!isUserInTop10 && user?.email) {
-        try {
-          const myProfile = await apiService.getUserProfile(user.email);
-          formattedData.push({
-            id: user.id,
-            rank: '--', // Outside top 10
-            name: user.name || 'Me',
-            streak: myProfile.stats?.streak || 0,
-            isCurrentUser: true
-          });
-        } catch (e) {
-          console.log("Could not fetch user specific rank", e);
-        }
-      }
-
-      setLeaderboardData(formattedData);
-    } catch (error) {
-      console.error("Failed to load leaderboard", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ChevronLeft size={28} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Global Streak</Text>
-          <View style={styles.flameContainer}>
-            <AnimatedStreakFlame onPress={() => {}} />
-          </View>
-        </View>
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        ) : (
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.podiumContainer}>
-              <Trophy size={40} color={colors.primary} strokeWidth={1.5} />
-              <Text style={styles.podiumText}>Keep the fire burning!</Text>
-            </View>
-
-            {leaderboardData.map((entry, index) => {
-              const rankNum = typeof entry.rank === 'number' ? entry.rank : 999;
-              const isTop3 = rankNum <= 3;
-              const rankTheme = isTop3 ? TOP_RANK_COLORS[rankNum as keyof typeof TOP_RANK_COLORS] : null;
-              
-              return (
-                <Animated.View 
-                  key={`${entry.id}-${index}`}
-                  entering={FadeInDown.delay(index * 50).springify()}
-                  style={[
-                    styles.leaderboardRow,
-                    isTop3 && { backgroundColor: rankTheme?.bg, borderColor: rankTheme?.border },
-                    entry.isCurrentUser && styles.currentUserRow
-                  ]}
-                >
-                  {/* Rank Number */}
-                  <View style={styles.rankContainer}>
-                    <Text style={[
-                      styles.rankNumber,
-                      isTop3 && { color: rankTheme?.number, fontWeight: '900' }
-                    ]}>
-                      #{entry.rank}
-                    </Text>
-                  </View>
-
-                  {/* Name */}
-                  <View style={styles.nameContainer}>
-                    <Text style={[
-                      styles.nameText,
-                      entry.isCurrentUser && { color: colors.primary, fontWeight: '800' }
-                    ]}>
-                      {entry.name}
-                    </Text>
-                    {entry.isCurrentUser && (
-                      <View style={styles.youBadge}>
-                        <Text style={styles.youBadgeText}>YOU</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Streak Metric */}
-                  <View style={styles.streakContainer}>
-                    <Flame size={14} color={colors.textSecondary} />
-                    <Text style={styles.streakNumber}>
-                      {entry.streak}
-                    </Text>
-                  </View>
-                </Animated.View>
-              );
-            })}
-          </ScrollView>
-        )}
-      </SafeAreaView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  safeArea: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    height: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F9FAFB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1A1A1A',
-  },
-  flameContainer: {
-    width: 44,
-    alignItems: 'flex-end',
-  },
-  podiumContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-    marginBottom: 10,
-  },
-  podiumText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    marginTop: 8,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },
-  leaderboardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginBottom: 12,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  currentUserRow: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFFBF0',
-    borderWidth: 1,
-  },
-  rankContainer: {
-    width: 45,
-    marginRight: 12,
-    alignItems: 'center',
-  },
-  rankNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#9CA3AF',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  nameContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  nameText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
-  youBadge: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  youBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  streakContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  streakNumber: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1A1A1A',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });
 </file>
@@ -14850,397 +14785,250 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/OnboardingWizard.tsx">
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { MotiView } from 'moti';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-  withDelay,
-  interpolate,
-  useAnimatedProps,
-  FadeIn, // Added FadeIn
-} from 'react-native-reanimated';
-import { ArrowRight, Sunrise, Coffee, Moon, Clock, MinusCircle, Flame, Hourglass } from 'lucide-react-native';
+<file path="src/components/TaskStagingModal.tsx">
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Modal, 
+  TouchableOpacity, 
+  ScrollView, 
+  TextInput, 
+  Dimensions, 
+  ActivityIndicator, 
+  KeyboardAvoidingView,
+  Platform 
+} from 'react-native';
+import Animated, { ZoomIn, FadeInRight, FadeOutLeft } from 'react-native-reanimated';
+import { Play, X, ChevronLeft, Minus, Plus, Info, Edit3, Sparkles, Send } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
-import { SwipableCardStack, SwipableCardData } from './SwipableCardStack';
-import { ScaleButton } from './ScaleButton';
 import * as Haptics from 'expo-haptics';
 
-export interface OnboardingData {
-  cognitiveTrigger: string | null;
-  distraction: string | null;
-  focusWindow: string | null;
-  workArchetype: string | null;
-  productivityKillers: string[];
-  aiPersonality: string | null;
-  primaryGoal: string | null;
+const { height } = Dimensions.get('window');
+
+export interface StagingTask {
+  id: string;
+  title: string;
+  duration: number;
+  description?: string;
 }
 
-interface OnboardingWizardProps {
-  onComplete: (data: OnboardingData) => void;
+interface TaskStagingModalProps {
+  visible: boolean;
+  goalTitle: string;
+  generatedTasks: StagingTask[];
+  onConfirm: (tasks: StagingTask[], title: string) => void;
+  onRefine: (feedback: string) => Promise<void>; // New Prop for AI Regeneration
+  onClose: () => void;
 }
 
-const WORK_ARCHETYPES = [
-  { id: 'firefighter', label: 'The Firefighter', description: 'Reacting to urgent tasks', icon: '🚨' },
-  { id: 'over-planner', label: 'The Over-Planner', description: 'Planning > Doing', icon: '📊' },
-  { id: 'juggler', label: 'The Juggler', description: 'Too many projects', icon: '🤹' },
-  { id: 'sprinter', label: 'The Sprinter', description: 'Fast bursts, then burnout', icon: '🏃' },
-];
-
-const FRICTION_TYPES = [
-  { id: 'dopamine', title: 'The Dopamine Loop', subtitle: 'Doomscrolling & Apps' },
-  { id: 'switch', title: 'The Switch Tax', subtitle: 'Interruptions & Context Switching' },
-  { id: 'fatigue', title: 'Decision Fatigue', subtitle: 'Overthinking & Paralysis' },
-  { id: 'biology', title: 'Biological Drag', subtitle: 'Sleep Debt & Burnout' },
-  { id: 'loops', title: 'Open Loops', subtitle: 'Mental Clutter & Unfinished Tasks' },
-  { id: 'perfectionism', title: 'Perfectionism', subtitle: 'Fear of Starting' },
-];
-
-const COGNITIVE_TRIGGERS = [
-  { id: 'time-lie', title: 'I\'ll do it tomorrow.', description: 'The promise of tomorrow is eternal. Tomorrow becomes today, and today becomes yesterday.', icon: Clock },
-  { id: 'energy-lie', title: 'It\'s not that important.', description: 'Minimization. We downplay the value of the task to reduce the guilt of avoiding it.', icon: MinusCircle },
-  { id: 'pressure-lie', title: 'I work better under pressure.', description: 'Deadline adrenaline. We convince ourselves that stress is a superpower.', icon: Flame },
-  { id: 'prep-lie', title: 'I just need more time.', description: 'The preparation trap. We confuse planning with progress.', icon: Hourglass },
-];
-
-const DISTRACTIONS = [
-  { id: 'doomscrolling', label: 'Doomscrolling', description: 'TikTok, Reels, and Shorts loops.' },
-  { id: 'wikipedia-hole', label: 'The Wikipedia Hole', description: 'Researching random topics instead of working.' },
-  { id: 'gaming', label: 'Gaming', description: 'Just one more match.' },
-  { id: 'nap-roulette', label: 'Nap Roulette', description: 'I\'ll just close my eyes for 15 minutes.' },
-  { id: 'side-quests', label: 'Side Quests', description: 'Cleaning the house to avoid one email.' },
-];
-
-const FOCUS_WINDOWS = [
-  { id: 'early-bird', label: 'Early Bird', time: '6 AM - 10 AM', description: 'Before the world wakes up.', bgColor: '#FFF9E6', icon: Sunrise },
-  { id: 'mid-day', label: 'Mid-Day Sprinter', time: '11 AM - 3 PM', description: 'Caffeinated and locked in.', bgColor: '#FFE5CC', icon: Coffee },
-  { id: 'night-owl', label: 'Night Owl', time: '9 PM - 2 AM', description: 'Peace, quiet, and focus.', bgColor: '#1E3A5F', icon: Moon },
-];
-
-const getProcessingPhrases = (): string[] => ['Analyzing your workflow...', 'Building your custom dashboard...', 'Almost ready...'];
-
-export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete }) => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const insets = useSafeAreaInsets();
-  const [data, setData] = useState<OnboardingData>({
-    cognitiveTrigger: null, distraction: null, focusWindow: null, workArchetype: null, productivityKillers: [], aiPersonality: null, primaryGoal: null,
-  });
-
-  const stepTransition = useSharedValue(0);
+export const TaskStagingModal = ({ visible, goalTitle, generatedTasks, onConfirm, onRefine, onClose }: TaskStagingModalProps) => {
+  const [tasks, setTasks] = useState<StagingTask[]>([]);
+  const [editableTitle, setEditableTitle] = useState(goalTitle);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTask, setEditingTask] = useState<StagingTask | null>(null);
+  
+  // AI Refinement State
+  const [refineFeedback, setRefineFeedback] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
 
   useEffect(() => {
-    stepTransition.value = 0;
-    stepTransition.value = withSpring(1, { damping: 20, stiffness: 100 });
-  }, [currentStep]);
-
-  const handleBack = useCallback(() => {
-    if (currentStep > 0) setCurrentStep(currentStep - 1);
-  }, [currentStep]);
-
-  const handleNext = useCallback(() => {
-    if (currentStep < 4) {
-      setCurrentStep(currentStep + 1);
-    } else if (currentStep === 4) {
-      setTimeout(() => { try { onComplete(data); } catch (error) { console.error('Error completing onboarding:', error); } }, 300);
+    if (visible) {
+      setEditableTitle(goalTitle);
+      setTasks(generatedTasks || []);
+      setEditingTask(null);
+      setRefineFeedback('');
+      setIsRefining(false);
     }
-  }, [currentStep, data, onComplete]);
+  }, [visible, goalTitle, generatedTasks]);
 
-  const canProceed = useMemo(() => {
-    switch (currentStep) {
-      case 0: return data.cognitiveTrigger !== null;
-      case 1: return data.distraction !== null;
-      case 2: return data.focusWindow !== null;
-      case 3: return data.workArchetype !== null;
-      case 4: return data.productivityKillers.length > 0;
-      default: return false;
+  const handleUpdateDuration = (id: string, delta: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, duration: Math.max(5, t.duration + delta) } : t));
+  };
+
+  const handleInitialize = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onConfirm(tasks, editableTitle);
+  };
+
+  const handleAiRefine = async () => {
+    if (!refineFeedback.trim()) return;
+    
+    setIsRefining(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    try {
+      // Send context to parent to regenerate plan
+      await onRefine(`Regarding task "${editingTask?.title}": ${refineFeedback}`);
+      setEditingTask(null); // Go back to list view to show new tasks
+      setRefineFeedback('');
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsRefining(false);
     }
-  }, [currentStep, data]);
+  };
 
-  const stepAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: stepTransition.value,
-    transform: [{ scale: interpolate(stepTransition.value, [0, 1], [0.85, 1]) }],
-  }));
-
-  // Changed root View to Animated.View and added entering prop for FadeIn effect
   return (
-    <Animated.View 
-      style={[styles.container, { backgroundColor: '#FFFFFF' }]}
-      entering={FadeIn.duration(800)}
-    >
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <StatusBar style="dark" />
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          style={{ flex: 1 }}
-          removeClippedSubviews={true}
-        >
-          <Animated.View style={stepAnimatedStyle}>
-            {currentStep === 0 && <Step0CognitiveTriggers data={data} setData={setData} />}
-            {currentStep === 1 && <Step1Distractions data={data} setData={setData} />}
-            {currentStep === 2 && <Step2FocusWindow data={data} setData={setData} />}
-            {currentStep === 3 && <Step3WorkArchetype data={data} setData={setData} />}
-            {currentStep === 4 && <Step4ProductivityKillers data={data} setData={setData} />}
-          </Animated.View>
-        </ScrollView>
-        <View style={styles.progressContainer}>
-          {[0, 1, 2, 3, 4].map((step) => (
-            <View
-              key={step}
-              style={[
-                styles.progressDot,
-                { backgroundColor: step <= currentStep ? colors.primary : colors.border, width: step === currentStep ? 24 : 8, marginHorizontal: 4 },
-              ]}
-            />
-          ))}
-        </View>
-      </SafeAreaView>
-      <View style={[styles.navigationWrapper, { paddingBottom: Math.max(insets.bottom, 20) }]}>
-        <View style={styles.navigation}>
-          {currentStep > 0 && (
-            <ScaleButton style={[styles.backButton, { borderColor: colors.border }]} onPress={handleBack} hapticType="selection">
-              <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>Back</Text>
-            </ScaleButton>
-          )}
-          <View style={{ flex: 1 }} />
-          {canProceed ? (
-            <ScaleButton style={[styles.nextButton, { backgroundColor: colors.primary }]} onPress={handleNext} hapticType="notification">
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={[styles.nextButtonText, { color: colors.background, marginRight: 8 }]}>{currentStep === 4 ? 'Complete' : 'Next'}</Text>
-                {currentStep < 4 && <ArrowRight size={20} color={colors.background} />}
-              </View>
-            </ScaleButton>
+    <Modal visible={visible} transparent animationType="fade">
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
+        <Animated.View entering={ZoomIn.duration(400)} style={styles.container}>
+          {editingTask ? (
+            <Animated.View entering={FadeInRight} exiting={FadeOutLeft} style={{ flex: 1 }}>
+              <TouchableOpacity onPress={() => setEditingTask(null)} style={styles.backBtn}>
+                <ChevronLeft size={20} color={colors.primary} />
+                <Text style={styles.backText}>Back to mission</Text>
+              </TouchableOpacity>
+              
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.editTitle}>{editingTask.title}</Text>
+                
+                <View style={styles.descBox}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                    <Info size={14} color={colors.primary} />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>AI STRATEGY</Text>
+                  </View>
+                  <Text style={styles.descText}>{editingTask.description}</Text>
+                </View>
+
+                {/* --- NEW: AI REFINEMENT SECTION --- */}
+                <View style={styles.refineSection}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                    <Sparkles size={14} color={colors.primary} />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>CAN'T DO THIS?</Text>
+                  </View>
+                  <View style={styles.refineInputRow}>
+                    <TextInput
+                      style={styles.refineInput}
+                      placeholder="Tell AI why (e.g., 'I don't have budget')"
+                      placeholderTextColor={colors.textLight}
+                      value={refineFeedback}
+                      onChangeText={setRefineFeedback}
+                      multiline
+                    />
+                    <TouchableOpacity 
+                      style={[styles.refineBtn, !refineFeedback.trim() && styles.refineBtnDisabled]}
+                      onPress={handleAiRefine}
+                      disabled={!refineFeedback.trim() || isRefining}
+                    >
+                      {isRefining ? <ActivityIndicator color="#FFF" size="small" /> : <Send size={16} color="#FFF" />}
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.refineHint}>This will regenerate the entire plan based on your constraint.</Text>
+                </View>
+
+                <View style={styles.editorSection}>
+                  <Text style={styles.sectionLabel}>FOCUS DURATION</Text>
+                  <View style={styles.stepper}>
+                    <TouchableOpacity onPress={() => handleUpdateDuration(editingTask.id, -5)} style={styles.stepBtn}>
+                      <Minus color={colors.text} />
+                    </TouchableOpacity>
+                    <View style={styles.timeValueBox}>
+                      <Text style={styles.durVal}>{tasks.find(t => t.id === editingTask.id)?.duration}</Text>
+                      <Text style={styles.minLab}>MINS</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleUpdateDuration(editingTask.id, 5)} style={styles.stepBtn}>
+                      <Plus color={colors.text} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+              
+              <TouchableOpacity style={styles.saveBtn} onPress={() => setEditingTask(null)}>
+                <Text style={styles.saveText}>Save Parameters</Text>
+              </TouchableOpacity>
+            </Animated.View>
           ) : (
-            <View style={[styles.nextButton, { backgroundColor: colors.border }, styles.nextButtonDisabled]}>
-              <Text style={[styles.nextButtonText, { color: colors.textSecondary, marginRight: 8 }]}>Next</Text>
-              <ArrowRight size={20} color={colors.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <View style={styles.header}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.topLab}>MISSION STAGING</Text>
+                  <TouchableOpacity onPress={() => setIsEditingTitle(true)} style={styles.titleRow}>
+                    {isEditingTitle ? (
+                      <TextInput 
+                        value={editableTitle} 
+                        onChangeText={setEditableTitle} 
+                        autoFocus 
+                        onBlur={() => setIsEditingTitle(false)} 
+                        style={styles.titleInput} 
+                      />
+                    ) : (
+                      <>
+                        <Text style={styles.goalTitle} numberOfLines={2}>{editableTitle}</Text>
+                        <Edit3 size={16} color={colors.textLight} style={{ marginLeft: 8 }} />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={20} color={colors.textSecondary} /></TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                {tasks.map((task, i) => (
+                  <TouchableOpacity key={task.id} style={styles.taskRow} onPress={() => setEditingTask(task)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowTitle}>{task.title}</Text>
+                      <Text style={styles.tapToEdit}>Tap to edit details</Text>
+                    </View>
+                    <View style={styles.timeBadge}><Text style={styles.timeText}>{task.duration}m</Text></View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleInitialize}>
+                <Text style={styles.btnText}>INITIALIZE SEQUENCE</Text>
+                <Play size={18} color="#FFF" fill="#FFF" />
+              </TouchableOpacity>
             </View>
           )}
-        </View>
-      </View>
-    </Animated.View>
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 };
-
-// ... (Subcomponents like Step0CognitiveTriggers, Step1Distractions remain unchanged, just copying them for completeness)
-
-const Step0CognitiveTriggers: React.FC<{ data: OnboardingData; setData: React.Dispatch<React.SetStateAction<OnboardingData>>; }> = React.memo(({ data, setData }) => {
-  const handleSelect = useCallback((triggerId: string) => setData((prevData) => ({ ...prevData, cognitiveTrigger: triggerId })), [setData]);
-  const AnimatedPill = ({ trigger, isSelected, onPress }: any) => {
-    const scale = useSharedValue(1);
-    const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-    return (
-      <Animated.View style={animatedStyle}>
-        <TouchableOpacity
-          style={[styles.pillButton, { backgroundColor: isSelected ? colors.primary : colors.backgroundCard, borderColor: isSelected ? colors.primary : colors.border, borderWidth: isSelected ? 2 : 1 }, isSelected && { shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 16, elevation: 6 }]}
-          onPress={onPress} onPressIn={() => (scale.value = withSpring(0.95))} onPressOut={() => (scale.value = withSpring(1))} activeOpacity={1}>
-          <Text style={[styles.pillLabel, { color: isSelected ? colors.background : colors.text }]}>{trigger.title}</Text>
-          <Text style={[styles.pillDescription, { color: isSelected ? colors.background : colors.textSecondary }]}>{trigger.description}</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-  return (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>Lies we tell ourselves</Text>
-      <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>The "Cognitive Trigger"</Text>
-      <View style={styles.pillsContainer}>
-        {COGNITIVE_TRIGGERS.map((trigger) => <AnimatedPill key={trigger.id} trigger={trigger} isSelected={data.cognitiveTrigger === trigger.id} onPress={() => handleSelect(trigger.id)} />)}
-      </View>
-    </View>
-  );
-});
-
-const Step1Distractions: React.FC<{ data: OnboardingData; setData: React.Dispatch<React.SetStateAction<OnboardingData>>; }> = React.memo(({ data, setData }) => {
-  const handleSelect = useCallback((distractionId: string) => setData((prevData) => ({ ...prevData, distraction: distractionId })), [setData]);
-  const AnimatedPill = ({ distraction, isSelected, onPress }: any) => {
-    const scale = useSharedValue(1);
-    const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-    return (
-      <Animated.View style={animatedStyle}>
-        <TouchableOpacity
-          style={[styles.pillButton, { backgroundColor: isSelected ? colors.primary : colors.backgroundCard, borderColor: isSelected ? colors.primary : colors.border, borderWidth: isSelected ? 2 : 1 }, isSelected && { shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 16, elevation: 6 }]}
-          onPress={onPress} onPressIn={() => (scale.value = withSpring(0.95))} onPressOut={() => (scale.value = withSpring(1))} activeOpacity={1}>
-          <Text style={[styles.pillLabel, { color: isSelected ? colors.background : colors.text }]}>{distraction.label}</Text>
-          <Text style={[styles.pillDescription, { color: isSelected ? colors.background : colors.textSecondary }]}>{distraction.description}</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-  return (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>Where does your time go?</Text>
-      <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>The "Distraction of Choice"</Text>
-      <View style={styles.pillsContainer}>
-        {DISTRACTIONS.map((distraction) => <AnimatedPill key={distraction.id} distraction={distraction} isSelected={data.distraction === distraction.id} onPress={() => handleSelect(distraction.id)} />)}
-      </View>
-    </View>
-  );
-});
-
-const Step2FocusWindow: React.FC<{ data: OnboardingData; setData: React.Dispatch<React.SetStateAction<OnboardingData>>; }> = React.memo(({ data, setData }) => {
-  const handleSelect = useCallback((windowId: string) => setData((prevData) => ({ ...prevData, focusWindow: windowId })), [setData]);
-  const AnimatedFocusCard = ({ window, isSelected, onPress }: any) => {
-    const scale = useSharedValue(1);
-    const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-    const isWindowDark = window.id === 'night-owl';
-    return (
-      <Animated.View style={animatedStyle}>
-        <TouchableOpacity
-          style={[styles.focusCard, { backgroundColor: isSelected ? window.bgColor : colors.backgroundCard, borderColor: isSelected ? colors.primary : colors.border, borderWidth: 1 }]}
-          onPress={onPress} onPressIn={() => (scale.value = withSpring(0.95))} onPressOut={() => (scale.value = withSpring(1))} activeOpacity={1}>
-          <View style={styles.cardContent}>
-            <View style={styles.cardTextContainer}>
-              <View style={styles.focusHeader}>
-                {window.icon && <window.icon size={24} color={isSelected && isWindowDark ? '#FFFFFF' : (isSelected ? colors.primary : colors.textSecondary)} style={{ marginRight: 8 }} />}
-                <Text style={[styles.focusLabel, { color: isSelected && isWindowDark ? '#FFFFFF' : colors.text }]}>{window.label}</Text>
-              </View>
-              <Text style={[styles.focusTime, { color: isSelected && isWindowDark ? 'rgba(255,255,255,0.9)' : colors.textSecondary }]}>{window.time}</Text>
-              <Text style={[styles.focusDescription, { color: isSelected && isWindowDark ? 'rgba(255,255,255,0.7)' : colors.textSecondary }]}>{window.description}</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
-  return (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>When is your brain actually awake?</Text>
-      <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>The "Focus Window"</Text>
-      <View style={styles.focusContainer}>
-        {FOCUS_WINDOWS.map((window) => <AnimatedFocusCard key={window.id} window={window} isSelected={data.focusWindow === window.id} onPress={() => handleSelect(window.id)} />)}
-      </View>
-    </View>
-  );
-});
-
-const AnimatedSelectableCard: React.FC<{ children: React.ReactNode; onPress: () => void; style?: any; }> = ({ children, onPress, style }) => {
-  const scale = useSharedValue(1);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  return (
-    <Animated.View style={animatedStyle}>
-      <TouchableOpacity style={style} onPress={onPress} onPressIn={() => (scale.value = withSpring(0.95))} onPressOut={() => (scale.value = withSpring(1))} activeOpacity={1}>{children}</TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-const Step3WorkArchetype: React.FC<{ data: OnboardingData; setData: React.Dispatch<React.SetStateAction<OnboardingData>>; }> = React.memo(({ data, setData }) => {
-  const handleSelect = useCallback((archetypeId: string) => setData((prevData) => ({ ...prevData, workArchetype: archetypeId })), [setData]);
-  return (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: colors.text }]}>How do you currently work?</Text>
-      <View style={styles.cardsContainer}>
-        {WORK_ARCHETYPES.map((archetype) => {
-          const isSelected = data.workArchetype === archetype.id;
-          return (
-            <AnimatedSelectableCard
-              key={archetype.id} onPress={() => handleSelect(archetype.id)}
-              style={[styles.archetypeCard, { backgroundColor: colors.backgroundCard, borderColor: isSelected ? colors.primary : colors.border, shadowColor: colors.primary }, isSelected && styles.archetypeCardSelected]}>
-              <Text style={styles.archetypeIcon}>{archetype.icon}</Text>
-              <Text style={[styles.archetypeLabel, { color: colors.text }]}>{archetype.label}</Text>
-              <Text style={[styles.archetypeDescription, { color: colors.textSecondary }]}>{archetype.description}</Text>
-            </AnimatedSelectableCard>
-          );
-        })}
-      </View>
-    </View>
-  );
-});
-
-const Step4ProductivityKillers: React.FC<{ data: OnboardingData; setData: React.Dispatch<React.SetStateAction<OnboardingData>>; }> = React.memo(({ data, setData }) => {
-  const toggleKiller = useCallback((id: string) => {
-    setData((prevData) => {
-      const current = prevData.productivityKillers;
-      if (current.includes(id)) {
-        return { ...prevData, productivityKillers: current.filter((k) => k !== id) };
-      } else {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        return { ...prevData, productivityKillers: [...current, id] };
-      }
-    });
-  }, [setData]);
-  return (
-    <View style={styles.frictionStepContainer}>
-      <Text style={styles.frictionQuestionTitle}>What kills your productivity?</Text>
-      <Text style={styles.frictionInstructions}>Select all that apply. This will help us personalize your experience.</Text>
-      <View style={styles.frictionPillsContainer}>
-        {FRICTION_TYPES.map((friction) => {
-          const isSelected = data.productivityKillers.includes(friction.id);
-          return (
-            <FrictionPill key={friction.id} friction={friction} isSelected={isSelected} onPress={() => toggleKiller(friction.id)} />
-          );
-        })}
-      </View>
-    </View>
-  );
-});
-
-const FrictionPill: React.FC<{ friction: { id: string; title: string; subtitle: string }; isSelected: boolean; onPress: () => void; }> = React.memo(({ friction, isSelected, onPress }) => {
-  const scale = useSharedValue(1);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-  return (
-    <TouchableOpacity onPress={onPress} onPressIn={() => (scale.value = withSpring(0.98))} onPressOut={() => (scale.value = withSpring(1))} activeOpacity={1} style={styles.frictionPillWrapper}>
-      <Animated.View
-        style={[styles.frictionPill, animatedStyle, { backgroundColor: isSelected ? colors.primary : colors.backgroundCard, borderWidth: isSelected ? 2 : 1, borderColor: isSelected ? colors.primary : colors.border, shadowColor: isSelected ? colors.primary : '#000', shadowOffset: { width: 0, height: isSelected ? 4 : 2 }, shadowOpacity: isSelected ? 0.2 : 0.05, shadowRadius: isSelected ? 8 : 4, elevation: isSelected ? 4 : 2 }]}>
-        <Text style={[styles.frictionPillText, { color: isSelected ? colors.background : colors.text }]}>{friction.title}</Text>
-      </Animated.View>
-    </TouchableOpacity>
-  );
-});
 
 const styles = StyleSheet.create({
-  container: { flex: 1, position: 'relative' },
-  safeArea: { flex: 1 },
-  scrollContent: { flexGrow: 1, padding: 20, paddingTop: 60, paddingBottom: 120, minHeight: '100%' },
-  stepContainer: { flex: 1 },
-  stepTitle: { fontSize: 32, fontWeight: '700', textAlign: 'center', marginBottom: 12, lineHeight: 40 },
-  stepSubtitle: { fontSize: 16, textAlign: 'center', marginBottom: 20 },
-  cardsContainer: { marginTop: 12 },
-  archetypeCard: { borderRadius: 20, padding: 16, borderWidth: 0, position: 'relative', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, marginBottom: 12 },
-  archetypeCardSelected: { borderWidth: 2, borderColor: '#F59E0B', shadowColor: '#F59E0B', shadowOpacity: 0.3, shadowRadius: 16, elevation: 6 },
-  archetypeIcon: { fontSize: 36, marginBottom: 8, textAlign: 'center' },
-  archetypeLabel: { fontSize: 18, fontWeight: '700', marginBottom: 4, textAlign: 'center', lineHeight: 22 },
-  archetypeDescription: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
-  frictionStepContainer: { flex: 1, backgroundColor: colors.background, paddingTop: 20, minHeight: '100%' },
-  frictionQuestionTitle: { fontSize: 32, fontWeight: '700', color: colors.text, textAlign: 'center', marginBottom: 12, paddingHorizontal: 20, lineHeight: 40 },
-  frictionInstructions: { fontSize: 16, color: colors.textSecondary, textAlign: 'center', marginBottom: 32, paddingHorizontal: 20, lineHeight: 22 },
-  frictionPillsContainer: { flex: 1, paddingHorizontal: 20, gap: 14, paddingBottom: 20 },
-  frictionPillWrapper: { width: '100%' },
-  frictionPill: { borderRadius: 20, paddingVertical: 18, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', minHeight: 60 },
-  frictionPillText: { fontSize: 17, fontWeight: '600', textAlign: 'center', letterSpacing: 0.2 },
-  navigationWrapper: { position: 'absolute', bottom: 0, left: 0, right: 0, width: '100%' },
-  navigation: { flexDirection: 'row', padding: 20, paddingTop: 20, alignItems: 'center' },
-  backButton: { paddingHorizontal: 24, paddingVertical: 14, borderRadius: 16, borderWidth: 2 },
-  backButtonText: { fontSize: 16, fontWeight: '600' },
-  nextButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 32, paddingVertical: 16, borderRadius: 28, shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-  nextButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-  nextButtonDisabled: { backgroundColor: colors.border, opacity: 0.5 },
-  progressContainer: { position: 'absolute', bottom: 100, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  progressDot: { height: 8, borderRadius: 4, transition: 'all 0.3s' },
-  pillsContainer: { marginTop: 24 },
-  pillButton: { borderRadius: 20, padding: 18, borderWidth: 0, position: 'relative', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, minHeight: 90, marginBottom: 12 },
-  pillLabel: { fontSize: 18, fontWeight: '700', marginBottom: 4, lineHeight: 24 },
-  pillDescription: { fontSize: 14, lineHeight: 20 },
-  focusContainer: { marginTop: 12 },
-  focusCard: { borderRadius: 20, padding: 16, position: 'relative', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, minHeight: 100, marginBottom: 12 },
-  cardContent: { flex: 1, justifyContent: 'space-between', minHeight: '100%' },
-  cardTextContainer: { flex: 1 },
-  focusHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  focusLabel: { fontSize: 18, fontWeight: '700', marginBottom: 4, lineHeight: 22 },
-  focusTime: { fontSize: 16, fontWeight: '600', marginBottom: 4, lineHeight: 22 },
-  focusDescription: { fontSize: 14, lineHeight: 18 },
-});
-</file>
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
+  container: { backgroundColor: '#FFF', borderRadius: 32, padding: 24, height: height * 0.8 },
+  header: { flexDirection: 'row', marginBottom: 24, gap: 12 },
+  topLab: { fontSize: 11, fontWeight: '800', color: colors.primary, letterSpacing: 1.5, marginBottom: 4 },
+  titleRow: { flexDirection: 'row', alignItems: 'center' },
+  goalTitle: { fontSize: 22, fontWeight: '700', color: colors.text, maxWidth: '90%' },
+  titleInput: { fontSize: 22, fontWeight: '700', borderBottomWidth: 2, borderBottomColor: colors.primary, color: colors.text, padding: 0 },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center' },
+  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18, borderBottomWidth: 1, borderColor: '#F3F4F6' },
+  rowTitle: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 2 },
+  tapToEdit: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
+  timeBadge: { backgroundColor: colors.glow, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.primary },
+  timeText: { color: colors.primary, fontWeight: '800' },
+  primaryBtn: { backgroundColor: colors.primary, padding: 20, borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 20, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  btnText: { color: '#FFF', fontWeight: '800', letterSpacing: 1 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 4 },
+  backText: { color: colors.primary, fontWeight: '700' },
+  editTitle: { fontSize: 22, fontWeight: '700', marginBottom: 16, color: colors.text },
+  descBox: { backgroundColor: '#F9FAFB', padding: 16, borderRadius: 20, marginBottom: 20, borderWidth: 1, borderColor: '#F3F4F6' },
+  descText: { fontSize: 15, color: '#4B5563', lineHeight: 22 },
+  
+  // Refine Styles
+  refineSection: { marginBottom: 30, backgroundColor: '#F9FAFB', padding: 16, borderRadius: 20, borderWidth: 1, borderColor: '#F3F4F6' },
+  refineInputRow: { flexDirection: 'row', gap: 10 },
+  refineInput: { flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E5E7EB', minHeight: 45, fontSize: 14 },
+  refineBtn: { width: 45, borderRadius: 12, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
+  refineBtnDisabled: { backgroundColor: '#D1D5DB' },
+  refineHint: { fontSize: 11, color: colors.textSecondary, marginTop: 8, fontStyle: 'italic' },
 
-<file path="src/config/api.ts">
-export const API_BASE_URL = 'https://emile-actiniform-omer.ngrok-free.dev';
+  editorSection: { alignItems: 'center', marginBottom: 40 },
+  sectionLabel: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, marginBottom: 20 },
+  stepper: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 40 },
+  stepBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#EEE' },
+  timeValueBox: { alignItems: 'center', minWidth: 80 },
+  durVal: { fontSize: 48, fontWeight: '800', color: colors.text },
+  minLab: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginTop: -4 },
+  saveBtn: { backgroundColor: colors.text, padding: 18, borderRadius: 16, alignItems: 'center', marginTop: 'auto' },
+  saveText: { color: '#FFF', fontWeight: '800' }
+});
 </file>
 
 <file path="app/auth.tsx">
@@ -15685,6 +15473,173 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1A1A1A',
   },
+});
+</file>
+
+<file path="app/leaderboard.tsx">
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+  ActivityIndicator,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { ChevronLeft, Flame, Trophy } from 'lucide-react-native';
+import { StatusBar } from 'expo-status-bar';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { lightColors as colors } from '../src/constants/colors';
+import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
+import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
+
+const TOP_RANK_COLORS = {
+  1: { number: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
+  2: { number: '#64748B', bg: '#F8FAFC', border: '#E2E8F0' },
+  3: { number: '#B45309', bg: '#FFF7ED', border: '#FFEDD5' },
+};
+
+interface LeaderboardEntry {
+  rank: number | string;
+  name: string;
+  streak: number;
+  isCurrentUser?: boolean;
+  id: string;
+}
+
+export default function LeaderboardScreen() {
+  const router = useRouter();
+  const { user } = useApp();
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [user]);
+
+  const fetchLeaderboard = async () => {
+    setLoading(true);
+    try {
+      const apiData = await apiService.getLeaderboard();
+      
+      const formattedData: LeaderboardEntry[] = apiData.map((item: any, index: number) => {
+        const isMe = user ? item.id === user.id : false;
+        return {
+          id: item.id,
+          rank: index + 1,
+          name: isMe && user?.name ? user.name : (item.name || 'Operative'),
+          streak: item.streak,
+          isCurrentUser: isMe
+        };
+      });
+
+      setLeaderboardData(formattedData);
+    } catch (error) {
+      console.error("Failed to load leaderboard", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <ChevronLeft size={28} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Global Streak</Text>
+          <View style={styles.flameContainer}>
+            <AnimatedStreakFlame onPress={() => {}} />
+          </View>
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.podiumContainer}>
+              <Trophy size={40} color={colors.primary} strokeWidth={1.5} />
+              <Text style={styles.podiumText}>Keep the fire burning!</Text>
+            </View>
+
+            {leaderboardData.map((entry, index) => {
+              const rankNum = typeof entry.rank === 'number' ? entry.rank : 999;
+              const isTop3 = rankNum <= 3;
+              const rankTheme = isTop3 ? TOP_RANK_COLORS[rankNum as keyof typeof TOP_RANK_COLORS] : null;
+              
+              return (
+                <Animated.View 
+                  key={`${entry.id}-${index}`}
+                  entering={FadeInDown.delay(index * 50).springify()}
+                  style={[
+                    styles.leaderboardRow,
+                    isTop3 && { backgroundColor: rankTheme?.bg, borderColor: rankTheme?.border },
+                    entry.isCurrentUser && styles.currentUserRow
+                  ]}
+                >
+                  <View style={styles.rankContainer}>
+                    <Text style={[styles.rankNumber, isTop3 && { color: rankTheme?.number, fontWeight: '900' }]}>
+                      #{entry.rank}
+                    </Text>
+                  </View>
+
+                  <View style={styles.nameContainer}>
+                    <Text style={[styles.nameText, entry.isCurrentUser && { color: colors.primary, fontWeight: '800' }]}>
+                      {entry.name}
+                    </Text>
+                    {entry.isCurrentUser && (
+                      <View style={styles.youBadge}><Text style={styles.youBadgeText}>YOU</Text></View>
+                    )}
+                  </View>
+
+                  <View style={styles.streakContainer}>
+                    <Flame size={14} color={colors.textSecondary} />
+                    <Text style={styles.streakNumber}>{entry.streak}</Text>
+                  </View>
+                </Animated.View>
+              );
+            })}
+          </ScrollView>
+        )}
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FFF' },
+  safeArea: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center' },
+  header: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20 },
+  backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#F3F4F6' },
+  headerTitle: { fontSize: 20, fontWeight: '700' },
+  flameContainer: { width: 44, alignItems: 'flex-end' },
+  podiumContainer: { alignItems: 'center', paddingVertical: 20 },
+  podiumText: { fontSize: 14, color: colors.textSecondary, marginTop: 8 },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 40 },
+  leaderboardRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, marginBottom: 12, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#F3F4F6' },
+  currentUserRow: { borderColor: colors.primary, backgroundColor: '#FFFBF0' },
+  rankContainer: { width: 45, marginRight: 12, alignItems: 'center' },
+  rankNumber: { fontSize: 16, fontWeight: '700', color: '#9CA3AF' },
+  nameContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  nameText: { fontSize: 16, fontWeight: '600' },
+  youBadge: { backgroundColor: colors.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  youBadgeText: { fontSize: 10, fontWeight: '700', color: '#FFF' },
+  streakContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F9FAFB', padding: 10, borderRadius: 12 },
+  streakNumber: { fontSize: 16, fontWeight: '700' }
 });
 </file>
 
@@ -16219,315 +16174,153 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="backend/src/index.ts">
-import express from 'express';
-import cors from 'cors';
-import { PrismaClient } from '@prisma/client';
+<file path="src/components/OnboardingWizard.tsx">
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
+import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, BedDouble, MessagesSquare, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon, GraduationCap, Code, PenTool, TrendingUp } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
 
-const prisma = new PrismaClient();
-const app = express();
+// --- NEW DATA: IDENTITIES ---
+const IDENTITIES = [
+  { id: 'student', label: 'Student', description: 'Assignments, Exams, Studying.', icon: GraduationCap },
+  { id: 'creative', label: 'Creative', description: 'Design, Writing, Art, Media.', icon: PenTool },
+  { id: 'developer', label: 'Developer', description: 'Coding, Engineering, Data.', icon: Code },
+  { id: 'founder', label: 'Founder/Exec', description: 'Strategy, Management, Growth.', icon: TrendingUp },
+  { id: 'professional', label: 'Professional', description: 'Corporate, Admin, Operations.', icon: Briefcase },
+];
 
-const PORT = Number(process.env.PORT) || 3000;
+const ARCHETYPES = [
+  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Briefcase },
+  { id: 'firefighter', label: 'The Firefighter', description: 'I only work when the deadline is scary.', icon: Flame },
+  { id: 'sprinter', label: 'The Sprinter', description: 'I work in intense bursts, then crash.', icon: Zap },
+  { id: 'deep_worker', label: 'The Deep Worker', description: 'I need long hours of total silence.', icon: Brain },
+];
 
-app.use(cors());
-app.use(express.json());
+const VILLAINS = [
+  { id: 'doomscrolling', label: 'The Scroll', description: 'Getting sucked into social media loops.', icon: Smartphone },
+  { id: 'side_quests', label: 'Side Quests', description: 'Cleaning the room to avoid the real task.', icon: Gamepad2 },
+  { id: 'rotting', label: 'Brain Fog', description: 'Feeling paralyzed and low energy.', icon: BedDouble },
+  { id: 'yap_fatigue', label: 'Over-Communication', description: 'Drained by too many messages/calls.', icon: MessagesSquare },
+];
 
-// --- DATE HELPERS ---
-const isSameDay = (d1: Date, d2: Date) => {
-  return d1.toISOString().split('T')[0] === d2.toISOString().split('T')[0];
+const MENTAL_BLOCKS = [
+  { id: 'perfectionism', label: 'Perfectionism', description: 'If it\'s not perfect, I won\'t start.', icon: Target },
+  { id: 'overwhelm', label: 'Overwhelm', description: 'The project feels too massive.', icon: Activity },
+  { id: 'procrastination', label: 'Resistance', description: 'I just don\'t feel like it yet.', icon: AlertTriangle },
+  { id: 'boredom', label: 'Boredom', description: 'The task is dull and painful.', icon: Anchor },
+];
+
+const FOCUS_WINDOWS = [
+  { id: 'early_morning', label: 'Early Morning', time: '5 AM - 9 AM', icon: Sunrise, skyColor: '#FFE4E1', textColor: '#1A1A1A' },
+  { id: 'late_morning', label: 'Late Morning', time: '9 AM - 12 PM', icon: Sun, skyColor: '#E0F7FA', textColor: '#1A1A1A' },
+  { id: 'afternoon', label: 'Afternoon', time: '1 PM - 5 PM', icon: CloudSun, skyColor: '#FFF8E1', textColor: '#1A1A1A' },
+  { id: 'evening', label: 'Evening', time: '5 PM - 9 PM', icon: Sunset, skyColor: '#F3E5F5', textColor: '#1A1A1A' },
+  { id: 'late_night', label: 'Late Night', time: '9 PM - 2 AM', icon: Moon, skyColor: '#1E293B', textColor: '#FFFFFF' },
+];
+
+export const OnboardingWizard = ({ onComplete }: any) => {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [data, setData] = useState({ 
+    identity: null, // NEW FIELD
+    workArchetype: null, 
+    frictionVillain: null, 
+    mentalBlock: null, 
+    focusWindow: null 
+  });
+  
+  const stepTransition = useSharedValue(0);
+
+  useEffect(() => { stepTransition.value = 0; stepTransition.value = withSpring(1); }, [currentStep]);
+
+  const handleNext = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (currentStep < 4) setCurrentStep(currentStep + 1); // Increased steps to 4
+    else onComplete(data);
+  };
+
+  const steps = [
+    { title: "Who are you?", data: IDENTITIES, key: 'identity' },
+    { title: "How do you work?", data: ARCHETYPES, key: 'workArchetype' },
+    { title: "Your Nemesis?", data: VILLAINS, key: 'frictionVillain' },
+    { title: "The Inner Barrier.", data: MENTAL_BLOCKS, key: 'mentalBlock' },
+    { title: "Peak Energy.", data: FOCUS_WINDOWS, key: 'focusWindow' }
+  ];
+
+  const currentStepData = steps[currentStep];
+  const isLastStep = currentStep === 4;
+  
+  // @ts-ignore
+  const canProceed = data[currentStepData.key] !== null;
+
+  const PillCard = ({ item, isSelected, onPress }: any) => (
+    <TouchableOpacity style={[styles.pillCard, isSelected && styles.selectedCard]} onPress={onPress} activeOpacity={0.8}>
+      <View style={styles.pillIcon}><item.icon size={22} color={isSelected ? colors.primary : colors.textSecondary} /></View>
+      <View style={{ flex: 1 }}><Text style={styles.pillLabel}>{item.label}</Text><Text style={styles.pillDesc}>{item.description}</Text></View>
+      <View style={[styles.radio, isSelected && styles.radioActive]}>{isSelected && <Check size={12} color="#FFF" />}</View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.content}>
+          <Text style={styles.stepTitle}>{currentStepData.title}</Text>
+          <View style={{ flex: 1 }}>
+            {!isLastStep ? (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                {currentStepData.data.map((item: any) => (
+                  <PillCard 
+                    key={item.id} 
+                    item={item} 
+                    // @ts-ignore
+                    isSelected={data[currentStepData.key] === item.id} 
+                    // @ts-ignore
+                    onPress={() => setData({ ...data, [currentStepData.key]: item.id })} 
+                  />
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={{ flex: 1, gap: 8 }}>
+                {FOCUS_WINDOWS.map(item => (
+                  <TouchableOpacity key={item.id} style={[styles.skyCard, { flex: 1, backgroundColor: data.focusWindow === item.id ? item.skyColor : '#F9FAFB' }]} onPress={() => setData({ ...data, focusWindow: item.id })}>
+                    <item.icon size={24} color={data.focusWindow === item.id ? item.textColor : colors.textSecondary} />
+                    <View style={{ flex: 1, marginLeft: 16 }}><Text style={[styles.pillLabel, { color: data.focusWindow === item.id ? item.textColor : colors.text }]}>{item.label}</Text><Text style={[styles.skyTime, { color: data.focusWindow === item.id ? item.textColor : colors.textSecondary }]}>{item.time}</Text></View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+        <View style={styles.footer}>
+          <TouchableOpacity style={[styles.nextBtn, !canProceed && { opacity: 0.5 }]} disabled={!canProceed} onPress={handleNext}>
+            <Text style={styles.nextText}>{isLastStep ? 'Finish' : 'Next'}</Text>
+            <ArrowRight size={20} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
 };
 
-const isYesterday = (today: Date, past: Date) => {
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  return isSameDay(yesterday, past);
-};
-
-// --- LOGGING ---
-app.use((req, res, next) => {
-  console.log(`\n📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
-  next();
-});
-
-// ==========================================
-// AUTH ROUTES
-// ==========================================
-
-app.post('/register', async (req, res) => {
-  const { email, name, password, onboardingData } = req.body;
-  try {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) return res.status(400).json({ error: 'User already exists' });
-
-    const user = await prisma.user.create({
-      data: { 
-        email, 
-        name: name || 'Operative', 
-        password, 
-        provider: 'email',
-        onboardingData 
-      },
-    });
-    console.log(`✅ Registered user: ${email}`);
-    res.json(user);
-  } catch (error) {
-    console.error('Register Error:', error);
-    res.status(500).json({ error: 'Failed to register' });
-  }
-});
-
-app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    
-    if (!user) return res.status(401).json({ error: 'User not found' });
-
-    if (!user.password && user.provider !== 'email') {
-      return res.status(400).json({ error: `Please log in with ${user.provider}` });
-    }
-
-    if (user.password !== password) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    console.log(`🔑 Logged in: ${email}`);
-    res.json(user);
-  } catch (error) {
-    console.error('Login Error:', error);
-    res.status(500).json({ error: 'Login failed' });
-  }
-});
-
-app.post('/auth/social', async (req, res) => {
-  const { email, name, provider, socialId, onboardingData } = req.body;
-
-  try {
-    let user = null;
-    
-    // 1. Try lookup by Social ID (Stable identifier)
-    if (socialId) {
-      user = await prisma.user.findUnique({ where: { socialId } });
-    }
-
-    // 2. Try lookup by Email (Legacy/First time/Linking)
-    if (!user && email) {
-      user = await prisma.user.findUnique({ where: { email } });
-      
-      // If user found by email but missing socialId, link them now
-      if (user && socialId && !user.socialId) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { socialId }
-        });
-      }
-    }
-
-    // 3. If still no user, Create one
-    if (!user) {
-      // If email is missing (e.g. Apple Hide My Email), use a unique placeholder
-      const finalEmail = email || `${socialId}@privaterelay.appleid.com`;
-
-      user = await prisma.user.create({
-        data: {
-          email: finalEmail,
-          socialId: socialId,
-          name: name || 'Operative',
-          provider: provider || 'social',
-          password: null,
-          onboardingData: onboardingData || null, // Save onboarding if provided
-        },
-      });
-      console.log(`🆕 Created social user: ${finalEmail} (${provider})`);
-    } else {
-      console.log(`👋 Social login: ${user.email}`);
-      
-      // 4. If user exists AND we passed new onboarding data (from wizard), update it
-      if (onboardingData) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { onboardingData }
-        });
-        console.log(`📝 Updated onboarding data for ${user.email}`);
-      }
-    }
-
-    res.json(user);
-  } catch (error) {
-    console.error('Social Auth Error:', error);
-    res.status(500).json({ error: 'Social authentication failed' });
-  }
-});
-
-// ==========================================
-// USER ROUTES
-// ==========================================
-
-app.get('/users/:email', async (req, res) => {
-  const { email } = req.params;
-  try {
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { goals: { include: { tasks: true } } }
-    });
-    
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    let tasksCrushed = 0;
-    let totalMinutes = 0;
-    user.goals.forEach(goal => {
-      goal.tasks.forEach(task => {
-        if (task.status === 'completed') {
-          tasksCrushed++;
-          totalMinutes += task.duration;
-        }
-      });
-    });
-
-    res.json({
-      ...user,
-      stats: {
-        tasksCrushed,
-        hoursFocused: (totalMinutes / 60).toFixed(1),
-        streak: user.currentStreak, 
-        level: Math.floor(tasksCrushed / 5) + 1
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch profile' });
-  }
-});
-
-// Update User (e.g. for saving onboarding later)
-app.patch('/users/:email', async (req, res) => {
-  const { email } = req.params;
-  const updates = req.body;
-  try {
-    const user = await prisma.user.update({
-      where: { email },
-      data: updates
-    });
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update user' });
-  }
-});
-
-app.get('/leaderboard', async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      orderBy: { currentStreak: 'desc' },
-      take: 10,
-      select: { id: true, name: true, currentStreak: true }
-    });
-
-    const leaderboard = users.map(user => ({
-      id: user.id,
-      name: user.name || 'Operative',
-      streak: user.currentStreak,
-    }));
-    
-    res.json(leaderboard);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch leaderboard' });
-  }
-});
-
-// ==========================================
-// GOAL & TASK ROUTES
-// ==========================================
-
-app.post('/goals', async (req, res) => {
-  const { title, userEmail } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email: userEmail }});
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const goal = await prisma.goal.create({
-      data: { title, userId: user.id }
-    });
-    res.json(goal);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create goal' });
-  }
-});
-
-app.patch('/goals/:goalId', async (req, res) => {
-  const { goalId } = req.params;
-  const updates = req.body;
-  try {
-    const goal = await prisma.goal.update({
-      where: { id: goalId },
-      data: updates
-    });
-    res.json(goal);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update goal' });
-  }
-});
-
-app.post('/goals/:goalId/tasks', async (req, res) => {
-  const { goalId } = req.params;
-  const { tasks } = req.body; 
-  try {
-    const dbTasks = tasks.map((task: any) => ({
-      title: task.title,
-      description: task.description || '',
-      duration: Number(task.duration) || 15,
-      status: 'queued',
-      goalId: goalId
-    }));
-
-    const createdTasks = await prisma.$transaction(
-      dbTasks.map((t: any) => prisma.task.create({ data: t }))
-    );
-    res.json(createdTasks);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to add tasks' });
-  }
-});
-
-app.patch('/tasks/:taskId', async (req, res) => {
-  const { taskId } = req.params;
-  const updates = req.body; 
-  try {
-    const cleanUpdates: any = {};
-    if (updates.status !== undefined) cleanUpdates.status = updates.status;
-    if (updates.completed !== undefined) cleanUpdates.status = updates.completed ? 'completed' : 'queued';
-    if (updates.duration !== undefined) cleanUpdates.duration = updates.duration;
-    if (updates.productivityRating !== undefined) cleanUpdates.productivityRating = updates.productivityRating;
-
-    const task = await prisma.task.update({
-      where: { id: taskId },
-      data: cleanUpdates,
-      include: { goal: { include: { user: true } } }
-    });
-
-    if (cleanUpdates.status === 'completed') {
-      const user = task.goal.user;
-      const today = new Date();
-      const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
-      let newStreak = user.currentStreak;
-
-      if (!lastActive) newStreak = 1;
-      else if (isSameDay(today, lastActive)) newStreak = user.currentStreak;
-      else if (isYesterday(today, lastActive)) newStreak = user.currentStreak + 1;
-      else newStreak = 1;
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { currentStreak: newStreak, lastActiveDate: today }
-      });
-    }
-    res.json(task);
-  } catch (error) {
-    console.error('Update Task Error:', error);
-    res.status(500).json({ error: 'Failed to update task' });
-  }
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server ready at http://localhost:${PORT}`);
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FFF' },
+  content: { flex: 1, padding: 24 },
+  stepTitle: { fontSize: 28, fontWeight: '800', marginBottom: 24, color: colors.text },
+  pillCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, backgroundColor: '#F9FAFB', borderWidth: 2, borderColor: 'transparent' },
+  selectedCard: { backgroundColor: '#FFFBEB', borderColor: colors.primary },
+  pillIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  pillLabel: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
+  pillDesc: { fontSize: 13, color: colors.textSecondary },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#DDD', justifyContent: 'center', alignItems: 'center' },
+  radioActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  skyCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, borderRadius: 16 },
+  skyTime: { fontSize: 12, fontWeight: '600', opacity: 0.7 },
+  footer: { padding: 24, borderTopWidth: 1, borderTopColor: '#EEE' },
+  nextBtn: { backgroundColor: colors.primary, padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
+  nextText: { color: '#FFF', fontSize: 16, fontWeight: '800' }
 });
 </file>
 
@@ -16834,6 +16627,17 @@ const styles = StyleSheet.create({
 export default TaskReactorCircle;
 </file>
 
+<file path="src/config/api.ts">
+// ⚠️ IMPORTANT:
+// 1. Open your Command Prompt (cmd.exe)
+// 2. Type 'ipconfig' and hit Enter
+// 3. Find "IPv4 Address" (it looks like 192.168.1.5 or 10.0.0.14)
+// 4. Paste that number below inside the quotes
+
+
+export const API_BASE_URL = `https://emile-actiniform-omer.ngrok-free.dev`;
+</file>
+
 <file path="app/_layout.tsx">
 import { Stack } from 'expo-router';
 import { AppProvider } from '../src/context/AppContext';
@@ -16872,344 +16676,6 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
-</file>
-
-<file path="app/goal-input.tsx">
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-  Dimensions,
-  Alert
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { MotiView } from 'moti';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
-import { Sparkles, ArrowRight, Save } from 'lucide-react-native';
-import { useApp } from '../src/context/AppContext';
-import { lightColors as colors } from '../src/constants/colors';
-import { TaskStagingModal } from '../src/components/TaskStagingModal';
-import { BottomNav } from '../src/components/BottomNav'; 
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
-
-export default function GoalInputScreen() {
-  const { initialText, editingGoalId } = useLocalSearchParams();
-  const isEditing = !!editingGoalId;
-
-  const [goal, setGoal] = useState(initialText ? (initialText as string) : '');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const [isStagingVisible, setIsStagingVisible] = useState(false);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  
-  const router = useRouter();
-  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks } = useApp();
-  
-  const borderOpacity = useSharedValue(0);
-  const submitButtonOpacity = useSharedValue(0);
-
-  useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (initialText) {
-      setGoal(initialText as string);
-      submitButtonOpacity.value = withSpring(1);
-    }
-  }, [initialText]);
-
-  const borderAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      shadowOpacity: 0.1 + borderOpacity.value * 0.4,
-      shadowRadius: 12 + borderOpacity.value * 8,
-      borderWidth: 1 + borderOpacity.value,
-    };
-  });
-
-  const submitButtonStyle = useAnimatedStyle(() => {
-    return {
-      opacity: submitButtonOpacity.value,
-      transform: [{ scale: submitButtonOpacity.value }],
-    };
-  });
-
-  const handleSubmit = async () => {
-    if (!goal.trim()) return;
-    setIsLoading(true);
-    Keyboard.dismiss();
-
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsStagingVisible(true);
-    }, 1500);
-  };
-
-  // --- FIX: Added async/await here ---
-  const handleFinalConfirm = async (finalTasks: any[]) => {
-    setIsStagingVisible(false);
-    setIsLoading(true); // Show loading while saving to DB
-    
-    try {
-      if (isEditing) {
-        const id = editingGoalId as string;
-        updateGoal(id, { title: goal.trim() });
-        overrideTasks(id, finalTasks);
-        router.back();
-      } else {
-        // 1. Wait for the goal to be created in the database
-        const newGoal = await addGoal(goal.trim());
-        
-        if (newGoal && newGoal.id) {
-          // 2. Wait for tasks to be added to that specific goal ID
-          await addTasks(newGoal.id, finalTasks);
-          setCurrentGoal(newGoal);
-          
-          if (router.canGoBack()) {
-            router.back(); 
-          } else {
-            router.replace('/home');
-          }
-        } else {
-          throw new Error("Failed to create goal");
-        }
-      }
-    } catch (error) {
-      console.error("Save Error:", error);
-      Alert.alert("Error", "Could not save your mission. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleInputFocus = () => {
-    setIsInputFocused(true);
-    borderOpacity.value = withTiming(1, { duration: 300 });
-    submitButtonOpacity.value = withSpring(1, { damping: 20, stiffness: 100 });
-  };
-
-  const handleInputBlur = () => {
-    setIsInputFocused(false);
-    borderOpacity.value = withTiming(0, { duration: 300 });
-    if (!goal.trim()) {
-      submitButtonOpacity.value = withSpring(0, { damping: 20, stiffness: 100 });
-    }
-  };
-
-  return (
-    <View style={styles.root}>
-      <KeyboardAvoidingView
-        style={[styles.container, { backgroundColor: '#FFFFFF' }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <StatusBar style="dark" />
-
-        <View style={styles.centeredContainer}>
-          <MotiView
-            from={{ opacity: 0, translateY: -20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 600 }}
-          >
-            <Text style={[styles.title, { color: colors.text }]}>
-              {isEditing ? "Refine Mission Directive" : "What is your main goal right now?"}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {isEditing 
-                ? "Update your objective to re-calculate optimal tasks." 
-                : "Enter a goal and we'll break it down into actionable steps"}
-            </Text>
-          </MotiView>
-
-          <MotiView
-            from={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'timing', duration: 600, delay: 200 }}
-          >
-            <Animated.View 
-              style={[
-                styles.inputCard, 
-                borderAnimatedStyle,
-                isInputFocused && { 
-                  borderColor: colors.primary,
-                  shadowColor: colors.primary,
-                }
-              ]}
-            >
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="e.g., Launch my dropshipping store"
-                  placeholderTextColor={colors.textLight}
-                  value={goal}
-                  onChangeText={setGoal}
-                  onFocus={handleInputFocus}
-                  onBlur={handleInputBlur}
-                  multiline
-                  editable={!isLoading}
-                  textAlignVertical="top"
-                />
-              </View>
-              
-              <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
-                <TouchableOpacity
-                  style={[
-                    styles.submitButton, 
-                    { backgroundColor: colors.primary, shadowColor: colors.primary },
-                    (!goal.trim() || isLoading) && styles.submitButtonDisabled
-                  ]}
-                  onPress={handleSubmit}
-                  disabled={!goal.trim() || isLoading}
-                  activeOpacity={0.8}
-                >
-                  {isEditing ? (
-                    <Save size={20} color="#FFFFFF" />
-                  ) : (
-                    <ArrowRight size={20} color="#FFFFFF" />
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-            </Animated.View>
-          </MotiView>
-
-          {isLoading && (
-            <MotiView
-              from={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ type: 'timing', duration: 300 }}
-              style={styles.loadingContainer}
-            >
-              <MotiView
-                from={{ rotate: '0deg' }}
-                animate={{ rotate: '360deg' }}
-                transition={{ type: 'timing', duration: 2000, loop: true }}
-              >
-                <Sparkles size={32} color={colors.primary} />
-              </MotiView>
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                {isEditing ? "Recalculating mission parameters..." : "Syncing with HQ..."}
-              </Text>
-            </MotiView>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-
-      <TaskStagingModal
-        visible={isStagingVisible}
-        goalTitle={goal}
-        onConfirm={handleFinalConfirm}
-        onClose={() => setIsStagingVisible(false)}
-      />
-
-      {/* Pill Dashboard Navigation - Shows when keyboard is hidden */}
-      {!isKeyboardVisible && <BottomNav activeTab="GoalInput" />}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  container: {
-    flex: 1,
-  },
-  centeredContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    width: '100%',
-    paddingBottom: 100,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 38,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 40,
-    lineHeight: 24,
-  },
-  inputCard: {
-    width: INPUT_CARD_WIDTH,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(245, 158, 11, 0.2)',
-    backgroundColor: '#F9F9F9',
-    position: 'relative',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-    minHeight: 140,
-    alignSelf: 'center',
-    overflow: 'hidden',
-  },
-  inputWrapper: {
-    width: '100%',
-  },
-  input: {
-    width: '100%',
-    padding: 20,
-    paddingBottom: 60,
-    fontSize: 18,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    minHeight: 120,
-    maxHeight: 250,
-  },
-  submitButtonContainer: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-  },
-  submitButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    marginTop: 30,
-  },
-  loadingText: {
-    fontSize: 16,
-    marginTop: 16,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-});
 </file>
 
 <file path="app/onboarding.tsx">
@@ -17253,7 +16719,7 @@ datasource db {
 model User {
   id             String   @id @default(uuid())
   email          String   @unique
-  socialId       String?  @unique // <--- ADD THIS LINE
+  socialId       String?  @unique
   name           String?
   
   password       String?
@@ -17269,16 +16735,22 @@ model User {
   goals          Goal[]
 }
 
-// ... Goal and Task models remain the same ...
 model Goal {
-  id        String   @id @default(uuid())
-  title     String
-  status    String   @default("active")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  tasks     Task[]
+  id          String   @id @default(uuid())
+  title       String
+  status      String   @default("active")
+  
+  // --- NEW FIELDS FOR JOURNEY MODE ---
+  type        String   @default("project") // 'project' or 'journey'
+  targetDate  DateTime?
+  startDate   DateTime @default(now())
+  // -----------------------------------
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  tasks       Task[]
 }
 
 model Task {
@@ -17295,6 +16767,365 @@ model Task {
 }
 </file>
 
+<file path="backend/src/index.ts">
+import express from 'express';
+import cors from 'cors';
+import { PrismaClient } from '@prisma/client';
+import { 
+  generateActionPlan, 
+  generateClarifyingQuestion, 
+  refineSingleTask,
+  analyzeGoalType,
+  generateDailyPlan
+} from './services/ai.service';
+
+const prisma = new PrismaClient();
+const app = express();
+
+const PORT = Number(process.env.PORT) || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// --- DATE HELPERS FOR STREAKS ---
+const isSameDay = (d1: Date, d2: Date) => {
+  return d1.toISOString().split('T')[0] === d2.toISOString().split('T')[0];
+};
+
+const isYesterday = (today: Date, past: Date) => {
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return isSameDay(yesterday, past);
+};
+
+app.use((req, res, next) => {
+  console.log(`\n📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// ==========================================
+// 1. AUTH & USER ROUTES
+// ==========================================
+
+app.post('/register', async (req, res) => {
+  const { email, name, password, onboardingData } = req.body;
+  try {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) return res.status(400).json({ error: 'User already exists' });
+
+    const user = await prisma.user.create({
+      data: { 
+        email, 
+        name: name || 'Operative', 
+        password, 
+        provider: 'email',
+        onboardingData 
+      },
+    });
+    res.json(user);
+  } catch (error) {
+    console.error("Register Error:", error);
+    res.status(500).json({ error: 'Failed to register' });
+  }
+});
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.password !== password) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error("Login Error:", error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.post('/auth/social', async (req, res) => {
+    const { email, name, provider, socialId, onboardingData } = req.body;
+    try {
+      let user = await prisma.user.findUnique({ where: { email: email || '' } });
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            email: email || `${socialId}@social.com`,
+            socialId,
+            name: name || 'Operative',
+            provider,
+            onboardingData
+          }
+        });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error("Social Auth Error:", error);
+      res.status(500).json({ error: 'Social auth failed' });
+    }
+});
+
+app.get('/users/:email', async (req, res) => {
+  const { email } = req.params;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { goals: { include: { tasks: true } } }
+    });
+    
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    let tasksCrushed = 0;
+    let totalMinutes = 0;
+    user.goals.forEach(goal => {
+      goal.tasks.forEach(task => {
+        if (task.status === 'completed') {
+          tasksCrushed++;
+          totalMinutes += task.duration;
+        }
+      });
+    });
+
+    res.json({
+      ...user,
+      stats: {
+        tasksCrushed,
+        hoursFocused: (totalMinutes / 60).toFixed(1),
+        streak: user.currentStreak, 
+        level: Math.floor(tasksCrushed / 5) + 1
+      }
+    });
+  } catch (error) {
+    console.error("Get Profile Error:", error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+app.patch('/users/:email', async (req, res) => {
+    const { email } = req.params;
+    try {
+      const user = await prisma.user.update({
+        where: { email },
+        data: req.body
+      });
+      res.json(user);
+    } catch (error) {
+      console.error("Update User Error:", error);
+      res.status(500).json({ error: 'Update failed' });
+    }
+});
+
+// ==========================================
+// 2. AI STRATEGIST ROUTES
+// ==========================================
+
+app.post('/ai/analyze-goal', async (req, res) => {
+  const { goal } = req.body;
+  try {
+    const analysis = await analyzeGoalType(goal);
+    res.json(analysis);
+  } catch (error) {
+    console.error("AI Analysis Error:", error);
+    res.status(500).json({ error: 'Analysis failed' });
+  }
+});
+
+app.post('/ai/clarify', async (req, res) => {
+  const { email, goal } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const question = await generateClarifyingQuestion(goal, user);
+    res.json({ question });
+  } catch (error) {
+    console.error("AI Clarify Error:", error);
+    res.status(500).json({ error: 'Clarification failed' });
+  }
+});
+
+app.post('/ai/generate-plan', async (req, res) => {
+  const { email, goal, clarification } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const result = await generateActionPlan(goal, user, clarification);
+    res.json({ tasks: result });
+  } catch (error) {
+    console.error("AI Generate Plan Error:", error);
+    res.status(500).json({ error: 'Plan generation failed' });
+  }
+});
+
+app.post('/ai/refine-task', async (req, res) => {
+  const { email, taskId, feedback } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    
+    if (!user || !task) return res.status(404).json({ error: 'Not found' });
+
+    const newTaskData = await refineSingleTask(task, feedback, user);
+    
+    const updatedTask = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        title: newTaskData.title,
+        duration: newTaskData.duration,
+        description: newTaskData.description
+      }
+    });
+
+    res.json(updatedTask);
+  } catch (error) {
+    console.error("AI Refine Task Error:", error);
+    res.status(500).json({ error: 'Refinement failed' });
+  }
+});
+
+app.post('/ai/daily-plan', async (req, res) => {
+  const { email, goalTitle, dayNumber, totalDays, dailyMinutes } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const result = await generateDailyPlan(goalTitle, user, dayNumber, totalDays, dailyMinutes);
+    res.json(result);
+  } catch (error) {
+    console.error("AI Daily Plan Error:", error);
+    res.status(500).json({ error: 'Daily plan failed' });
+  }
+});
+
+// ==========================================
+// 3. GOAL & TASK MANAGEMENT
+// ==========================================
+
+app.post('/goals', async (req, res) => {
+  const { title, userEmail, type, targetDate } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email: userEmail }});
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    console.log(`Creating Goal for ${userEmail}: ${title} [${type}]`);
+
+    const goal = await prisma.goal.create({
+      data: { 
+        title, 
+        userId: user.id,
+        type: type || 'project',
+        targetDate: targetDate ? new Date(targetDate) : null
+      }
+    });
+    res.json(goal);
+  } catch (error) {
+    console.error("Create Goal DB Error:", error);
+    res.status(500).json({ error: 'Goal creation failed', details: String(error) });
+  }
+});
+
+app.post('/goals/:goalId/tasks', async (req, res) => {
+  const { goalId } = req.params;
+  const { tasks } = req.body; 
+  try {
+    const createdTasks = await prisma.$transaction(
+      tasks.map((t: any) => prisma.task.create({
+        data: {
+          title: t.title,
+          description: t.description || '',
+          duration: Number(t.duration) || 15,
+          goalId: goalId
+        }
+      }))
+    );
+    res.json(createdTasks);
+  } catch (error) {
+    console.error("Create Tasks Error:", error);
+    res.status(500).json({ error: 'Task creation failed' });
+  }
+});
+
+app.patch('/goals/:goalId', async (req, res) => {
+  const { goalId } = req.params;
+  try {
+    const goal = await prisma.goal.update({
+      where: { id: goalId },
+      data: req.body
+    });
+    res.json(goal);
+  } catch (error) {
+    console.error("Update Goal Error:", error);
+    res.status(500).json({ error: 'Goal update failed' });
+  }
+});
+
+app.patch('/tasks/:taskId', async (req, res) => {
+  const { taskId } = req.params;
+  const updates = req.body; 
+  
+  try {
+    const allowedFields = ['title', 'description', 'duration', 'status', 'order'];
+    const filteredData: any = {};
+    Object.keys(updates).forEach(key => {
+      if (allowedFields.includes(key)) filteredData[key] = updates[key];
+    });
+
+    const task = await prisma.task.update({
+      where: { id: taskId },
+      data: filteredData,
+      include: { goal: { include: { user: true } } }
+    });
+
+    if (filteredData.status === 'completed') {
+      const user = task.goal.user;
+      const today = new Date();
+      const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
+      let newStreak = user.currentStreak;
+
+      if (!lastActive) newStreak = 1;
+      else if (isSameDay(today, lastActive)) newStreak = user.currentStreak;
+      else if (isYesterday(today, lastActive)) newStreak = user.currentStreak + 1;
+      else newStreak = 1;
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { currentStreak: newStreak, lastActiveDate: today }
+      });
+    }
+    res.json(task);
+  } catch (error) {
+    console.error("Update Task Error:", error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+app.get('/leaderboard', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { currentStreak: 'desc' },
+      take: 10,
+      select: { id: true, name: true, currentStreak: true }
+    });
+
+    const leaderboard = users.map(u => ({
+      id: u.id,
+      name: u.name || 'Operative',
+      streak: u.currentStreak,
+    }));
+    
+    res.json(leaderboard);
+  } catch (error) {
+    console.error("Leaderboard Error:", error);
+    res.status(500).json({ error: 'Leaderboard fetch failed' });
+  }
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 AI Chief of Staff listening on port ${PORT}`);
+});
+</file>
+
 <file path="package.json">
 {
   "name": "productivity-ai",
@@ -17308,6 +17139,7 @@ model Task {
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/datetimepicker": "8.2.0",
     "@shopify/react-native-skia": "2.2.12",
     "babel-preset-expo": "~54.0.9",
     "expo": "~54.0.0",
@@ -17347,23 +17179,423 @@ model Task {
 }
 </file>
 
+<file path="app/goal-input.tsx">
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  Dimensions,
+  Alert
+} from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { MotiView, AnimatePresence } from 'moti';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { Sparkles, ArrowRight } from 'lucide-react-native';
+import { useApp } from '../src/context/AppContext';
+import { lightColors as colors } from '../src/constants/colors';
+import { TaskStagingModal, StagingTask } from '../src/components/TaskStagingModal';
+import { LongTermSetupModal } from '../src/components/LongTermSetupModal';
+import { BottomNav } from '../src/components/BottomNav'; 
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
+
+type InputStep = 'goal' | 'clarification' | 'processing';
+
+export default function GoalInputScreen() {
+  const { initialText, editingGoalId } = useLocalSearchParams();
+  const isEditing = !!editingGoalId;
+
+  // --- STATE ---
+  const [step, setStep] = useState<InputStep>('goal');
+  
+  const [goalText, setGoalText] = useState(initialText ? (initialText as string) : '');
+  const [answerText, setAnswerText] = useState('');
+  const [aiQuestion, setAiQuestion] = useState('');
+  
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isStagingVisible, setIsStagingVisible] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  
+  const [aiTasks, setAiTasks] = useState<StagingTask[]>([]);
+  const [aiTitle, setAiTitle] = useState('');
+
+  // Journey State
+  const [isJourneySetupVisible, setIsJourneySetupVisible] = useState(false);
+  const [journeyReason, setJourneyReason] = useState('');
+  const [goalType, setGoalType] = useState('project');
+  const [targetDate, setTargetDate] = useState<Date | null>(null);
+
+  const router = useRouter();
+  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks, generatePlan, getAiQuestion, analyzeGoal } = useApp();
+  
+  // Animation Values
+  const borderOpacity = useSharedValue(0);
+  const submitButtonOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  useEffect(() => {
+    if (initialText) {
+      setGoalText(initialText as string);
+      submitButtonOpacity.value = withSpring(1);
+    }
+  }, [initialText]);
+
+  // --- ANIMATED STYLES ---
+  const borderAnimatedStyle = useAnimatedStyle(() => ({
+    shadowOpacity: 0.1 + borderOpacity.value * 0.4,
+    shadowRadius: 12 + borderOpacity.value * 8,
+    borderWidth: 1 + borderOpacity.value,
+  }));
+
+  const submitButtonStyle = useAnimatedStyle(() => ({
+    opacity: submitButtonOpacity.value,
+    transform: [{ scale: submitButtonOpacity.value }],
+  }));
+
+  // --- HANDLERS ---
+
+  const handleGoalSubmit = async () => {
+    if (!goalText.trim()) return;
+    Keyboard.dismiss();
+    setStep('processing');
+
+    try {
+      // 1. Analyze Goal Type
+      const typeAnalysis = await analyzeGoal(goalText);
+      
+      if (typeAnalysis.type === 'journey') {
+        setGoalType('journey');
+        setJourneyReason(typeAnalysis.reason || "Long-term effort detected.");
+        setIsJourneySetupVisible(true);
+        return; 
+      }
+
+      await proceedToClarification();
+    } catch (e) {
+      await proceedToClarification();
+    }
+  };
+
+  const proceedToClarification = async () => {
+    try {
+      const question = await getAiQuestion(goalText);
+      if (question) {
+        setAiQuestion(question);
+        setStep('clarification');
+        setTimeout(() => submitButtonOpacity.value = withSpring(0), 100);
+      } else {
+        handleFinalSubmit("");
+      }
+    } catch (e) {
+      handleFinalSubmit("");
+    }
+  };
+
+  const handleJourneyConfirm = async (date: Date, dailyMinutes: number) => {
+    setIsJourneySetupVisible(false);
+    setTargetDate(date);
+    
+    // Inject the time constraint into the context for the AI
+    const context = `TARGET DATE: ${date.toDateString()}. TIME BUDGET: ${dailyMinutes} minutes/day. Focus ONLY on Day 1 tasks.`;
+    handleFinalSubmit(context);
+  };
+
+  const handleClarificationSubmit = () => {
+    if (!answerText.trim()) return;
+    handleFinalSubmit(answerText);
+  };
+
+  const handleFinalSubmit = async (clarification: string) => {
+    setStep('processing');
+
+    try {
+      const aiResult = await generatePlan(goalText, clarification);
+      
+      if (aiResult && aiResult.tasks && aiResult.tasks.length > 0) {
+        const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
+          id: `ai-${Date.now()}-${index}`,
+          title: t.title,
+          duration: t.duration,
+          description: t.description
+        }));
+        
+        setAiTasks(formattedTasks);
+        setAiTitle(aiResult.shortTitle);
+        setIsStagingVisible(true);
+        // If clarification was used (and not reset by journey flow), preserve it
+        if (!targetDate) setAnswerText(''); 
+      } else {
+        Alert.alert("Error", "Could not generate plan.");
+        setStep('goal');
+      }
+    } catch (error) {
+      Alert.alert("Error", "Connection failed.");
+      setStep('goal');
+    }
+  };
+
+  const handleStagingRefinement = async (feedback: string) => {
+    const fullContext = `${answerText ? answerText + ". " : ""}[CONSTRAINT UPDATE: ${feedback}]`;
+    setAnswerText(fullContext);
+
+    try {
+      const aiResult = await generatePlan(goalText, fullContext);
+      if (aiResult && aiResult.tasks) {
+        const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
+          id: `ai-refined-${Date.now()}-${index}`,
+          title: t.title,
+          duration: t.duration,
+          description: t.description
+        }));
+        setAiTasks(formattedTasks);
+        setAiTitle(aiResult.shortTitle);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to regenerate plan.");
+    }
+  };
+
+  const handleFinalConfirm = async (finalTasks: StagingTask[], finalTitle: string) => {
+    setIsStagingVisible(false);
+    setStep('processing'); 
+    
+    try {
+      if (isEditing) {
+        const id = editingGoalId as string;
+        updateGoal(id, { title: finalTitle });
+        overrideTasks(id, finalTasks);
+        router.back();
+      } else {
+        const newGoal = await addGoal(finalTitle, goalType, targetDate || undefined);
+        if (newGoal && newGoal.id) {
+          await addTasks(newGoal.id, finalTasks);
+          setCurrentGoal(newGoal);
+          if (router.canGoBack()) router.back(); 
+          else router.replace('/home');
+        }
+      }
+    } catch (error) {
+      Alert.alert("Error", "Save failed.");
+      setStep('goal');
+    }
+  };
+
+  const handleFocus = () => {
+    setIsInputFocused(true);
+    borderOpacity.value = withTiming(1);
+    submitButtonOpacity.value = withSpring(1);
+  };
+
+  const handleBlur = () => {
+    setIsInputFocused(false);
+    borderOpacity.value = withTiming(0);
+    const textToCheck = step === 'goal' ? goalText : answerText;
+    if (!textToCheck.trim()) {
+      submitButtonOpacity.value = withSpring(0);
+    }
+  };
+
+  return (
+    <View style={styles.root}>
+      <KeyboardAvoidingView
+        style={[styles.container, { backgroundColor: '#FFFFFF' }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <StatusBar style="dark" />
+
+        <View style={styles.centeredContainer}>
+          <AnimatePresence mode="wait">
+            
+            {step === 'goal' && (
+              <MotiView
+                key="step1"
+                from={{ opacity: 0, translateX: -20 }}
+                animate={{ opacity: 1, translateX: 0 }}
+                exit={{ opacity: 0, translateX: -20 }}
+                style={styles.stepWrapper}
+              >
+                <Text style={styles.title}>
+                  {isEditing ? "Refine Directive" : "What is your main goal?"}
+                </Text>
+                
+                <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., Launch my dropshipping store"
+                    placeholderTextColor={colors.textLight}
+                    value={goalText}
+                    onChangeText={setGoalText}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                    multiline
+                    autoFocus
+                  />
+                  <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                    <TouchableOpacity
+                      style={styles.submitButton}
+                      onPress={handleGoalSubmit}
+                      disabled={!goalText.trim()}
+                    >
+                      <ArrowRight size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </Animated.View>
+                </Animated.View>
+              </MotiView>
+            )}
+
+            {step === 'clarification' && (
+              <MotiView
+                key="step2"
+                from={{ opacity: 0, translateX: 20 }}
+                animate={{ opacity: 1, translateX: 0 }}
+                exit={{ opacity: 0, translateX: -20 }}
+                style={styles.stepWrapper}
+              >
+                <View style={styles.aiMessageContainer}>
+                  <Sparkles size={20} color={colors.primary} style={{marginBottom:8}} />
+                  <Text style={styles.aiQuestionText}>{aiQuestion}</Text>
+                </View>
+
+                <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Type your answer..."
+                    placeholderTextColor={colors.textLight}
+                    value={answerText}
+                    onChangeText={(t) => {
+                        setAnswerText(t);
+                        if (t.length > 0) submitButtonOpacity.value = withSpring(1);
+                    }}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                    multiline
+                    autoFocus
+                  />
+                  <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                    <TouchableOpacity
+                      style={styles.submitButton}
+                      onPress={handleClarificationSubmit}
+                      disabled={!answerText.trim()}
+                    >
+                      <ArrowRight size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </Animated.View>
+                </Animated.View>
+              </MotiView>
+            )}
+
+            {step === 'processing' && (
+              <MotiView
+                key="loading"
+                from={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                style={styles.loadingContainer}
+              >
+                <MotiView
+                  from={{ rotate: '0deg' }}
+                  animate={{ rotate: '360deg' }}
+                  transition={{ type: 'timing', duration: 2000, loop: true }}
+                >
+                  <Sparkles size={40} color={colors.primary} />
+                </MotiView>
+                <Text style={styles.loadingText}>
+                  {goalType === 'journey' ? "Architecting Journey..." : "Constructing Tactical Plan..."}
+                </Text>
+              </MotiView>
+            )}
+
+          </AnimatePresence>
+        </View>
+      </KeyboardAvoidingView>
+
+      <TaskStagingModal
+        visible={isStagingVisible}
+        goalTitle={aiTitle || goalText}
+        generatedTasks={aiTasks}
+        onConfirm={handleFinalConfirm}
+        onRefine={handleStagingRefinement}
+        onClose={() => {
+            setIsStagingVisible(false);
+            setStep('goal');
+            setAnswerText('');
+        }}
+      />
+
+      <LongTermSetupModal
+        visible={isJourneySetupVisible}
+        goalTitle={goalText}
+        aiReason={journeyReason}
+        onConfirm={handleJourneyConfirm}
+        onCancel={() => {
+            setIsJourneySetupVisible(false);
+            setGoalType('project');
+            proceedToClarification();
+        }}
+      />
+
+      {!isKeyboardVisible && <BottomNav activeTab="GoalInput" />}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1 },
+  centeredContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, width: '100%', paddingBottom: 100 },
+  stepWrapper: { width: '100%', alignItems: 'center' },
+  
+  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 24, color: colors.text },
+  
+  aiMessageContainer: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 20 },
+  aiQuestionText: { fontSize: 22, fontWeight: '600', color: colors.primary, textAlign: 'center', lineHeight: 30 },
+
+  inputCard: { width: INPUT_CARD_WIDTH, borderRadius: 24, borderWidth: 2, borderColor: 'rgba(245, 158, 11, 0.1)', backgroundColor: '#F9F9F9', position: 'relative', minHeight: 140, overflow: 'hidden' },
+  focusedCard: { borderColor: colors.primary, shadowColor: colors.primary },
+  
+  input: { width: '100%', padding: 20, paddingBottom: 60, fontSize: 18, minHeight: 120, color: colors.text },
+  
+  submitButtonContainer: { position: 'absolute', bottom: 16, right: 16 },
+  submitButton: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary, elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+  
+  loadingContainer: { alignItems: 'center', marginTop: 30 },
+  loadingText: { fontSize: 16, marginTop: 20, textAlign: 'center', fontWeight: '600', color: colors.textSecondary },
+});
+</file>
+
 <file path="src/services/api.ts">
 import { API_BASE_URL } from '../config/api';
 
-const getHeaders = () => {
-  return {
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
-    'User-Agent': 'ProductivityAI-Mobile',
-  };
-};
+const getHeaders = () => ({
+  'Content-Type': 'application/json',
+  'User-Agent': 'ProductivityAI-Mobile',
+});
 
 const handleResponse = async (response: Response) => {
   const text = await response.text();
+  
   if (text.trim().startsWith('<')) {
     console.log('🛑 BLOCKED HTML RESPONSE:', text.substring(0, 200));
-    throw new Error('Server Error: Endpoint returned HTML. Check API URL.');
+    throw new Error('Server Error: Endpoint returned HTML. Check your API URL and Connection.');
   }
+
   if (!response.ok) {
     let errorMessage = `Request failed: ${response.status}`;
     try {
@@ -17377,260 +17609,165 @@ const handleResponse = async (response: Response) => {
   return text ? JSON.parse(text) : null;
 };
 
+const fetchWithTimeout = async (url: string, options: any = {}) => {
+  const { timeout = 10000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error: any) {
+    clearTimeout(id);
+    if (error.name === 'AbortError') {
+      throw new Error(`Timeout: Could not reach server. Check your IP and Firewall.`);
+    }
+    throw error;
+  }
+};
+
 export const apiService = {
+  // 1. AUTHENTICATION & PROFILE
   async register(userData: any) {
-    return fetch(`${API_BASE_URL}/register`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/register`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(userData),
-    }).then(handleResponse);
+    });
+    return handleResponse(res);
   },
 
   async login(credentials: any) {
-    return fetch(`${API_BASE_URL}/login`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/login`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(credentials),
-    }).then(handleResponse);
+    });
+    return handleResponse(res);
   },
 
-  async socialLogin(data: { 
-    email?: string | null; 
-    name?: string | null; 
-    provider: 'google' | 'apple';
-    socialId?: string | null;
-    onboardingData?: any;
-  }) {
-    return fetch(`${API_BASE_URL}/auth/social`, {
+  async socialLogin(data: any) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/auth/social`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(data),
-    }).then(handleResponse);
+    });
+    return handleResponse(res);
   },
 
   async getUserProfile(email: string) {
-    return fetch(`${API_BASE_URL}/users/${email}`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
       method: 'GET',
       headers: getHeaders(),
-    }).then(handleResponse);
+    });
+    return handleResponse(res);
   },
 
-  // --- NEW: Update User ---
   async updateUser(email: string, updates: any) {
-    return fetch(`${API_BASE_URL}/users/${email}`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify(updates),
-    }).then(handleResponse);
+    });
+    return handleResponse(res);
   },
 
-  async createGoal(email: string, title: string) {
-    return fetch(`${API_BASE_URL}/goals`, {
+  // 2. AI STRATEGIST
+  async analyzeGoal(goal: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ title, userEmail: email }),
-    }).then(handleResponse);
+      body: JSON.stringify({ goal }),
+    });
+    return handleResponse(res);
+  },
+
+  async getClarifyingQuestion(email: string, goal: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/clarify`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, goal }),
+    });
+    return handleResponse(res);
+  },
+
+  async generateAiPlan(email: string, goal: string, clarification: string = "") {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/generate-plan`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, goal, clarification }),
+      timeout: 20000, 
+    });
+    return handleResponse(res);
+  },
+
+  async refineTask(email: string, taskId: string, feedback: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/refine-task`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, taskId, feedback }),
+    });
+    return handleResponse(res);
+  },
+
+  async generateDailyPlan(email: string, goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/daily-plan`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, goalTitle, dayNumber, totalDays, dailyMinutes }),
+    });
+    return handleResponse(res);
+  },
+
+  // 3. GOAL & TASK MANAGEMENT
+  async createGoal(email: string, title: string, type: string = 'project', targetDate?: Date) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/goals`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ title, userEmail: email, type, targetDate }),
+    });
+    return handleResponse(res);
   },
 
   async updateGoal(goalId: string, updates: any) {
-    return fetch(`${API_BASE_URL}/goals/${goalId}`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}`, {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify(updates),
-    }).then(handleResponse);
+    });
+    return handleResponse(res);
   },
 
   async addTasksToGoal(goalId: string, tasks: any[]) {
-    return fetch(`${API_BASE_URL}/goals/${goalId}/tasks`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}/tasks`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ tasks }),
-    }).then(handleResponse);
+    });
+    return handleResponse(res);
   },
 
   async updateTask(taskId: string, updates: any) {
-    return fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/tasks/${taskId}`, {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify(updates),
-    }).then(handleResponse);
+    });
+    return handleResponse(res);
   },
 
+  // 4. METRICS
   async getLeaderboard() {
-    return fetch(`${API_BASE_URL}/leaderboard`, {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/leaderboard`, {
       method: 'GET',
       headers: getHeaders(),
-    }).then(handleResponse);
+    });
+    return handleResponse(res);
   }
-};
-</file>
-
-<file path="src/context/AppContext.tsx">
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { Goal, Task } from '../types';
-import { apiService } from '../services/api';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  onboardingData?: any;
-}
-
-interface AppContextType {
-  user: User | null;
-  setUser: (user: User | null) => void;
-  goals: Goal[];
-  tasks: Task[];
-  currentGoal: Goal | null;
-  addGoal: (title: string) => Promise<Goal | null>;
-  updateGoal: (goalId: string, updates: Partial<Goal>) => void;
-  deleteGoal: (goalId: string) => void;
-  archiveGoal: (goalId: string) => void;
-  addTasks: (goalId: string, tasks: any[]) => Promise<void>;
-  overrideTasks: (goalId: string, tasks: any[]) => void;
-  completeTask: (taskId: string) => void;
-  toggleSubTask: (taskId: string) => void;
-  updateTask: (taskId: string, updates: Partial<Task>) => void;
-  setCurrentGoal: (goal: Goal | null) => void;
-  rateProductivity: (taskId: string, rating: number) => void;
-  refreshData: () => void;
-  saveOnboarding: (data: any) => Promise<void>; // --- NEW
-}
-
-const AppContext = createContext<AppContextType | undefined>(undefined);
-
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
-
-  const refreshData = useCallback(async () => {
-    if (!user?.email) return;
-    try {
-      const profile = await apiService.getUserProfile(user.email);
-      setGoals(profile.goals || []);
-      const allTasks: Task[] = [];
-      profile.goals.forEach((g: any) => {
-        if (g.tasks) allTasks.push(...g.tasks);
-      });
-      setTasks(allTasks);
-    } catch (e) {
-      console.error("Sync Error:", e);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (user) refreshData();
-  }, [user, refreshData]);
-
-  const addGoal = useCallback(async (title: string) => {
-    if (!user?.email) return null;
-    try {
-      const newGoal = await apiService.createGoal(user.email, title);
-      setGoals((prev) => [newGoal, ...prev]);
-      setCurrentGoal(newGoal);
-      return newGoal;
-    } catch (e) {
-      console.error("Add Goal Error", e);
-      return null;
-    }
-  }, [user]);
-
-  const updateGoal = useCallback(async (goalId: string, updates: Partial<Goal>) => {
-    setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g)));
-    if (currentGoal?.id === goalId) {
-      setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
-    }
-    try {
-      await apiService.updateGoal(goalId, updates);
-    } catch (e) {
-      console.error("Update Goal API Error", e);
-    }
-  }, [currentGoal]);
-
-  const archiveGoal = useCallback(async (goalId: string) => {
-    const updates = { status: 'archived' as const, completedAt: new Date() };
-    setGoals((prev) => prev.map(g => g.id === goalId ? { ...g, ...updates } : g));
-    if (currentGoal?.id === goalId) setCurrentGoal(null);
-    try {
-      await apiService.updateGoal(goalId, updates);
-    } catch (e) {
-      console.error("Archive Goal API Error", e);
-    }
-  }, [currentGoal]);
-
-  const deleteGoal = useCallback((goalId: string) => {
-    setGoals((prev) => prev.filter((g) => g.id !== goalId));
-    setTasks((prev) => prev.filter((t) => t.goalId !== goalId));
-    if (currentGoal?.id === goalId) setCurrentGoal(null);
-  }, [currentGoal]);
-
-  const addTasks = useCallback(async (goalId: string, stagedTasks: any[]) => {
-    try {
-      const createdTasks = await apiService.addTasksToGoal(goalId, stagedTasks);
-      setTasks((prev) => [...createdTasks, ...prev]);
-    } catch (e) {
-      console.error("Add Tasks Error", e);
-    }
-  }, []);
-
-  const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
-    try {
-      await apiService.updateTask(taskId, updates);
-    } catch (e) {
-      console.error("Update Task Error", e);
-    }
-  }, []);
-
-  const completeTask = useCallback((taskId: string) => {
-    updateTask(taskId, { status: 'completed', completed: true, completedAt: new Date() });
-  }, [updateTask]);
-
-  const overrideTasks = useCallback((goalId: string, stagedTasks: any[]) => {
-    addTasks(goalId, stagedTasks);
-  }, [addTasks]);
-
-  const toggleSubTask = useCallback((taskId: string) => {}, []);
-
-  const rateProductivity = useCallback((taskId: string, rating: number) => {
-    updateTask(taskId, { productivityRating: rating });
-  }, [updateTask]);
-
-  // --- NEW: Save Onboarding for Existing User ---
-  const saveOnboarding = useCallback(async (data: any) => {
-    if (!user?.email) return;
-    try {
-      const updatedUser = await apiService.updateUser(user.email, { onboardingData: data });
-      setUser(updatedUser); // Update local user state
-    } catch (e) {
-      console.error("Save Onboarding Error", e);
-    }
-  }, [user]);
-
-  return (
-    <AppContext.Provider
-      value={{
-        user, setUser,
-        goals, tasks, currentGoal,
-        addGoal, updateGoal, deleteGoal, archiveGoal,
-        addTasks, overrideTasks, completeTask,
-        toggleSubTask, updateTask,
-        setCurrentGoal, rateProductivity,
-        refreshData, saveOnboarding
-      }}
-    >
-      {children}
-    </AppContext.Provider>
-  );
-};
-
-export const useApp = () => {
-  const context = useContext(AppContext);
-  if (!context) throw new Error('useApp must be used within AppProvider');
-  return context;
 };
 </file>
 
@@ -17836,6 +17973,223 @@ const styles = StyleSheet.create({
   },
   emptyText: { fontSize: 15, fontWeight: '700', color: '#BDBDBD' },
 });
+</file>
+
+<file path="src/context/AppContext.tsx">
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { Goal, Task } from '../types';
+import { apiService } from '../services/api';
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  onboardingData?: any;
+}
+
+interface AppContextType {
+  user: User | null;
+  setUser: (user: User | null) => void;
+  goals: Goal[];
+  tasks: Task[];
+  currentGoal: Goal | null;
+  addGoal: (title: string, type?: string, targetDate?: Date) => Promise<Goal | null>; 
+  updateGoal: (goalId: string, updates: Partial<Goal>) => void;
+  deleteGoal: (goalId: string) => void;
+  archiveGoal: (goalId: string) => void;
+  addTasks: (goalId: string, tasks: any[]) => Promise<void>;
+  overrideTasks: (goalId: string, tasks: any[]) => void;
+  completeTask: (taskId: string) => void;
+  toggleSubTask: (taskId: string) => void;
+  updateTask: (taskId: string, updates: Partial<Task>) => void;
+  reportTaskIssue: (taskId: string, feedback: string) => Promise<void>; 
+  setCurrentGoal: (goal: Goal | null) => void;
+  rateProductivity: (taskId: string, rating: number) => void;
+  refreshData: () => void;
+  saveOnboarding: (data: any) => Promise<void>;
+  generatePlan: (goalText: string, clarification?: string) => Promise<any | null>;
+  generateDailyPlan: (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => Promise<any>;
+  getAiQuestion: (goalText: string) => Promise<string | null>;
+  analyzeGoal: (goal: string) => Promise<any>; 
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
+
+  const refreshData = useCallback(async () => {
+    if (!user?.email) return;
+    try {
+      const profile = await apiService.getUserProfile(user.email);
+      setGoals(profile.goals || []);
+      
+      const allTasks: Task[] = [];
+      profile.goals.forEach((g: any) => {
+        if (g.tasks) allTasks.push(...g.tasks);
+      });
+      setTasks(allTasks);
+    } catch (e) {
+      console.error("Data Sync Error:", e);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) refreshData();
+  }, [user, refreshData]);
+
+  // AI METHODS
+  const analyzeGoal = useCallback(async (goal: string) => {
+    return await apiService.analyzeGoal(goal);
+  }, []);
+
+  const getAiQuestion = useCallback(async (goalText: string) => {
+    if (!user?.email) return null;
+    try {
+      const response = await apiService.getClarifyingQuestion(user.email, goalText);
+      return response.question;
+    } catch (e) {
+      console.error("AI Question Error:", e);
+      return null;
+    }
+  }, [user]);
+
+  const generatePlan = useCallback(async (goalText: string, clarification: string = "") => {
+    if (!user?.email) return null;
+    try {
+      const response = await apiService.generateAiPlan(user.email, goalText, clarification);
+      return response.tasks;
+    } catch (e) {
+      console.error("AI Generation Error:", e);
+      return null;
+    }
+  }, [user]);
+
+  const generateDailyPlan = useCallback(async (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => {
+    if (!user?.email) return null;
+    return await apiService.generateDailyPlan(user.email, goalTitle, dayNumber, totalDays, dailyMinutes);
+  }, [user]);
+
+  const reportTaskIssue = useCallback(async (taskId: string, feedback: string) => {
+    if (!user?.email) return;
+    try {
+      const updatedTask = await apiService.refineTask(user.email, taskId, feedback);
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? updatedTask : t)));
+    } catch (e) {
+      console.error("AI Refinement Error:", e);
+    }
+  }, [user]);
+
+  // GOAL MANAGEMENT
+  const addGoal = useCallback(async (title: string, type: string = 'project', targetDate?: Date) => {
+    if (!user?.email) return null;
+    try {
+      const newGoal = await apiService.createGoal(user.email, title, type, targetDate);
+      setGoals((prev) => [newGoal, ...prev]);
+      setCurrentGoal(newGoal);
+      return newGoal;
+    } catch (e) {
+      console.error("Add Goal Error", e);
+      return null;
+    }
+  }, [user]);
+
+  const updateGoal = useCallback(async (goalId: string, updates: Partial<Goal>) => {
+    setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g)));
+    if (currentGoal?.id === goalId) {
+      setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
+    }
+    try {
+      await apiService.updateGoal(goalId, updates);
+    } catch (e) {
+      console.error("Update Goal API Error", e);
+    }
+  }, [currentGoal]);
+
+  const archiveGoal = useCallback(async (goalId: string) => {
+    const updates = { status: 'archived' as const };
+    setGoals((prev) => prev.map(g => g.id === goalId ? { ...g, ...updates, completedAt: new Date() } : g));
+    if (currentGoal?.id === goalId) setCurrentGoal(null);
+    try {
+      await apiService.updateGoal(goalId, updates);
+    } catch (e) {
+      console.error("Archive Goal API Error", e);
+    }
+  }, [currentGoal]);
+
+  const deleteGoal = useCallback((goalId: string) => {
+    setGoals((prev) => prev.filter((g) => g.id !== goalId));
+    setTasks((prev) => prev.filter((t) => t.goalId !== goalId));
+    if (currentGoal?.id === goalId) setCurrentGoal(null);
+  }, [currentGoal]);
+
+  const addTasks = useCallback(async (goalId: string, stagedTasks: any[]) => {
+    try {
+      const createdTasks = await apiService.addTasksToGoal(goalId, stagedTasks);
+      setTasks((prev) => [...createdTasks, ...prev]);
+    } catch (e) {
+      console.error("Add Tasks Error", e);
+    }
+  }, []);
+
+  const updateTask = useCallback(async (taskId: string, updates: any) => {
+    const { id, goalId, createdAt, updatedAt, completed, goal, ...cleanUpdates } = updates;
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...cleanUpdates } : t)));
+    try {
+      await apiService.updateTask(taskId, cleanUpdates);
+    } catch (e) {
+      console.error("Update Task Error:", e);
+      refreshData();
+    }
+  }, [refreshData]);
+
+  const completeTask = useCallback((taskId: string) => {
+    updateTask(taskId, { status: 'completed' });
+  }, [updateTask]);
+
+  const overrideTasks = useCallback((goalId: string, stagedTasks: any[]) => {
+    addTasks(goalId, stagedTasks);
+  }, [addTasks]);
+
+  const saveOnboarding = useCallback(async (data: any) => {
+    if (!user?.email) return;
+    try {
+      const updatedUser = await apiService.updateUser(user.email, { onboardingData: data });
+      setUser(updatedUser);
+    } catch (e) {
+      console.error("Save Onboarding Error", e);
+    }
+  }, [user]);
+
+  const toggleSubTask = useCallback(() => {}, []);
+  const rateProductivity = useCallback(() => {}, []);
+
+  return (
+    <AppContext.Provider
+      value={{
+        user, setUser,
+        goals, tasks, currentGoal,
+        addGoal, updateGoal, deleteGoal, archiveGoal,
+        addTasks, overrideTasks, completeTask,
+        toggleSubTask, updateTask, reportTaskIssue,
+        setCurrentGoal, rateProductivity,
+        refreshData, saveOnboarding,
+        generatePlan, generateDailyPlan, getAiQuestion, analyzeGoal
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (!context) throw new Error('useApp must be used within AppProvider');
+  return context;
+};
 </file>
 
 </files>

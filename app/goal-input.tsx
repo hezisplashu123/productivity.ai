@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,13 +19,12 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
-  FadeIn,
-  FadeOut
 } from 'react-native-reanimated';
-import { Sparkles, ArrowRight, Save, MessageSquare } from 'lucide-react-native';
+import { Sparkles, ArrowRight } from 'lucide-react-native';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
 import { TaskStagingModal, StagingTask } from '../src/components/TaskStagingModal';
+import { LongTermSetupModal } from '../src/components/LongTermSetupModal';
 import { BottomNav } from '../src/components/BottomNav'; 
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -51,8 +50,15 @@ export default function GoalInputScreen() {
   const [aiTasks, setAiTasks] = useState<StagingTask[]>([]);
   const [aiTitle, setAiTitle] = useState('');
 
+  // Journey State
+  const [isJourneySetupVisible, setIsJourneySetupVisible] = useState(false);
+  const [journeyReason, setJourneyReason] = useState('');
+  const [goalType, setGoalType] = useState('project');
+  const [targetDate, setTargetDate] = useState<Date | null>(null);
+  const [committedDailyMinutes, setCommittedDailyMinutes] = useState(0);
+
   const router = useRouter();
-  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks, generatePlan, getAiQuestion } = useApp();
+  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks, generatePlan, getAiQuestion, analyzeGoal } = useApp();
   
   // Animation Values
   const borderOpacity = useSharedValue(0);
@@ -91,36 +97,69 @@ export default function GoalInputScreen() {
     setStep('processing');
 
     try {
-      // 1. Get Clarification Question
-      console.log("Asking AI to clarify:", goalText);
+      // 1. ALWAYS ask clarifying question first (Scope/Context)
       const question = await getAiQuestion(goalText);
       
       if (question) {
         setAiQuestion(question);
         setStep('clarification');
-        // Reset button for next step
+        // Reset button animation for next step
         setTimeout(() => submitButtonOpacity.value = withSpring(0), 100);
       } else {
-        // Fallback: Skip clarification if fails
-        handleFinalSubmit("");
+        // Fallback: If no question generated, analyze type directly
+        await checkGoalTypeAndProceed("");
       }
     } catch (e) {
-      handleFinalSubmit(""); // Proceed without clarification on error
+      await checkGoalTypeAndProceed("");
     }
   };
 
-  const handleClarificationSubmit = () => {
+  const handleClarificationSubmit = async () => {
     if (!answerText.trim()) return;
-    handleFinalSubmit(answerText);
+    
+    // 2. User answered context -> Now analyze type
+    await checkGoalTypeAndProceed(answerText);
   };
 
-  const handleFinalSubmit = async (clarification: string) => {
-    Keyboard.dismiss();
+  const checkGoalTypeAndProceed = async (clarification: string) => {
+    setStep('processing');
+    try {
+      // Analyze if it's a Project or Journey
+      const typeAnalysis = await analyzeGoal(goalText);
+      
+      if (typeAnalysis.type === 'journey') {
+        // It's a journey -> Prompt for Logistics (Time/Date)
+        setGoalType('journey');
+        setJourneyReason(typeAnalysis.reason || "Long-term effort detected.");
+        setIsJourneySetupVisible(true);
+      } else {
+        // It's a project -> Generate plan immediately with the context
+        handleFinalSubmit(clarification, 0);
+      }
+    } catch (error) {
+      // Fallback to project flow
+      handleFinalSubmit(clarification, 0);
+    }
+  };
+
+  const handleJourneyConfirm = async (date: Date, dailyMinutes: number) => {
+    setIsJourneySetupVisible(false);
+    setTargetDate(date);
+    setCommittedDailyMinutes(dailyMinutes);
+    
+    // Pass the context (answerText) AND the new logistical constraints
+    handleFinalSubmit(answerText, dailyMinutes);
+  };
+
+  const handleFinalSubmit = async (clarification: string, dailyMinutes: number) => {
     setStep('processing');
 
     try {
-      console.log("Generating plan with context:", clarification);
-      const aiResult = await generatePlan(goalText, clarification);
+      // Generate plan using:
+      // 1. Original Goal
+      // 2. Clarification (Scope/Context)
+      // 3. Daily Minutes (Time Constraint)
+      const aiResult = await generatePlan(goalText, clarification, dailyMinutes);
       
       if (aiResult && aiResult.tasks && aiResult.tasks.length > 0) {
         const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
@@ -133,9 +172,9 @@ export default function GoalInputScreen() {
         setAiTasks(formattedTasks);
         setAiTitle(aiResult.shortTitle);
         setIsStagingVisible(true);
-        // Reset state for when modal closes
-        setStep('goal'); 
-        setAnswerText('');
+        
+        // Only clear if project, for journey keep context in case of refinement
+        if (goalType === 'project') setAnswerText(''); 
       } else {
         Alert.alert("Error", "Could not generate plan.");
         setStep('goal');
@@ -146,9 +185,31 @@ export default function GoalInputScreen() {
     }
   };
 
+  const handleStagingRefinement = async (feedback: string) => {
+    const baseContext = answerText || (goalType === 'journey' ? `Journey Goal: ${goalText}` : "");
+    const fullContext = `${baseContext}. [CONSTRAINT UPDATE: ${feedback}]`;
+    setAnswerText(fullContext);
+
+    try {
+      const aiResult = await generatePlan(goalText, fullContext, committedDailyMinutes);
+      if (aiResult && aiResult.tasks) {
+        const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
+          id: `ai-refined-${Date.now()}-${index}`,
+          title: t.title,
+          duration: t.duration,
+          description: t.description
+        }));
+        setAiTasks(formattedTasks);
+        setAiTitle(aiResult.shortTitle);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to regenerate plan.");
+    }
+  };
+
   const handleFinalConfirm = async (finalTasks: StagingTask[], finalTitle: string) => {
     setIsStagingVisible(false);
-    setStep('processing'); // Show loading while saving
+    setStep('processing'); 
     
     try {
       if (isEditing) {
@@ -157,7 +218,7 @@ export default function GoalInputScreen() {
         overrideTasks(id, finalTasks);
         router.back();
       } else {
-        const newGoal = await addGoal(finalTitle);
+        const newGoal = await addGoal(finalTitle, goalType, targetDate || undefined, committedDailyMinutes);
         if (newGoal && newGoal.id) {
           await addTasks(newGoal.id, finalTasks);
           setCurrentGoal(newGoal);
@@ -197,7 +258,6 @@ export default function GoalInputScreen() {
         <View style={styles.centeredContainer}>
           <AnimatePresence mode="wait">
             
-            {/* STEP 1: GOAL INPUT */}
             {step === 'goal' && (
               <MotiView
                 key="step1"
@@ -235,7 +295,6 @@ export default function GoalInputScreen() {
               </MotiView>
             )}
 
-            {/* STEP 2: CLARIFICATION */}
             {step === 'clarification' && (
               <MotiView
                 key="step2"
@@ -277,7 +336,6 @@ export default function GoalInputScreen() {
               </MotiView>
             )}
 
-            {/* STEP 3: LOADING */}
             {step === 'processing' && (
               <MotiView
                 key="loading"
@@ -293,7 +351,7 @@ export default function GoalInputScreen() {
                   <Sparkles size={40} color={colors.primary} />
                 </MotiView>
                 <Text style={styles.loadingText}>
-                  Constructing Tactical Plan...
+                  {goalType === 'journey' ? "Designing Day 1 Protocol..." : "Constructing Tactical Plan..."}
                 </Text>
               </MotiView>
             )}
@@ -307,7 +365,24 @@ export default function GoalInputScreen() {
         goalTitle={aiTitle || goalText}
         generatedTasks={aiTasks}
         onConfirm={handleFinalConfirm}
-        onClose={() => setIsStagingVisible(false)}
+        onRefine={handleStagingRefinement}
+        onClose={() => {
+            setIsStagingVisible(false);
+            setStep('goal');
+            setAnswerText('');
+        }}
+      />
+
+      <LongTermSetupModal
+        visible={isJourneySetupVisible}
+        goalTitle={goalText}
+        aiReason={journeyReason}
+        onConfirm={handleJourneyConfirm}
+        onCancel={() => {
+            setIsJourneySetupVisible(false);
+            setGoalType('project');
+            handleFinalSubmit(answerText, 0); // Proceed as project with context
+        }}
       />
 
       {!isKeyboardVisible && <BottomNav activeTab="GoalInput" />}

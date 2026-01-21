@@ -15,7 +15,7 @@ interface AppContextType {
   goals: Goal[];
   tasks: Task[];
   currentGoal: Goal | null;
-  addGoal: (title: string) => Promise<Goal | null>;
+  addGoal: (title: string, type?: string, targetDate?: Date, dailyMinutes?: number) => Promise<Goal | null>; 
   updateGoal: (goalId: string, updates: Partial<Goal>) => void;
   deleteGoal: (goalId: string) => void;
   archiveGoal: (goalId: string) => void;
@@ -24,13 +24,15 @@ interface AppContextType {
   completeTask: (taskId: string) => void;
   toggleSubTask: (taskId: string) => void;
   updateTask: (taskId: string, updates: Partial<Task>) => void;
-  reportTaskIssue: (taskId: string, feedback: string) => Promise<void>; // --- AI STEP 3
+  reportTaskIssue: (taskId: string, feedback: string) => Promise<void>; 
   setCurrentGoal: (goal: Goal | null) => void;
   rateProductivity: (taskId: string, rating: number) => void;
   refreshData: () => void;
   saveOnboarding: (data: any) => Promise<void>;
-  generatePlan: (goalText: string, clarification?: string) => Promise<any | null>; // --- AI STEP 2
-  getAiQuestion: (goalText: string) => Promise<string | null>; // --- AI STEP 1
+  generatePlan: (goalText: string, clarification?: string, dailyMinutes?: number) => Promise<any | null>;
+  generateDailyPlan: (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => Promise<any>;
+  getAiQuestion: (goalText: string) => Promise<string | null>;
+  analyzeGoal: (goal: string) => Promise<any>; 
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -41,7 +43,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
 
-  // Sync data from backend to global state
   const refreshData = useCallback(async () => {
     if (!user?.email) return;
     try {
@@ -62,11 +63,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user) refreshData();
   }, [user, refreshData]);
 
-  // ==========================================
-  // AI STRATEGIST METHODS
-  // ==========================================
+  // AI METHODS
+  const analyzeGoal = useCallback(async (goal: string) => {
+    return await apiService.analyzeGoal(goal);
+  }, []);
 
-  // Step 1: Request a question from AI to clarify the user's intent
   const getAiQuestion = useCallback(async (goalText: string) => {
     if (!user?.email) return null;
     try {
@@ -78,38 +79,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
-  // Step 2: Generate the 3-5 step prescriptive plan
-  const generatePlan = useCallback(async (goalText: string, clarification: string = "") => {
+  const generatePlan = useCallback(async (goalText: string, clarification: string = "", dailyMinutes: number = 0) => {
     if (!user?.email) return null;
     try {
-      const response = await apiService.generateAiPlan(user.email, goalText, clarification);
-      return response.tasks; // Returns { shortTitle, tasks[] }
+      // Pass dailyMinutes to API
+      const response = await apiService.generateAiPlan(user.email, goalText, clarification, dailyMinutes);
+      return response.tasks;
     } catch (e) {
       console.error("AI Generation Error:", e);
       return null;
     }
   }, [user]);
 
-  // Step 3: Iterate/Refine a single task based on user feedback
+  const generateDailyPlan = useCallback(async (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => {
+    if (!user?.email) return null;
+    return await apiService.generateDailyPlan(user.email, goalTitle, dayNumber, totalDays, dailyMinutes);
+  }, [user]);
+
   const reportTaskIssue = useCallback(async (taskId: string, feedback: string) => {
     if (!user?.email) return;
     try {
       const updatedTask = await apiService.refineTask(user.email, taskId, feedback);
-      // Update the task list locally with the new AI version
       setTasks((prev) => prev.map((t) => (t.id === taskId ? updatedTask : t)));
     } catch (e) {
       console.error("AI Refinement Error:", e);
     }
   }, [user]);
 
-  // ==========================================
-  // GOAL & TASK MANAGEMENT
-  // ==========================================
-
-  const addGoal = useCallback(async (title: string) => {
+  // GOAL MANAGEMENT
+  const addGoal = useCallback(async (title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) => {
     if (!user?.email) return null;
     try {
-      const newGoal = await apiService.createGoal(user.email, title);
+      const newGoal = await apiService.createGoal(user.email, title, type, targetDate, dailyMinutes);
       setGoals((prev) => [newGoal, ...prev]);
       setCurrentGoal(newGoal);
       return newGoal;
@@ -158,17 +159,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const updateTask = useCallback(async (taskId: string, updates: any) => {
-    // 🛡️ Filter fields to prevent Prisma errors on the backend
     const { id, goalId, createdAt, updatedAt, completed, goal, ...cleanUpdates } = updates;
-    
-    // Optimistic local update
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...cleanUpdates } : t)));
-    
     try {
       await apiService.updateTask(taskId, cleanUpdates);
     } catch (e) {
       console.error("Update Task Error:", e);
-      refreshData(); // Re-sync with server if update fails
+      refreshData();
     }
   }, [refreshData]);
 
@@ -190,7 +187,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
-  // Legacy stubs for types
   const toggleSubTask = useCallback(() => {}, []);
   const rateProductivity = useCallback(() => {}, []);
 
@@ -204,7 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleSubTask, updateTask, reportTaskIssue,
         setCurrentGoal, rateProductivity,
         refreshData, saveOnboarding,
-        generatePlan, getAiQuestion
+        generatePlan, generateDailyPlan, getAiQuestion, analyzeGoal
       }}
     >
       {children}

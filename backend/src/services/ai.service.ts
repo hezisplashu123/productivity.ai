@@ -5,48 +5,61 @@ const openai = new OpenAI({
 });
 
 /**
- * 🧠 ACTION PROTOCOLS
- * Maps psychographics to EXECUTION instructions.
+ * 🧠 IDENTITY PROTOCOLS
  */
-
-const GRANULARITY_INSTRUCTIONS: Record<string, string> = {
-  'architect': "STRUCTURE: Logical sequence. Start with foundations, then move to components.",
-  'firefighter': "STRUCTURE: Triage. Identify the single most high-impact blocker and attack it first.",
-  'sprinter': "STRUCTURE: High-Intensity Intervals. Tasks must be completeable in 20-30 mins max.",
-  'deep_worker': "STRUCTURE: Deep Dive. Group related sub-tasks into one large cohesive block.",
-  'multitasker': "STRUCTURE: Quick Wins. Break the goal into standalone units.",
-  'collaborator': "STRUCTURE: Output-Oriented. Focus on producing shareable artifacts/drafts."
+const IDENTITY_FRAMEWORK: Record<string, string> = {
+  'student': "CONTEXT: User is a STUDENT. Critical variables: Exam date, specific subject module, existing notes vs. starting from scratch. TONE: Academic Coach.",
+  'developer': "CONTEXT: User is a DEVELOPER. Critical variables: New feature vs. bug fix, local env setup status, specific library/framework constraints. TONE: Senior Tech Lead.",
+  'creative': "CONTEXT: User is a CREATIVE. Critical variables: Ideation phase vs. execution phase, rough draft vs. final polish, specific software tool. TONE: Creative Director.",
+  'founder': "CONTEXT: User is a FOUNDER. Critical variables: Strategic planning vs. urgent execution, delegation potential, ROI of the task. TONE: Board Member.",
+  'professional': "CONTEXT: User is a PROFESSIONAL. Critical variables: Hard deadline, stakeholder requirements, specific document/email format. TONE: Project Manager."
 };
 
+/**
+ * 🧠 ACTION PROTOCOLS
+ */
+const GRANULARITY_INSTRUCTIONS: Record<string, string> = {
+  'architect': "STRATEGY: 'The Blueprint'. The first task MUST be a detailed bullet-point list. Do not let them start 'working' until the plan is set.",
+  'firefighter': "STRATEGY: 'Triage Mode'. Ignore structure. Point them to the single most painful/urgent sub-task immediately.",
+  'sprinter': "STRATEGY: 'Interval Training'. Tasks must be 20 minutes MAX. High intensity, clear finish line.",
+  'deep_worker': "STRATEGY: 'Monk Mode'. Group all prep work into Task 1. Task 2 is a long, uninterrupted execution block."
+};
+
+// UPDATED: Removed phone/battery references
 const EXTERNAL_DEFENSE: Record<string, string> = {
-  'doomscrolling': "CONSTRAINT: 'Dopamine Detox'. Instruct user to place phone in another room.",
-  'side_quests': "CONSTRAINT: 'Tunnel Vision'. Explicitly forbid any chores or secondary tasks.",
-  'rotting': "CONSTRAINT: 'Activation Energy'. The first task must be a tiny physical movement.",
-  'rabbit_hole': "CONSTRAINT: 'Time Boxing'. Set a strict timer for any information gathering.",
-  'yap_fatigue': "CONSTRAINT: 'Low Verbal Load'. Tasks should be solitary and require no talking."
+  'doomscrolling': "DEFENSE: 'Digital Blinders'. Explicitly forbid opening new tabs or checking social media. Focus purely on the active window.",
+  'side_quests': "DEFENSE: 'Tunnel Vision'. Explicitly forbid specific side-tasks (e.g., 'Do not check email', 'Do not clean the desk').",
+  'rotting': "DEFENSE: 'Micro-Step'. The first task must be an extremely low-effort cognitive action (e.g., 'Read one paragraph').",
+  'yap_fatigue': "DEFENSE: 'Hermit Protocol'. Instruct user to ignore all incoming messages.",
 };
 
 const INTERNAL_DEFENSE: Record<string, string> = {
-  'perfectionism': "MODE: 'Trash Draft'. Command a 'bad version' first. Forbid editing.",
-  'overwhelm': "MODE: 'First Brick'. Focus strictly on the immediate next physical action.",
-  'procrastination': "MODE: '5-Minute Commitment'. Lower the barrier to entry significantly.",
-  'imposter': "MODE: 'Evidence Based'. Frame task as gathering info rather than producing work.",
-  'boredom': "MODE: 'Speedrun'. Add a time-trial or challenge element."
+  'perfectionism': "MINDSET: 'Trash Draft'. Command them to write a 'bad' version first. Forbid editing.",
+  'overwhelm': "MINDSET: 'One Brick'. The tasks should only reveal the immediate next step, not the whole project.",
+  'procrastination': "MINDSET: 'Activation Energy'. Frame the task as 'Just setting up', not 'Doing the work'.",
+  'boredom': "MINDSET: 'Time Attack'. Assign aggressive time limits to tasks to create artificial urgency."
 };
 
 /** 
- * 🧠 STEP 1: THE CLARIFIER 
- * Identifies ambiguity and asks ONE high-impact question.
+ * 🧠 STEP 1: THE CLARIFIER
  */
 export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
   const onboarding = userProfile.onboardingData || {};
-  const archetype = onboarding.workArchetype || 'general';
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
   
   const systemPrompt = `
-    You are an elite productivity strategist. 
-    Identify the BIGGEST missing variable in this goal: "${goal}".
-    Ask ONE short question (max 12 words) to help narrow the scope.
-    Do not be polite. Just ask the question.
+    You are an elite Project Manager and Interrogator.
+    ${identityPrompt}
+    
+    The user has a goal: "${goal}".
+    
+    Your job is to find the "Execution Gap"—the missing piece of information needed to build a specific plan.
+    
+    CRITICAL RULES:
+    1. DO NOT ask about "When", "Deadlines", "Timelines", or "How much time you have". The app handles scheduling automatically.
+    2. DO ask about SCOPE (e.g., "Are you starting from scratch?", "What is the specific topic?").
+    3. DO ask about TOOLS/STATE (e.g., "Do you have the environment set up?", "Is this for a specific client?").
+    4. Keep it short (max 15 words). One question only.
     
     OUTPUT JSON:
     { "question": "..." }
@@ -57,53 +70,108 @@ export const generateClarifyingQuestion = async (goal: string, userProfile: any)
       messages: [{ role: "system", content: systemPrompt }, { role: "user", content: goal }],
       model: "gpt-4o-mini",
       response_format: { type: "json_object" },
+      temperature: 0.7, 
     });
     const result = JSON.parse(completion.choices[0].message.content || "{}");
-    return result.question || "What is the specific target for this mission?";
+    return result.question || "What is the specific outcome you need to achieve?";
   } catch (error) {
-    return "What is the one thing you must finish to call this a success?";
+    return "What is the immediate next physical step you need to take?";
+  }
+};
+
+/**
+ * 🧠 STEP 1.5: THE CLASSIFIER
+ */
+export const analyzeGoalType = async (goal: string) => {
+  const systemPrompt = `
+    Analyze this goal: "${goal}".
+    
+    Is this a "PROJECT" (finite set of tasks done in 1-3 sessions, e.g., "Build a website", "Write an essay")
+    OR a "JOURNEY" (repetitive/cumulative effort over days/weeks, e.g., "Lose 10lbs", "Learn Spanish", "Study for SATs", "Gym Routine")?
+    
+    OUTPUT JSON:
+    { 
+      "type": "project" | "journey",
+      "reason": "Short explanation of why",
+      "suggested_duration_days": 30
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+    });
+    return JSON.parse(completion.choices[0].message.content || '{"type": "project"}');
+  } catch (error) {
+    return { type: 'project' };
   }
 };
 
 /** 
  * 🧠 STEP 2: THE STRATEGIST
- * Generates the prescriptive 3-5 step plan.
  */
-export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "") => {
+export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "", dailyMinutes: number = 0) => {
   const onboarding = userProfile.onboardingData || {};
+  
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
   const breakdownRule = GRANULARITY_INSTRUCTIONS[onboarding.workArchetype] || "Standard breakdown.";
   const externalRule = EXTERNAL_DEFENSE[onboarding.frictionVillain] || "Minimize noise.";
   const internalRule = INTERNAL_DEFENSE[onboarding.mentalBlock] || "Just execute.";
 
+  // TIME BUDGET LOGIC
+  let timeConstraintPrompt = "";
+  if (dailyMinutes > 0) {
+    timeConstraintPrompt = `
+    CRITICAL CONSTRAINT: STRICT TIME BUDGET
+    - The user has explicitly committed exactly ${dailyMinutes} minutes for this session.
+    - The sum of all task durations MUST be exactly ${dailyMinutes} minutes.
+    - Start immediately with the first real step of the work.
+    - If ${dailyMinutes} > 45, allow for deep work blocks.
+    `;
+  } else {
+    timeConstraintPrompt = `
+    - FIRST TASK IS MOMENTUM: Duration 2-5 mins (Cognitive Setup, e.g., "Outline the document", "Locate the file").
+    - Subsequent tasks should fill about 45-60 mins total.
+    `;
+  }
+
   const systemPrompt = `
-    You are an elite Chief of Staff and Subject Matter Expert. 
-    You do not suggest; you COMMAND.
-
-    USER CONTEXT:
-    - Breakdown Strategy: ${breakdownRule}
-    - Environment Defense: ${externalRule}
-    - Mindset Strategy: ${internalRule}
-    - Peak Energy Window: ${onboarding.focusWindow}
-
-    GOAL: "${goal}"
-    USER ADDED CONTEXT: "${clarification}"
-
-    YOUR MISSION:
-    1. Generate a "short_title" for the dashboard.
-       CONSTRAINTS: EXACTLY 1 OR 2 WORDS MAX. (e.g., "Launch Store", "Physics Prep").
-    2. Break this into 3-5 concrete execution tasks. 
+    You are the user's specialized Chief of Staff.
     
-    STRICT RULES:
-    - NO META-WORK: Never tell user to "Plan", "Schedule", or "Research how to". YOU do the planning.
-    - BE PRESCRIPTIVE: Give specific exercises, code structures, or steps. 
-    - SUBJECT EXPERTISE: Tell them WHAT to do specifically (e.g., "Find 3 suppliers with >90% rating" not "Research").
-    - VERB-FIRST TITLES: Start every title with a strong action verb (Draft, Build, Solve).
-    - TACTICAL DESCRIPTIONS: Explain HOW to execute using the Mindset/Defense rules.
+    USER PROFILE:
+    - ${identityPrompt}
+    - Strategy: ${breakdownRule}
+    - Enemy: ${externalRule}
+    - Mindset: ${internalRule}
+    
+    GOAL: "${goal}"
+    CONTEXT/CLARIFICATION: "${clarification}"
 
-    OUTPUT JSON FORMAT:
+    MISSION:
+    Create a "High-Resolution" Execution Plan.
+    
+    RULES:
+    1. THE PHONE IS THE TOOL: The user is holding their phone. It is their timer.
+    2. MICRO-SCRIPTS: Give exact instructions.
+    3. NO VAGUE VERBS: Ban words like "Plan", "Think", "Prepare". Use "Draft", "Compile", "Sketch".
+    4. BANNED TASKS (STRICT):
+       - DO NOT generate tasks for "Check battery", "Turn on DND", "Put phone away", "Drink water", "Open Laptop", or "Sit down".
+       - These are trivial and annoying. Assume the user is ready to work.
+       - Start directly with the actual task (e.g., instead of "Open Word", say "Type the first heading").
+    ${timeConstraintPrompt}
+
+    OUTPUT FORMAT (JSON):
     {
-      "short_title": "MaxTwo Words",
-      "tasks": [ { "title": "Specific Action Step", "duration": 25, "description": "Tactical instruction..." } ]
+      "short_title": "2-Word Mission Name (e.g. 'Project Alpha')",
+      "tasks": [ 
+        { 
+          "title": "Action Verb + Object", 
+          "duration": 25, 
+          "description": "2 sentences. 1: The physical action. 2: A defense against their specific villain." 
+        } 
+      ]
     }
   `;
 
@@ -119,7 +187,7 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     if (!content) throw new Error("No content received");
 
     const result = JSON.parse(content);
-    const trimmedTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : "Mission";
+    const trimmedTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : "Mission Alpha";
 
     return { 
       shortTitle: trimmedTitle, 
@@ -132,27 +200,93 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
   }
 };
 
+/**
+ * 🧠 STEP 2 (VARIANT): THE COACH (Daily Generator)
+ */
+export const generateDailyPlan = async (
+  goal: string, 
+  userProfile: any, 
+  dayNumber: number, 
+  totalDays: number,
+  dailyMinutes: number = 45 // Default if not provided
+) => {
+  const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || "";
+  
+  const systemPrompt = `
+    You are an expert Coach & Chief of Staff.
+    ${identityPrompt}
+    
+    MAIN GOAL: "${goal}"
+    CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
+    TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
+    
+    MISSION:
+    Generate a tactical plan for TODAY (Day ${dayNumber}) that fits exactly within ${dailyMinutes} minutes.
+    
+    RULES:
+    1. STRICT TIME LIMIT: The sum of all task durations MUST equal exactly ${dailyMinutes} minutes.
+    2. NO TRIVIAL TASKS: Do not include "setup", "put phone away", or "hydration" tasks.
+    3. PROGRESSION:
+       - Day 1: Setup & Foundational Reps.
+       - Middle Days: Deep Work / Heavy Lifting.
+       - Final Days: Review & Final Polish.
+    4. MICRO-SCRIPTS: Instructions must be specific physical actions.
+    
+    OUTPUT JSON:
+    {
+      "short_title": "Day ${dayNumber} Theme",
+      "tasks": [ 
+        { 
+          "title": "Specific Exercise/Task", 
+          "duration": 15, 
+          "description": "Specific instruction for this session." 
+        } 
+      ]
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+    const result = JSON.parse(completion.choices[0].message.content || "{}");
+    return { 
+      shortTitle: result.short_title || `Day ${dayNumber}`, 
+      tasks: result.tasks || [] 
+    };
+  } catch (error) {
+    return null;
+  }
+};
+
 /** 
  * 🧠 STEP 3: THE FIXER
- * Regenerates a single task based on user feedback.
  */
 export const refineSingleTask = async (task: any, feedback: string, userProfile: any) => {
   const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
 
   const systemPrompt = `
-    You are an elite Chief of Staff. The user is reporting a problem with a task you assigned.
+    You are a pragmatic Chief of Staff.
+    ${identityPrompt}
     
     ORIGINAL TASK: "${task.title}"
-    USER PROBLEM: "${feedback}"
+    USER OBSTACLE: "${feedback}"
     
-    YOUR MISSION:
-    Replace this task with a new one that solves the user's problem while still moving them toward their goal.
-    - If they lack equipment, find an alternative.
-    - If they are overwhelmed, simplify it or break it down.
-    - Be prescriptive. Don't ask them to decide. Command them on the better alternative.
+    MISSION:
+    Rewrite this task to bypass the obstacle.
+    - If they lack energy -> Simplify to the absolute bare minimum (e.g., "Just read 1 page").
+    - If they lack time -> Compress to a sprint.
+    - If they lack equipment -> Find a workaround.
+    
+    Keep the tone encouraging but directive.
 
     OUTPUT JSON:
-    { "title": "New Task Name", "duration": 20, "description": "Specific tactical instructions..." }
+    { "title": "New Task Name", "duration": 15, "description": "Specific tactical instructions..." }
   `;
 
   try {

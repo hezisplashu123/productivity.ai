@@ -4,7 +4,9 @@ import { PrismaClient } from '@prisma/client';
 import { 
   generateActionPlan, 
   generateClarifyingQuestion, 
-  refineSingleTask 
+  refineSingleTask,
+  analyzeGoalType,
+  generateDailyPlan
 } from './services/ai.service';
 
 const prisma = new PrismaClient();
@@ -26,7 +28,6 @@ const isYesterday = (today: Date, past: Date) => {
   return isSameDay(yesterday, past);
 };
 
-// --- LOGGING MIDDLEWARE ---
 app.use((req, res, next) => {
   console.log(`\n📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
   next();
@@ -53,6 +54,7 @@ app.post('/register', async (req, res) => {
     });
     res.json(user);
   } catch (error) {
+    console.error("Register Error:", error);
     res.status(500).json({ error: 'Failed to register' });
   }
 });
@@ -66,6 +68,7 @@ app.post('/login', async (req, res) => {
     }
     res.json(user);
   } catch (error) {
+    console.error("Login Error:", error);
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -87,6 +90,7 @@ app.post('/auth/social', async (req, res) => {
       }
       res.json(user);
     } catch (error) {
+      console.error("Social Auth Error:", error);
       res.status(500).json({ error: 'Social auth failed' });
     }
 });
@@ -122,6 +126,7 @@ app.get('/users/:email', async (req, res) => {
       }
     });
   } catch (error) {
+    console.error("Get Profile Error:", error);
     res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
@@ -135,6 +140,7 @@ app.patch('/users/:email', async (req, res) => {
       });
       res.json(user);
     } catch (error) {
+      console.error("Update User Error:", error);
       res.status(500).json({ error: 'Update failed' });
     }
 });
@@ -143,7 +149,17 @@ app.patch('/users/:email', async (req, res) => {
 // 2. AI STRATEGIST ROUTES
 // ==========================================
 
-// Step 1: Request Clarifying Question
+app.post('/ai/analyze-goal', async (req, res) => {
+  const { goal } = req.body;
+  try {
+    const analysis = await analyzeGoalType(goal);
+    res.json(analysis);
+  } catch (error) {
+    console.error("AI Analysis Error:", error);
+    res.status(500).json({ error: 'Analysis failed' });
+  }
+});
+
 app.post('/ai/clarify', async (req, res) => {
   const { email, goal } = req.body;
   try {
@@ -153,25 +169,26 @@ app.post('/ai/clarify', async (req, res) => {
     const question = await generateClarifyingQuestion(goal, user);
     res.json({ question });
   } catch (error) {
+    console.error("AI Clarify Error:", error);
     res.status(500).json({ error: 'Clarification failed' });
   }
 });
 
-// Step 2: Generate Full Plan
 app.post('/ai/generate-plan', async (req, res) => {
-  const { email, goal, clarification } = req.body;
+  const { email, goal, clarification, dailyMinutes } = req.body;
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const result = await generateActionPlan(goal, user, clarification);
+    // Pass dailyMinutes to AI service
+    const result = await generateActionPlan(goal, user, clarification, dailyMinutes);
     res.json({ tasks: result });
   } catch (error) {
+    console.error("AI Generate Plan Error:", error);
     res.status(500).json({ error: 'Plan generation failed' });
   }
 });
 
-// Step 3: Refine Task (The "Report to AI" Feature)
 app.post('/ai/refine-task', async (req, res) => {
   const { email, taskId, feedback } = req.body;
   try {
@@ -180,7 +197,6 @@ app.post('/ai/refine-task', async (req, res) => {
     
     if (!user || !task) return res.status(404).json({ error: 'Not found' });
 
-    console.log(`🔧 AI Refining Task: ${task.title} based on: ${feedback}`);
     const newTaskData = await refineSingleTask(task, feedback, user);
     
     const updatedTask = await prisma.task.update({
@@ -194,7 +210,22 @@ app.post('/ai/refine-task', async (req, res) => {
 
     res.json(updatedTask);
   } catch (error) {
+    console.error("AI Refine Task Error:", error);
     res.status(500).json({ error: 'Refinement failed' });
+  }
+});
+
+app.post('/ai/daily-plan', async (req, res) => {
+  const { email, goalTitle, dayNumber, totalDays, dailyMinutes } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const result = await generateDailyPlan(goalTitle, user, dayNumber, totalDays, dailyMinutes);
+    res.json(result);
+  } catch (error) {
+    console.error("AI Daily Plan Error:", error);
+    res.status(500).json({ error: 'Daily plan failed' });
   }
 });
 
@@ -203,17 +234,28 @@ app.post('/ai/refine-task', async (req, res) => {
 // ==========================================
 
 app.post('/goals', async (req, res) => {
-  const { title, userEmail } = req.body;
+  const { title, userEmail, type, targetDate, dailyMinutes } = req.body;
   try {
     const user = await prisma.user.findUnique({ where: { email: userEmail }});
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    console.log(`Creating Goal for ${userEmail}: ${title} [${type}] with budget: ${dailyMinutes}m`);
+
     const goal = await prisma.goal.create({
-      data: { title, userId: user.id }
+      data: { 
+        title, 
+        userId: user.id,
+        type: type || 'project',
+        targetDate: targetDate ? new Date(targetDate) : null,
+        // Safeguard: Force conversion to Number, default to 45 if 0 or invalid
+        dailyMinutes: Number(dailyMinutes) || 45 
+      }
     });
     res.json(goal);
   } catch (error) {
-    res.status(500).json({ error: 'Goal creation failed' });
+    // Enhanced error logging to see exactly what went wrong
+    console.error("Create Goal DB Error FULL:", error);
+    res.status(500).json({ error: 'Goal creation failed', details: String(error) });
   }
 });
 
@@ -233,7 +275,22 @@ app.post('/goals/:goalId/tasks', async (req, res) => {
     );
     res.json(createdTasks);
   } catch (error) {
+    console.error("Create Tasks Error:", error);
     res.status(500).json({ error: 'Task creation failed' });
+  }
+});
+
+app.patch('/goals/:goalId', async (req, res) => {
+  const { goalId } = req.params;
+  try {
+    const goal = await prisma.goal.update({
+      where: { id: goalId },
+      data: req.body
+    });
+    res.json(goal);
+  } catch (error) {
+    console.error("Update Goal Error:", error);
+    res.status(500).json({ error: 'Goal update failed' });
   }
 });
 
@@ -242,7 +299,6 @@ app.patch('/tasks/:taskId', async (req, res) => {
   const updates = req.body; 
   
   try {
-    // Prevent Prisma error by filtering only valid DB fields
     const allowedFields = ['title', 'description', 'duration', 'status', 'order'];
     const filteredData: any = {};
     Object.keys(updates).forEach(key => {
@@ -255,7 +311,6 @@ app.patch('/tasks/:taskId', async (req, res) => {
       include: { goal: { include: { user: true } } }
     });
 
-    // Streak Logic
     if (filteredData.status === 'completed') {
       const user = task.goal.user;
       const today = new Date();
@@ -274,14 +329,10 @@ app.patch('/tasks/:taskId', async (req, res) => {
     }
     res.json(task);
   } catch (error) {
-    console.error('Task Update Error:', error);
+    console.error("Update Task Error:", error);
     res.status(500).json({ error: 'Failed to update task' });
   }
 });
-
-// ==========================================
-// 4. METRICS & LEADERBOARD
-// ==========================================
 
 app.get('/leaderboard', async (req, res) => {
   try {
@@ -299,6 +350,7 @@ app.get('/leaderboard', async (req, res) => {
     
     res.json(leaderboard);
   } catch (error) {
+    console.error("Leaderboard Error:", error);
     res.status(500).json({ error: 'Leaderboard fetch failed' });
   }
 });

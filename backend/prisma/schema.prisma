@@ -10,7 +10,7 @@ datasource db {
 model User {
   id             String   @id @default(uuid())
   email          String   @unique
-  socialId       String?  @unique // <--- ADD THIS LINE
+  socialId       String?  @unique
   name           String?
   
   password       String?
@@ -26,16 +26,23 @@ model User {
   goals          Goal[]
 }
 
-// ... Goal and Task models remain the same ...
 model Goal {
-  id        String   @id @default(uuid())
-  title     String
-  status    String   @default("active")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  tasks     Task[]
+  id          String   @id @default(uuid())
+  title       String
+  status      String   @default("active")
+  
+  // --- NEW FIELDS FOR JOURNEY MODE ---
+  type        String   @default("project") // 'project' or 'journey'
+  targetDate  DateTime?
+  startDate   DateTime @default(now())
+  dailyMinutes Int     @default(45) // Time commitment per day
+  // -----------------------------------
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  tasks       Task[]
 }
 
 model Task {

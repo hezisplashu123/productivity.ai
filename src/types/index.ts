@@ -1,9 +1,15 @@
 export interface Goal {
   id: string;
   title: string;
-  createdAt: Date;
-  completedAt?: Date;
-  status: 'active' | 'completed';
+  createdAt: Date | string; // Allow string for API responses
+  completedAt?: Date | string;
+  status: 'active' | 'completed' | 'archived';
+  
+  // --- NEW FIELDS (The missing piece) ---
+  type?: 'project' | 'journey';
+  targetDate?: Date | string;
+  startDate?: Date | string;
+  dailyMinutes?: number;
 }
 
 export type TaskStatus = 'queued' | 'in_progress' | 'completed';
@@ -13,14 +19,14 @@ export interface Task {
   goalId: string;
   title: string;
   description?: string;
-  duration: number; // in minutes - the focus time for this task
+  duration: number; // in minutes
   status: TaskStatus;
-  order?: number; // Order in the queue (for drag-and-drop)
-  dueDate?: Date;
-  completedAt?: Date;
-  productivityRating?: number; // 1-5
+  order?: number; 
+  dueDate?: Date | string;
+  completedAt?: Date | string;
+  productivityRating?: number;
   subTasks?: SubTask[];
-  // Legacy support - will be removed
+  // Legacy support
   completed?: boolean;
   timeBudget?: number;
 }
@@ -29,15 +35,11 @@ export interface SubTask {
   id: string;
   title: string;
   completed: boolean;
-  duration?: number; // in minutes
+  duration?: number;
 }
 
 export interface ProductivityRating {
   taskId: string;
-  rating: number; // 1-5
+  rating: number;
   timestamp: Date;
 }
-
-
-
-

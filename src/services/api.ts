@@ -3,14 +3,15 @@ import { API_BASE_URL } from '../config/api';
 const getHeaders = () => ({
   'Content-Type': 'application/json',
   'User-Agent': 'ProductivityAI-Mobile',
+  // 🛡️ Bypasses the Ngrok browser warning page
+  'ngrok-skip-browser-warning': 'true',
 });
 
-// Helper to handle server responses and catch HTML-error pages (like Ngrok expiration)
 const handleResponse = async (response: Response) => {
   const text = await response.text();
   
   if (text.trim().startsWith('<')) {
-    console.log('🛑 BLOCKED HTML RESPONSE:', text.substring(0, 200));
+    console.error('🛑 BLOCKED HTML RESPONSE:', text.substring(0, 200));
     throw new Error('Server Error: Endpoint returned HTML. Check your API URL and Connection.');
   }
 
@@ -18,18 +19,23 @@ const handleResponse = async (response: Response) => {
     let errorMessage = `Request failed: ${response.status}`;
     try {
       const json = JSON.parse(text);
-      if (json.error) errorMessage = json.error;
+      if (json.error) {
+        errorMessage = json.error;
+        if (json.details) {
+          errorMessage += ` | Details: ${json.details}`;
+        }
+      }
     } catch (e) {
       errorMessage = text || errorMessage;
     }
+    console.error("❌ API ERROR:", errorMessage);
     throw new Error(errorMessage);
   }
   return text ? JSON.parse(text) : null;
 };
 
-// Helper to timeout requests so the app doesn't spin forever on bad connections
 const fetchWithTimeout = async (url: string, options: any = {}) => {
-  const { timeout = 10000 } = options;
+  const { timeout = 25000 } = options; // Increased timeout for AI operations
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -43,17 +49,14 @@ const fetchWithTimeout = async (url: string, options: any = {}) => {
   } catch (error: any) {
     clearTimeout(id);
     if (error.name === 'AbortError') {
-      throw new Error(`Timeout: Could not reach server. Check your IP and Firewall.`);
+      throw new Error(`Timeout: Could not reach server. Check your internet connection.`);
     }
     throw error;
   }
 };
 
 export const apiService = {
-  // ==========================================
   // 1. AUTHENTICATION & PROFILE
-  // ==========================================
-
   async register(userData: any) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/register`, {
       method: 'POST',
@@ -98,11 +101,16 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // ==========================================
-  // 2. AI STRATEGIST (THE BRAIN)
-  // ==========================================
+  // 2. AI STRATEGIST
+  async analyzeGoal(goal: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ goal }),
+    });
+    return handleResponse(res);
+  },
 
-  // Step 1: Identify Ambiguity
   async getClarifyingQuestion(email: string, goal: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/ai/clarify`, {
       method: 'POST',
@@ -112,18 +120,16 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // Step 2: Generate Command-Style Plan
-  async generateAiPlan(email: string, goal: string, clarification: string = "") {
+  async generateAiPlan(email: string, goal: string, clarification: string = "", dailyMinutes: number = 0) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/ai/generate-plan`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ email, goal, clarification }),
-      timeout: 20000, // Longer timeout for complex AI generation
+      body: JSON.stringify({ email, goal, clarification, dailyMinutes }),
+      timeout: 30000, 
     });
     return handleResponse(res);
   },
 
-  // Step 3: Refine/Fix Task based on user "Report"
   async refineTask(email: string, taskId: string, feedback: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/ai/refine-task`, {
       method: 'POST',
@@ -133,15 +139,21 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // ==========================================
-  // 3. GOAL & TASK MANAGEMENT
-  // ==========================================
+  async generateDailyPlan(email: string, goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/daily-plan`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, goalTitle, dayNumber, totalDays, dailyMinutes }),
+    });
+    return handleResponse(res);
+  },
 
-  async createGoal(email: string, title: string) {
+  // 3. GOAL & TASK MANAGEMENT
+  async createGoal(email: string, title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/goals`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ title, userEmail: email }),
+      body: JSON.stringify({ title, userEmail: email, type, targetDate, dailyMinutes }),
     });
     return handleResponse(res);
   },
@@ -156,6 +168,7 @@ export const apiService = {
   },
 
   async addTasksToGoal(goalId: string, tasks: any[]) {
+    // FIX WAS HERE: changed from goalId/tasks to goalId}/tasks
     const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}/tasks`, {
       method: 'POST',
       headers: getHeaders(),
@@ -173,10 +186,7 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // ==========================================
   // 4. METRICS
-  // ==========================================
-
   async getLeaderboard() {
     const res = await fetchWithTimeout(`${API_BASE_URL}/leaderboard`, {
       method: 'GET',
