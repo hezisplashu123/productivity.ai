@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,128 +13,176 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { MotiView } from 'moti';
+import { MotiView, AnimatePresence } from 'moti';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
+  FadeIn,
+  FadeOut
 } from 'react-native-reanimated';
-import { Sparkles, ArrowRight, Save } from 'lucide-react-native';
+import { Sparkles, ArrowRight, Save, MessageSquare } from 'lucide-react-native';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
-import { TaskStagingModal } from '../src/components/TaskStagingModal';
+import { TaskStagingModal, StagingTask } from '../src/components/TaskStagingModal';
 import { BottomNav } from '../src/components/BottomNav'; 
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
 
+type InputStep = 'goal' | 'clarification' | 'processing';
+
 export default function GoalInputScreen() {
   const { initialText, editingGoalId } = useLocalSearchParams();
   const isEditing = !!editingGoalId;
 
-  const [goal, setGoal] = useState(initialText ? (initialText as string) : '');
-  const [isLoading, setIsLoading] = useState(false);
+  // --- STATE ---
+  const [step, setStep] = useState<InputStep>('goal');
+  
+  const [goalText, setGoalText] = useState(initialText ? (initialText as string) : '');
+  const [answerText, setAnswerText] = useState('');
+  const [aiQuestion, setAiQuestion] = useState('');
+  
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isStagingVisible, setIsStagingVisible] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   
+  const [aiTasks, setAiTasks] = useState<StagingTask[]>([]);
+  const [aiTitle, setAiTitle] = useState('');
+
   const router = useRouter();
-  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks } = useApp();
+  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks, generatePlan, getAiQuestion } = useApp();
   
+  // Animation Values
   const borderOpacity = useSharedValue(0);
   const submitButtonOpacity = useSharedValue(0);
 
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
+    const show = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
   }, []);
 
   useEffect(() => {
     if (initialText) {
-      setGoal(initialText as string);
+      setGoalText(initialText as string);
       submitButtonOpacity.value = withSpring(1);
     }
   }, [initialText]);
 
-  const borderAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      shadowOpacity: 0.1 + borderOpacity.value * 0.4,
-      shadowRadius: 12 + borderOpacity.value * 8,
-      borderWidth: 1 + borderOpacity.value,
-    };
-  });
+  // --- ANIMATED STYLES ---
+  const borderAnimatedStyle = useAnimatedStyle(() => ({
+    shadowOpacity: 0.1 + borderOpacity.value * 0.4,
+    shadowRadius: 12 + borderOpacity.value * 8,
+    borderWidth: 1 + borderOpacity.value,
+  }));
 
-  const submitButtonStyle = useAnimatedStyle(() => {
-    return {
-      opacity: submitButtonOpacity.value,
-      transform: [{ scale: submitButtonOpacity.value }],
-    };
-  });
+  const submitButtonStyle = useAnimatedStyle(() => ({
+    opacity: submitButtonOpacity.value,
+    transform: [{ scale: submitButtonOpacity.value }],
+  }));
 
-  const handleSubmit = async () => {
-    if (!goal.trim()) return;
-    setIsLoading(true);
+  // --- HANDLERS ---
+
+  const handleGoalSubmit = async () => {
+    if (!goalText.trim()) return;
     Keyboard.dismiss();
+    setStep('processing');
 
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsStagingVisible(true);
-    }, 1500);
+    try {
+      // 1. Get Clarification Question
+      console.log("Asking AI to clarify:", goalText);
+      const question = await getAiQuestion(goalText);
+      
+      if (question) {
+        setAiQuestion(question);
+        setStep('clarification');
+        // Reset button for next step
+        setTimeout(() => submitButtonOpacity.value = withSpring(0), 100);
+      } else {
+        // Fallback: Skip clarification if fails
+        handleFinalSubmit("");
+      }
+    } catch (e) {
+      handleFinalSubmit(""); // Proceed without clarification on error
+    }
   };
 
-  // --- FIX: Added async/await here ---
-  const handleFinalConfirm = async (finalTasks: any[]) => {
+  const handleClarificationSubmit = () => {
+    if (!answerText.trim()) return;
+    handleFinalSubmit(answerText);
+  };
+
+  const handleFinalSubmit = async (clarification: string) => {
+    Keyboard.dismiss();
+    setStep('processing');
+
+    try {
+      console.log("Generating plan with context:", clarification);
+      const aiResult = await generatePlan(goalText, clarification);
+      
+      if (aiResult && aiResult.tasks && aiResult.tasks.length > 0) {
+        const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
+          id: `ai-${Date.now()}-${index}`,
+          title: t.title,
+          duration: t.duration,
+          description: t.description
+        }));
+        
+        setAiTasks(formattedTasks);
+        setAiTitle(aiResult.shortTitle);
+        setIsStagingVisible(true);
+        // Reset state for when modal closes
+        setStep('goal'); 
+        setAnswerText('');
+      } else {
+        Alert.alert("Error", "Could not generate plan.");
+        setStep('goal');
+      }
+    } catch (error) {
+      Alert.alert("Error", "Connection failed.");
+      setStep('goal');
+    }
+  };
+
+  const handleFinalConfirm = async (finalTasks: StagingTask[], finalTitle: string) => {
     setIsStagingVisible(false);
-    setIsLoading(true); // Show loading while saving to DB
+    setStep('processing'); // Show loading while saving
     
     try {
       if (isEditing) {
         const id = editingGoalId as string;
-        updateGoal(id, { title: goal.trim() });
+        updateGoal(id, { title: finalTitle });
         overrideTasks(id, finalTasks);
         router.back();
       } else {
-        // 1. Wait for the goal to be created in the database
-        const newGoal = await addGoal(goal.trim());
-        
+        const newGoal = await addGoal(finalTitle);
         if (newGoal && newGoal.id) {
-          // 2. Wait for tasks to be added to that specific goal ID
           await addTasks(newGoal.id, finalTasks);
           setCurrentGoal(newGoal);
-          
-          if (router.canGoBack()) {
-            router.back(); 
-          } else {
-            router.replace('/home');
-          }
-        } else {
-          throw new Error("Failed to create goal");
+          if (router.canGoBack()) router.back(); 
+          else router.replace('/home');
         }
       }
     } catch (error) {
-      console.error("Save Error:", error);
-      Alert.alert("Error", "Could not save your mission. Please try again.");
-    } finally {
-      setIsLoading(false);
+      Alert.alert("Error", "Save failed.");
+      setStep('goal');
     }
   };
 
-  const handleInputFocus = () => {
+  const handleFocus = () => {
     setIsInputFocused(true);
-    borderOpacity.value = withTiming(1, { duration: 300 });
-    submitButtonOpacity.value = withSpring(1, { damping: 20, stiffness: 100 });
+    borderOpacity.value = withTiming(1);
+    submitButtonOpacity.value = withSpring(1);
   };
 
-  const handleInputBlur = () => {
+  const handleBlur = () => {
     setIsInputFocused(false);
-    borderOpacity.value = withTiming(0, { duration: 300 });
-    if (!goal.trim()) {
-      submitButtonOpacity.value = withSpring(0, { damping: 20, stiffness: 100 });
+    borderOpacity.value = withTiming(0);
+    const textToCheck = step === 'goal' ? goalText : answerText;
+    if (!textToCheck.trim()) {
+      submitButtonOpacity.value = withSpring(0);
     }
   };
 
@@ -147,189 +195,145 @@ export default function GoalInputScreen() {
         <StatusBar style="dark" />
 
         <View style={styles.centeredContainer}>
-          <MotiView
-            from={{ opacity: 0, translateY: -20 }}
-            animate={{ opacity: 1, translateY: 0 }}
-            transition={{ type: 'timing', duration: 600 }}
-          >
-            <Text style={[styles.title, { color: colors.text }]}>
-              {isEditing ? "Refine Mission Directive" : "What is your main goal right now?"}
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              {isEditing 
-                ? "Update your objective to re-calculate optimal tasks." 
-                : "Enter a goal and we'll break it down into actionable steps"}
-            </Text>
-          </MotiView>
-
-          <MotiView
-            from={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'timing', duration: 600, delay: 200 }}
-          >
-            <Animated.View 
-              style={[
-                styles.inputCard, 
-                borderAnimatedStyle,
-                isInputFocused && { 
-                  borderColor: colors.primary,
-                  shadowColor: colors.primary,
-                }
-              ]}
-            >
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={[styles.input, { color: colors.text }]}
-                  placeholder="e.g., Launch my dropshipping store"
-                  placeholderTextColor={colors.textLight}
-                  value={goal}
-                  onChangeText={setGoal}
-                  onFocus={handleInputFocus}
-                  onBlur={handleInputBlur}
-                  multiline
-                  editable={!isLoading}
-                  textAlignVertical="top"
-                />
-              </View>
-              
-              <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
-                <TouchableOpacity
-                  style={[
-                    styles.submitButton, 
-                    { backgroundColor: colors.primary, shadowColor: colors.primary },
-                    (!goal.trim() || isLoading) && styles.submitButtonDisabled
-                  ]}
-                  onPress={handleSubmit}
-                  disabled={!goal.trim() || isLoading}
-                  activeOpacity={0.8}
-                >
-                  {isEditing ? (
-                    <Save size={20} color="#FFFFFF" />
-                  ) : (
-                    <ArrowRight size={20} color="#FFFFFF" />
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-            </Animated.View>
-          </MotiView>
-
-          {isLoading && (
-            <MotiView
-              from={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ type: 'timing', duration: 300 }}
-              style={styles.loadingContainer}
-            >
+          <AnimatePresence mode="wait">
+            
+            {/* STEP 1: GOAL INPUT */}
+            {step === 'goal' && (
               <MotiView
-                from={{ rotate: '0deg' }}
-                animate={{ rotate: '360deg' }}
-                transition={{ type: 'timing', duration: 2000, loop: true }}
+                key="step1"
+                from={{ opacity: 0, translateX: -20 }}
+                animate={{ opacity: 1, translateX: 0 }}
+                exit={{ opacity: 0, translateX: -20 }}
+                style={styles.stepWrapper}
               >
-                <Sparkles size={32} color={colors.primary} />
+                <Text style={styles.title}>
+                  {isEditing ? "Refine Directive" : "What is your main goal?"}
+                </Text>
+                
+                <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., Launch my dropshipping store"
+                    placeholderTextColor={colors.textLight}
+                    value={goalText}
+                    onChangeText={setGoalText}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                    multiline
+                    autoFocus
+                  />
+                  <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                    <TouchableOpacity
+                      style={styles.submitButton}
+                      onPress={handleGoalSubmit}
+                      disabled={!goalText.trim()}
+                    >
+                      <ArrowRight size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </Animated.View>
+                </Animated.View>
               </MotiView>
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                {isEditing ? "Recalculating mission parameters..." : "Syncing with HQ..."}
-              </Text>
-            </MotiView>
-          )}
+            )}
+
+            {/* STEP 2: CLARIFICATION */}
+            {step === 'clarification' && (
+              <MotiView
+                key="step2"
+                from={{ opacity: 0, translateX: 20 }}
+                animate={{ opacity: 1, translateX: 0 }}
+                exit={{ opacity: 0, translateX: -20 }}
+                style={styles.stepWrapper}
+              >
+                <View style={styles.aiMessageContainer}>
+                  <Sparkles size={20} color={colors.primary} style={{marginBottom:8}} />
+                  <Text style={styles.aiQuestionText}>{aiQuestion}</Text>
+                </View>
+
+                <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Type your answer..."
+                    placeholderTextColor={colors.textLight}
+                    value={answerText}
+                    onChangeText={(t) => {
+                        setAnswerText(t);
+                        if (t.length > 0) submitButtonOpacity.value = withSpring(1);
+                    }}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                    multiline
+                    autoFocus
+                  />
+                  <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                    <TouchableOpacity
+                      style={styles.submitButton}
+                      onPress={handleClarificationSubmit}
+                      disabled={!answerText.trim()}
+                    >
+                      <ArrowRight size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </Animated.View>
+                </Animated.View>
+              </MotiView>
+            )}
+
+            {/* STEP 3: LOADING */}
+            {step === 'processing' && (
+              <MotiView
+                key="loading"
+                from={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                style={styles.loadingContainer}
+              >
+                <MotiView
+                  from={{ rotate: '0deg' }}
+                  animate={{ rotate: '360deg' }}
+                  transition={{ type: 'timing', duration: 2000, loop: true }}
+                >
+                  <Sparkles size={40} color={colors.primary} />
+                </MotiView>
+                <Text style={styles.loadingText}>
+                  Constructing Tactical Plan...
+                </Text>
+              </MotiView>
+            )}
+
+          </AnimatePresence>
         </View>
       </KeyboardAvoidingView>
 
       <TaskStagingModal
         visible={isStagingVisible}
-        goalTitle={goal}
+        goalTitle={aiTitle || goalText}
+        generatedTasks={aiTasks}
         onConfirm={handleFinalConfirm}
         onClose={() => setIsStagingVisible(false)}
       />
 
-      {/* Pill Dashboard Navigation - Shows when keyboard is hidden */}
       {!isKeyboardVisible && <BottomNav activeTab="GoalInput" />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  container: {
-    flex: 1,
-  },
-  centeredContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    width: '100%',
-    paddingBottom: 100,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 12,
-    lineHeight: 38,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 40,
-    lineHeight: 24,
-  },
-  inputCard: {
-    width: INPUT_CARD_WIDTH,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(245, 158, 11, 0.2)',
-    backgroundColor: '#F9F9F9',
-    position: 'relative',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-    minHeight: 140,
-    alignSelf: 'center',
-    overflow: 'hidden',
-  },
-  inputWrapper: {
-    width: '100%',
-  },
-  input: {
-    width: '100%',
-    padding: 20,
-    paddingBottom: 60,
-    fontSize: 18,
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    minHeight: 120,
-    maxHeight: 250,
-  },
-  submitButtonContainer: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-  },
-  submitButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    marginTop: 30,
-  },
-  loadingText: {
-    fontSize: 16,
-    marginTop: 16,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1 },
+  centeredContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, width: '100%', paddingBottom: 100 },
+  stepWrapper: { width: '100%', alignItems: 'center' },
+  
+  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 24, color: colors.text },
+  
+  aiMessageContainer: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 20 },
+  aiQuestionText: { fontSize: 22, fontWeight: '600', color: colors.primary, textAlign: 'center', lineHeight: 30 },
+
+  inputCard: { width: INPUT_CARD_WIDTH, borderRadius: 24, borderWidth: 2, borderColor: 'rgba(245, 158, 11, 0.1)', backgroundColor: '#F9F9F9', position: 'relative', minHeight: 140, overflow: 'hidden' },
+  focusedCard: { borderColor: colors.primary, shadowColor: colors.primary },
+  
+  input: { width: '100%', padding: 20, paddingBottom: 60, fontSize: 18, minHeight: 120, color: colors.text },
+  
+  submitButtonContainer: { position: 'absolute', bottom: 16, right: 16 },
+  submitButton: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary, elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+  
+  loadingContainer: { alignItems: 'center', marginTop: 30 },
+  loadingText: { fontSize: 16, marginTop: 20, textAlign: 'center', fontWeight: '600', color: colors.textSecondary },
 });

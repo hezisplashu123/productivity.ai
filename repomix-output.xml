@@ -133,6 +133,7 @@ src/components/TimelineTaskCard.tsx
 src/components/UpNextList.tsx
 src/components/WorkdayCompression.tsx
 src/config/api.ts
+src/config/firebase.ts
 src/constants/colors.ts
 src/constants/timeBlocks.ts
 src/context/AppContext.tsx
@@ -149,298 +150,6 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
-
-<file path="backend/prisma/migrations/20260120024253_add_social_auth/migration.sql">
--- AlterTable
-ALTER TABLE "User" ADD COLUMN     "provider" TEXT NOT NULL DEFAULT 'email',
-ALTER COLUMN "password" DROP NOT NULL;
-</file>
-
-<file path="backend/prisma/migrations/20260120031137_add_social_id/migration.sql">
-/*
-  Warnings:
-
-  - A unique constraint covering the columns `[socialId]` on the table `User` will be added. If there are existing duplicate values, this will fail.
-
-*/
--- AlterTable
-ALTER TABLE "User" ADD COLUMN     "socialId" TEXT;
-
--- CreateIndex
-CREATE UNIQUE INDEX "User_socialId_key" ON "User"("socialId");
-</file>
-
-<file path="src/components/MissionAccomplishedModal.tsx">
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions } from 'react-native';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  withTiming,
-  runOnJS
-} from 'react-native-reanimated';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import { Trophy, Clock, CheckCircle2, ArrowRight } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import * as Haptics from 'expo-haptics';
-
-const { width } = Dimensions.get('window');
-
-interface MissionAccomplishedModalProps {
-  visible: boolean;
-  goalTitle: string;
-  totalTime: number; // in minutes
-  taskCount: number;
-  onArchive: () => void;
-  onClose: () => void;
-}
-
-export const MissionAccomplishedModal: React.FC<MissionAccomplishedModalProps> = ({
-  visible,
-  goalTitle,
-  totalTime,
-  taskCount,
-  onArchive,
-  onClose,
-}) => {
-  const scale = useSharedValue(0);
-  
-  useEffect(() => {
-    if (visible) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Smoother entry animation
-      scale.value = withSpring(1, { 
-        damping: 18, 
-        stiffness: 120, 
-        mass: 1 
-      });
-    } else {
-      scale.value = withTiming(0, { duration: 150 });
-    }
-  }, [visible]);
-
-  const containerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }]
-  }));
-
-  const handleArchive = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Animate out before calling callback
-    scale.value = withTiming(0, { duration: 200 }, (finished) => {
-      if (finished) {
-        runOnJS(onArchive)();
-      }
-    });
-  };
-
-  if (!visible) return null;
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => {}}>
-      <View style={styles.overlay}>
-        <ConfettiCannon 
-          count={200} 
-          origin={{x: width/2, y: 0}} 
-          fadeOut 
-          fallSpeed={3000} 
-        />
-        
-        <Animated.View style={[styles.card, containerStyle]}>
-          <View style={styles.iconHeader}>
-            <View style={styles.trophyCircle}>
-              <Trophy size={40} color="#F59E0B" fill="#F59E0B" />
-            </View>
-          </View>
-
-          <Text style={styles.title}>MISSION ACCOMPLISHED</Text>
-          <Text style={styles.subtitle} numberOfLines={2}>
-            {goalTitle}
-          </Text>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statBox}>
-              <Clock size={24} color={colors.primary} style={{ marginBottom: 8 }} />
-              <Text style={styles.statValue}>
-                {(totalTime / 60).toFixed(1)}h
-              </Text>
-              <Text style={styles.statLabel}>Focus Time</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.statBox}>
-              <CheckCircle2 size={24} color="#10B981" style={{ marginBottom: 8 }} />
-              <Text style={styles.statValue}>{taskCount}</Text>
-              <Text style={styles.statLabel}>Tasks Done</Text>
-            </View>
-          </View>
-
-          <View style={styles.efficiencyBadge}>
-            <Text style={styles.efficiencyText}>⚡ Efficiency Rating: S-Class</Text>
-          </View>
-
-          <TouchableOpacity 
-            style={styles.archiveButton}
-            onPress={handleArchive}
-            activeOpacity={0.9}
-          >
-            <Text style={styles.archiveButtonText}>SEND TO PROFILE</Text>
-            <ArrowRight size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-};
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 32,
-    padding: 24,
-    paddingBottom: 32,
-    alignItems: 'center',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  iconHeader: {
-    marginBottom: 20,
-  },
-  trophyCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFFBEB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#FDE68A',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#F59E0B',
-    letterSpacing: 1,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: 30,
-    fontWeight: '600',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 20,
-    padding: 20,
-    width: '100%',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  statBox: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  divider: {
-    width: 1,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 10,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  efficiencyBadge: {
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginBottom: 30,
-  },
-  efficiencyText: {
-    color: '#059669',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  archiveButton: {
-    backgroundColor: colors.primary,
-    width: '100%',
-    paddingVertical: 18,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  archiveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-});
-</file>
-
-<file path="app.json">
-{
-  "expo": {
-    "name": "productivity-ai",
-    "slug": "productivity-ai",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#FFF8E7"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.hezisplash133.productivityai"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#FFF8E7"
-      },
-      "package": "com.hezisplash133.productivityai"
-    },
-    "scheme": "productivity-ai",
-    "plugins": [
-      "expo-router",
-      "expo-apple-authentication"
-    ],
-    "sdkVersion": "54.0.0"
-  }
-}
-</file>
 
 <file path="app/focus-session.tsx">
 import React, { useState, useEffect, useRef } from 'react';
@@ -1260,6 +969,26 @@ ALTER TABLE "Task" ADD COLUMN     "order" INTEGER NOT NULL DEFAULT 0;
 -- AlterTable
 ALTER TABLE "User" ADD COLUMN     "currentStreak" INTEGER NOT NULL DEFAULT 0,
 ADD COLUMN     "lastActiveDate" TIMESTAMP(3);
+</file>
+
+<file path="backend/prisma/migrations/20260120024253_add_social_auth/migration.sql">
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "provider" TEXT NOT NULL DEFAULT 'email',
+ALTER COLUMN "password" DROP NOT NULL;
+</file>
+
+<file path="backend/prisma/migrations/20260120031137_add_social_id/migration.sql">
+/*
+  Warnings:
+
+  - A unique constraint covering the columns `[socialId]` on the table `User` will be added. If there are existing duplicate values, this will fail.
+
+*/
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "socialId" TEXT;
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_socialId_key" ON "User"("socialId");
 </file>
 
 <file path="backend/prisma/migrations/migration_lock.toml">
@@ -5139,6 +4868,243 @@ const styles = StyleSheet.create({
 });
 </file>
 
+<file path="src/components/MissionAccomplishedModal.tsx">
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions } from 'react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  withTiming,
+  runOnJS
+} from 'react-native-reanimated';
+import ConfettiCannon from 'react-native-confetti-cannon';
+import { Trophy, Clock, CheckCircle2, ArrowRight } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+
+const { width } = Dimensions.get('window');
+
+interface MissionAccomplishedModalProps {
+  visible: boolean;
+  goalTitle: string;
+  totalTime: number; // in minutes
+  taskCount: number;
+  onArchive: () => void;
+  onClose: () => void;
+}
+
+export const MissionAccomplishedModal: React.FC<MissionAccomplishedModalProps> = ({
+  visible,
+  goalTitle,
+  totalTime,
+  taskCount,
+  onArchive,
+  onClose,
+}) => {
+  const scale = useSharedValue(0);
+  
+  useEffect(() => {
+    if (visible) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Smoother entry animation
+      scale.value = withSpring(1, { 
+        damping: 18, 
+        stiffness: 120, 
+        mass: 1 
+      });
+    } else {
+      scale.value = withTiming(0, { duration: 150 });
+    }
+  }, [visible]);
+
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }]
+  }));
+
+  const handleArchive = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Animate out before calling callback
+    scale.value = withTiming(0, { duration: 200 }, (finished) => {
+      if (finished) {
+        runOnJS(onArchive)();
+      }
+    });
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => {}}>
+      <View style={styles.overlay}>
+        <ConfettiCannon 
+          count={200} 
+          origin={{x: width/2, y: 0}} 
+          fadeOut 
+          fallSpeed={3000} 
+        />
+        
+        <Animated.View style={[styles.card, containerStyle]}>
+          <View style={styles.iconHeader}>
+            <View style={styles.trophyCircle}>
+              <Trophy size={40} color="#F59E0B" fill="#F59E0B" />
+            </View>
+          </View>
+
+          <Text style={styles.title}>MISSION ACCOMPLISHED</Text>
+          <Text style={styles.subtitle} numberOfLines={2}>
+            {goalTitle}
+          </Text>
+
+          <View style={styles.statsContainer}>
+            <View style={styles.statBox}>
+              <Clock size={24} color={colors.primary} style={{ marginBottom: 8 }} />
+              <Text style={styles.statValue}>
+                {(totalTime / 60).toFixed(1)}h
+              </Text>
+              <Text style={styles.statLabel}>Focus Time</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.statBox}>
+              <CheckCircle2 size={24} color="#10B981" style={{ marginBottom: 8 }} />
+              <Text style={styles.statValue}>{taskCount}</Text>
+              <Text style={styles.statLabel}>Tasks Done</Text>
+            </View>
+          </View>
+
+          <View style={styles.efficiencyBadge}>
+            <Text style={styles.efficiencyText}>⚡ Efficiency Rating: S-Class</Text>
+          </View>
+
+          <TouchableOpacity 
+            style={styles.archiveButton}
+            onPress={handleArchive}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.archiveButtonText}>SEND TO PROFILE</Text>
+            <ArrowRight size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
+    padding: 24,
+    paddingBottom: 32,
+    alignItems: 'center',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  iconHeader: {
+    marginBottom: 20,
+  },
+  trophyCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFBEB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#FDE68A',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#F59E0B',
+    letterSpacing: 1,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 30,
+    fontWeight: '600',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  divider: {
+    width: 1,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 10,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  efficiencyBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginBottom: 30,
+  },
+  efficiencyText: {
+    color: '#059669',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  archiveButton: {
+    backgroundColor: colors.primary,
+    width: '100%',
+    paddingVertical: 18,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  archiveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+});
+</file>
+
 <file path="src/components/NoiseLevelSlider.tsx">
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
@@ -6249,418 +6215,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: 16,
     fontWeight: '600',
-  },
-});
-</file>
-
-<file path="src/components/SessionDebrief.tsx">
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import Animated, { FadeIn, SlideInDown, SlideInUp } from 'react-native-reanimated';
-import { Check, X, Clock, ArrowRight, Plus, Minus, Target, AlertCircle } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import * as Haptics from 'expo-haptics';
-
-const { width } = Dimensions.get('window');
-
-interface SessionData {
-  completed: boolean;
-  distraction?: string;
-  addedMinutes?: number;
-}
-
-interface SessionDebriefProps {
-  visible: boolean;
-  onComplete: (data: SessionData) => void;
-}
-
-const FRICTION_POINTS = [
-  { id: 'distraction', label: 'Distractions', icon: '🔔' },
-  { id: 'estimation', label: 'Bad Estimate', icon: '⏱️' },
-  { id: 'energy', label: 'Low Energy', icon: '🔋' },
-  { id: 'blocked', label: 'Blocked', icon: '🚧' },
-];
-
-export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onComplete }) => {
-  const [step, setStep] = useState<'outcome' | 'analysis' | 'recovery'>('outcome');
-  const [friction, setFriction] = useState<string | null>(null);
-  const [addedTime, setAddedTime] = useState(15);
-
-  if (!visible) return null;
-
-  const handleSuccess = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Slight delay for animation before closing
-    setTimeout(() => {
-        onComplete({ completed: true });
-    }, 300);
-  };
-
-  const handleFailure = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setStep('analysis');
-  };
-
-  const handleFrictionSelect = (id: string) => {
-    Haptics.selectionAsync();
-    setFriction(id);
-    setTimeout(() => setStep('recovery'), 250);
-  };
-
-  const adjustTime = (delta: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setAddedTime(prev => Math.max(5, prev + delta));
-  };
-
-  const handleExtension = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onComplete({ 
-        completed: false, 
-        distraction: friction || 'unknown',
-        addedMinutes: addedTime
-    });
-  };
-
-  // --- RENDER STEPS ---
-
-  const renderOutcome = () => (
-    <View style={styles.contentContainer}>
-      <Animated.View entering={SlideInDown.delay(100).springify()} style={styles.iconHeader}>
-        <View style={styles.badgeContainer}>
-            <Target size={16} color={colors.primary} />
-            <Text style={styles.badgeText}>MISSION REPORT</Text>
-        </View>
-        <Text style={styles.mainQuestion}>Did you secure the objective?</Text>
-      </Animated.View>
-
-      <View style={styles.cardContainer}>
-        {/* Success Card */}
-        <Animated.View entering={SlideInUp.delay(200).springify()} style={{ width: '100%' }}>
-            <TouchableOpacity 
-                style={styles.successCard} 
-                onPress={handleSuccess}
-                activeOpacity={0.9}
-            >
-                <View style={styles.successIconBox}>
-                    <Check size={28} color="#FFFFFF" strokeWidth={3} />
-                </View>
-                <View style={styles.cardTextContent}>
-                    <Text style={styles.successTitle}>OBJECTIVE COMPLETE</Text>
-                    <Text style={styles.successSubtitle}>Task finished successfully.</Text>
-                </View>
-                <ArrowRight size={20} color="#15803D" />
-            </TouchableOpacity>
-        </Animated.View>
-
-        {/* Fail Card */}
-        <Animated.View entering={SlideInUp.delay(300).springify()} style={{ width: '100%' }}>
-            <TouchableOpacity 
-                style={styles.failCard} 
-                onPress={handleFailure}
-                activeOpacity={0.9}
-            >
-                <View style={styles.failIconBox}>
-                    <Clock size={28} color={colors.text} strokeWidth={2.5} />
-                </View>
-                <View style={styles.cardTextContent}>
-                    <Text style={styles.failTitle}>NOT YET</Text>
-                    <Text style={styles.failSubtitle}>I need more time or got blocked.</Text>
-                </View>
-            </TouchableOpacity>
-        </Animated.View>
-      </View>
-    </View>
-  );
-
-  const renderAnalysis = () => (
-    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
-      <Text style={styles.headerTitle}>DEBRIEF</Text>
-      <Text style={styles.headerSubtitle}>What was the primary obstacle?</Text>
-
-      <View style={styles.grid}>
-        {FRICTION_POINTS.map((item) => (
-            <TouchableOpacity 
-                key={item.id}
-                style={[styles.gridItem, friction === item.id && styles.gridItemSelected]}
-                onPress={() => handleFrictionSelect(item.id)}
-                activeOpacity={0.7}
-            >
-                <Text style={styles.gridIcon}>{item.icon}</Text>
-                <Text style={[styles.gridLabel, friction === item.id && styles.gridLabelSelected]}>
-                    {item.label}
-                </Text>
-            </TouchableOpacity>
-        ))}
-      </View>
-    </Animated.View>
-  );
-
-  const renderRecovery = () => (
-    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
-      <Text style={styles.headerTitle}>RECOVERY PROTOCOL</Text>
-      <Text style={styles.headerSubtitle}>How much more time do you need?</Text>
-
-      <View style={styles.timeControl}>
-        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(-5)}>
-            <Minus size={24} color={colors.text} />
-        </TouchableOpacity>
-        <View style={styles.timeDisplay}>
-            <Text style={styles.timeValue}>{addedTime}</Text>
-            <Text style={styles.timeUnit}>MINUTES</Text>
-        </View>
-        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(5)}>
-            <Plus size={24} color={colors.text} />
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity style={styles.confirmBtn} onPress={handleExtension}>
-        <Text style={styles.confirmText}>UPDATE MISSION PARAMETERS</Text>
-        <ArrowRight size={20} color="#FFFFFF" />
-      </TouchableOpacity>
-    </Animated.View>
-  );
-
-  return (
-    <View style={styles.container}>
-      {/* White Background Fade In */}
-      <Animated.View entering={FadeIn.duration(300)} style={styles.whiteBackground} />
-      
-      <View style={styles.safeArea}>
-        {step === 'outcome' && renderOutcome()}
-        {step === 'analysis' && renderAnalysis()}
-        {step === 'recovery' && renderRecovery()}
-      </View>
-    </View>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 999,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  whiteBackground: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF', // Clean white sheet
-  },
-  safeArea: {
-    width: '100%',
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-  },
-  contentContainer: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  
-  // --- Header Styles ---
-  iconHeader: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  badgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)', // Light orange pill
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 16,
-    gap: 6,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 1,
-  },
-  mainQuestion: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.text,
-    textAlign: 'center',
-    lineHeight: 34,
-  },
-
-  // --- Card Styles (New) ---
-  cardContainer: {
-    width: '100%',
-    gap: 16,
-  },
-  successCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4', // Very light green
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
-    padding: 20,
-    borderRadius: 24,
-    shadowColor: '#16A34A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  successIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#16A34A', // Green
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  cardTextContent: {
-    flex: 1,
-  },
-  successTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#14532D', // Dark green text
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  successSubtitle: {
-    fontSize: 14,
-    color: '#15803D',
-    fontWeight: '500',
-  },
-
-  failCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB', // Light Gray
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    padding: 20,
-    borderRadius: 24,
-  },
-  failIconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  failTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  failSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-
-  // --- Reuse existing styles for other steps ---
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 2,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  headerSubtitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: 40,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    justifyContent: 'center',
-  },
-  gridItem: {
-    width: '47%',
-    aspectRatio: 1.2,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  gridItemSelected: {
-    borderColor: colors.primary,
-    backgroundColor: '#FFFBEB',
-  },
-  gridIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  gridLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  gridLabelSelected: {
-    color: colors.primaryDark,
-  },
-  timeControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 20,
-    marginBottom: 40,
-  },
-  timeBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  timeDisplay: {
-    alignItems: 'center',
-  },
-  timeValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  timeUnit: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: 1,
-  },
-  confirmBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    width: '100%',
-    paddingVertical: 18,
-    borderRadius: 24,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
-    gap: 8,
-  },
-  confirmText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
   },
 });
 </file>
@@ -9191,6 +8745,45 @@ const styles = StyleSheet.create({
 });
 </file>
 
+<file path="src/config/firebase.ts">
+import { initializeApp, getApp, getApps } from 'firebase/app';
+// Change getAuth to initializeAuth and import persistence helpers
+import { 
+  initializeAuth, 
+  getReactNativePersistence, 
+  GoogleAuthProvider, 
+  signInWithCredential,
+  getAuth
+} from 'firebase/auth';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAw7dKdWkr7WBO_BUG8EFqLOYw-wr0n2Z8",
+  authDomain: "hesi-ai.firebaseapp.com",
+  projectId: "hesi-ai",
+  storageBucket: "hesi-ai.firebasestorage.app",
+  messagingSenderId: "204716304779",
+  appId: "1:204716304779:web:b9876e929e0a60a717a78e"
+};
+
+// Initialize Firebase
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// Initialize Auth with Persistence
+// We check if auth is already initialized to avoid errors during hot reload
+let auth;
+try {
+  auth = getAuth(app);
+} catch (e) {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+  });
+}
+
+export { auth, GoogleAuthProvider, signInWithCredential };
+</file>
+
 <file path="src/constants/timeBlocks.ts">
 import { TimeBlock } from '../types';
 
@@ -9718,470 +9311,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="app/auth.tsx">
-import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert 
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { apiService } from '../src/services/api';
-import { useApp } from '../src/context/AppContext';
-import { lightColors as colors } from '../src/constants/colors';
-import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-import Svg, { Path } from 'react-native-svg'; 
-
-import * as AppleAuthentication from 'expo-apple-authentication';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
-
-WebBrowser.maybeCompleteAuthSession();
-
-export default function AuthScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
-  const { setUser } = useApp();
-  
-  const onboardingDataString = params.onboardingData as string;
-  const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
-
-  const [isLogin, setIsLogin] = useState(params.mode === 'login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  // --- GOOGLE AUTH CONFIGURATION ---
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    // -------------------------------------------------------------------------
-    // CRITICAL: We use the WEB CLIENT ID for all platforms here.
-    // This allows us to use the https:// redirect which Google accepts.
-    // -------------------------------------------------------------------------
-    androidClientId: "454639158764-fhrs5pbhuqv7sjdqr9cjutdcvgu1f708.apps.googleusercontent.com",
-    iosClientId: "454639158764-fhrs5pbhuqv7sjdqr9cjutdcvgu1f708.apps.googleusercontent.com",
-    webClientId: "454639158764-fhrs5pbhuqv7sjdqr9cjutdcvgu1f708.apps.googleusercontent.com",
-    
-    // We HARDCODE this. Do not use makeRedirectUri.
-    // Google talks to this URL. Expo then forwards the user to your app.
-    redirectUri: "https://auth.expo.io/@hezisplash133/productivity-ai"
-  });
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { authentication } = response;
-      fetchUserInfo(authentication?.accessToken);
-    } else if (response?.type === 'error') {
-      console.log("Google Auth Error:", response.error);
-      Alert.alert("Google Auth Failed", "Ensure the URL is saved in Google Console.");
-    }
-  }, [response]);
-
-  const fetchUserInfo = async (token: string | undefined) => {
-    if (!token) return;
-    try {
-      setLoading(true);
-      const res = await fetch("https://www.googleapis.com/userinfo/v2/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const user = await res.json();
-      
-      const backendUser = await apiService.socialLogin({
-        email: user.email,
-        name: user.name,
-        socialId: user.id,
-        provider: 'google',
-        onboardingData: onboardingData 
-      });
-
-      handleAuthSuccess(backendUser);
-    } catch (error) {
-      Alert.alert("Google Login Error", "Could not fetch user info");
-      setLoading(false);
-    }
-  };
-
-  const handleAppleLogin = async () => {
-    try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      setLoading(true);
-      
-      let fullName = null;
-      if (credential.fullName?.givenName) {
-        fullName = `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim();
-      }
-
-      const backendUser = await apiService.socialLogin({
-        email: credential.email, 
-        socialId: credential.user, 
-        name: fullName,
-        provider: 'apple',
-        onboardingData: onboardingData
-      });
-
-      handleAuthSuccess(backendUser);
-
-    } catch (e: any) {
-      if (e.code !== 'ERR_CANCELED') {
-        Alert.alert('Apple Login Failed', e.message);
-      }
-      setLoading(false);
-    }
-  };
-
-  const handleAuthSuccess = (responseUser: any) => {
-    setUser(responseUser);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    if (responseUser.onboardingData) {
-      router.replace('/home');
-    } else {
-      Alert.alert(
-        "Setup Required",
-        "We need to calibrate your profile before we begin.",
-        [
-          { 
-            text: "Start Assessment", 
-            onPress: () => router.replace('/ghost-hours') 
-          }
-        ]
-      );
-    }
-    setLoading(false);
-  };
-
-  const handleSubmit = async () => {
-    if (!email || !password || (!isLogin && !name)) {
-      Alert.alert('Missing Fields', 'Please fill in all fields.');
-      return;
-    }
-
-    if (!isLogin && !onboardingData) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert(
-        "Assessment Required",
-        "You cannot create an account without a personalized plan. Let's build your strategy first.",
-        [
-          { text: "Go to Onboarding", onPress: () => router.replace('/ghost-hours') },
-          { text: "Cancel", style: 'cancel' }
-        ]
-      );
-      return;
-    }
-
-    setLoading(true);
-    Haptics.selectionAsync();
-
-    try {
-      let responseUser;
-      
-      if (isLogin) {
-        responseUser = await apiService.login({ email, password });
-      } else {
-        responseUser = await apiService.register({
-          email,
-          name,
-          password,
-          onboardingData 
-        });
-      }
-
-      handleAuthSuccess(responseUser);
-      
-    } catch (error: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const errorMessage = error.message || '';
-
-      if (isLogin && (errorMessage.includes('User not found') || errorMessage.includes('Invalid credentials'))) {
-        Alert.alert(
-          "Account Not Found",
-          "We couldn't find an account. Have you built your plan?",
-          [
-            { text: "Try Again", style: "cancel" },
-            { text: "Build Plan", onPress: () => router.replace('/ghost-hours') }
-          ]
-        );
-      } else {
-        Alert.alert('Authentication Failed', errorMessage);
-      }
-      setLoading(false);
-    }
-  };
-
-  return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <StatusBar style="dark" />
-      
-      <View style={styles.content}>
-        <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
-        <Text style={styles.subtitle}>
-          {isLogin 
-            ? 'Sign in to access your dashboard.' 
-            : 'Create an account to save your productivity plan.'}
-        </Text>
-
-        <View style={styles.form}>
-          {!isLogin && (
-            <View style={styles.inputContainer}>
-              <User size={20} color={colors.textSecondary} style={styles.icon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Full Name"
-                value={name}
-                onChangeText={setName}
-                placeholderTextColor={colors.textLight}
-              />
-            </View>
-          )}
-
-          <View style={styles.inputContainer}>
-            <Mail size={20} color={colors.textSecondary} style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email Address"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              placeholderTextColor={colors.textLight}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Lock size={20} color={colors.textSecondary} style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor={colors.textLight}
-            />
-          </View>
-
-          <TouchableOpacity 
-            style={styles.button} 
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Text style={styles.buttonText}>
-                  {isLogin ? 'Log In' : 'Complete Setup'}
-                </Text>
-                <ArrowRight size={20} color="#FFFFFF" />
-              </>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.socialButtonsContainer}>
-            {Platform.OS === 'ios' && (
-              <TouchableOpacity 
-                style={styles.appleCustomButton} 
-                onPress={handleAppleLogin}
-              >
-                <View style={styles.iconContainer}>
-                  {/* STANDARD APPLE LOGO */}
-                  <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
-                    <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
-                  </Svg>
-                </View>
-                <Text style={styles.appleButtonText}>Continue with Apple</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Google Login */}
-            <TouchableOpacity 
-              style={styles.googleButton} 
-              onPress={() => {
-                if (request) promptAsync();
-                else Alert.alert("Setup Required", "Please add valid Google Client IDs.");
-              }}
-            >
-              <View style={styles.iconContainer}>
-                <Svg width={24} height={24} viewBox="0 0 48 48">
-                  <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                  <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                  <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                  <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                </Svg>
-              </View>
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity 
-            style={styles.switchButton} 
-            onPress={() => {
-              setIsLogin(!isLogin);
-            }}
-          >
-            <Text style={styles.switchText}>
-              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  content: {
-    flex: 1,
-    padding: 30,
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 32,
-  },
-  form: {
-    gap: 16,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundLight,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    height: 56,
-    paddingHorizontal: 16,
-  },
-  icon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.text,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    height: 56,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-    marginRight: 8,
-  },
-  switchButton: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  switchText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 16,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    marginHorizontal: 12,
-    color: colors.textLight,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  socialButtonsContainer: {
-    gap: 12,
-  },
-  appleCustomButton: {
-    width: '100%',
-    height: 56,
-    backgroundColor: '#000000', 
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  appleButtonText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  googleButton: {
-    width: '100%',
-    height: 56,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  iconContainer: {
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  googleButtonText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
-});
-</file>
-
 <file path="app/index.tsx">
 import React from 'react';
 import { Redirect } from 'expo-router';
@@ -10190,401 +9319,6 @@ export default function IndexScreen() {
   // SECURITY UPDATE: Redirect to lock screen first
   return <Redirect href="/lock-screen" />;
 }
-</file>
-
-<file path="app/profile.tsx">
-import React, { useEffect, useState, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Modal, 
-  Switch,
-  Alert 
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown, SlideInUp } from 'react-native-reanimated';
-import { 
-  ChevronLeft, 
-  Settings, 
-  Zap, 
-  Clock, 
-  Trophy, 
-  Target, 
-  Archive, 
-  CheckCircle2, 
-  User,
-  Moon,
-  Sunrise,
-  Coffee,
-  Bell,
-  LogOut,
-  ChevronRight,
-  X
-} from 'lucide-react-native';
-import { lightColors as colors } from '../src/constants/colors';
-import { useApp } from '../src/context/AppContext';
-import { apiService } from '../src/services/api';
-
-// --- HELPER COMPONENTS ---
-
-const MissionHistoryCard = ({ goal, delay }: { goal: any, delay: number }) => {
-  const totalTasks = goal.tasks ? goal.tasks.length : 0;
-  const totalDuration = goal.tasks ? goal.tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0) : 0;
-  
-  return (
-    <Animated.View 
-      entering={FadeInDown.delay(delay).springify()}
-      style={styles.historyCard}
-    >
-      <View style={styles.historyHeader}>
-        <View style={styles.historyIcon}>
-          <CheckCircle2 size={20} color="#10B981" />
-        </View>
-        <View style={styles.historyTitleBox}>
-          <Text style={styles.historyTitle} numberOfLines={1}>{goal.title}</Text>
-          <Text style={styles.historyDate}>
-            {new Date(goal.completedAt || goal.createdAt).toLocaleDateString()}
-          </Text>
-        </View>
-      </View>
-      
-      <View style={styles.historyStats}>
-        <View style={styles.historyStatItem}>
-          <Clock size={12} color={colors.textSecondary} />
-          <Text style={styles.historyStatText}>{(totalDuration / 60).toFixed(1)}h Focused</Text>
-        </View>
-        <View style={styles.historyStatItem}>
-          <Target size={12} color={colors.textSecondary} />
-          <Text style={styles.historyStatText}>{totalTasks} Tasks</Text>
-        </View>
-        <View style={styles.historyBadge}>
-          <Text style={styles.historyBadgeText}>COMPLETED</Text>
-        </View>
-      </View>
-    </Animated.View>
-  );
-};
-
-const StatBox = ({ label, value, icon: Icon, delay }: any) => (
-  <Animated.View 
-    entering={FadeInDown.delay(delay).springify()}
-    style={styles.statBox}
-  >
-    <View style={styles.statIconBg}>
-      <Icon size={20} color={colors.primary} />
-    </View>
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
-  </Animated.View>
-);
-
-const SettingsModal = ({ visible, onClose, onLogout }: any) => {
-  const [notifications, setNotifications] = useState(true);
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.settingsContainer}>
-        <View style={styles.settingsHeader}>
-          <Text style={styles.settingsTitle}>Settings</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <X size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.settingsContent}>
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>PREFERENCES</Text>
-            
-            <View style={styles.settingRow}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#EEF2FF' }]}>
-                  <Bell size={20} color="#4F46E5" />
-                </View>
-                <Text style={styles.settingText}>Push Notifications</Text>
-              </View>
-              <Switch 
-                value={notifications} 
-                onValueChange={setNotifications}
-                trackColor={{ false: colors.border, true: colors.primary }}
-              />
-            </View>
-          </View>
-
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
-            
-            <TouchableOpacity style={styles.settingRow}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
-                  <User size={20} color={colors.text} />
-                </View>
-                <Text style={styles.settingText}>Edit Profile</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingRow} onPress={onLogout}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
-                  <LogOut size={20} color={colors.error} />
-                </View>
-                <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Productivity AI v1.0.2</Text>
-          </View>
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-};
-
-// --- MAIN COMPONENT ---
-
-export default function ProfileScreen() {
-  const router = useRouter();
-  const { user, goals, setUser } = useApp();
-  const [profileData, setProfileData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [settingsVisible, setSettingsVisible] = useState(false);
-
-  // Filter for archived/completed goals
-  const archivedGoals = useMemo(() => {
-    return goals.filter(g => g.status === 'archived').sort((a, b) => {
-      const dateA = new Date(a.completedAt || a.createdAt).getTime();
-      const dateB = new Date(b.completedAt || b.createdAt).getTime();
-      return dateB - dateA; // Newest first
-    });
-  }, [goals]);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (user?.email) {
-        try {
-          const data = await apiService.getUserProfile(user.email);
-          setProfileData(data);
-        } catch (error) {
-          console.error("Failed to load profile", error);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
-  }, [user]);
-
-  const handleLogout = () => {
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Log Out", 
-        style: "destructive", 
-        onPress: () => {
-          setSettingsVisible(false);
-          setUser(null);
-          router.replace('/auth');
-        }
-      }
-    ]);
-  };
-
-  // Helper for icons based on archetype
-  const getArchetypeIcon = () => {
-    const arch = profileData?.onboardingData?.focusWindow;
-    if (arch === 'night-owl') return Moon;
-    if (arch === 'early-bird') return Sunrise;
-    return Coffee; // Default
-  };
-  const ArchetypeIcon = getArchetypeIcon();
-
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-            <ChevronLeft size={28} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Operative Profile</Text>
-          <TouchableOpacity 
-            style={styles.iconBtn} 
-            onPress={() => setSettingsVisible(true)}
-          >
-            <Settings size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
-          {/* Identity Card */}
-          <Animated.View 
-            entering={FadeInDown.delay(100).springify()}
-            style={styles.identityCard}
-          >
-            <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>{profileData?.name?.[0] || "U"}</Text>
-            </View>
-            <View style={styles.identityText}>
-              <Text style={styles.userName}>{profileData?.name || "Unknown Agent"}</Text>
-              <Text style={styles.userLevel}>
-                Level {profileData?.stats?.level || 1} Strategist
-              </Text>
-            </View>
-            <View style={styles.archetypeBadge}>
-              <Text style={styles.archetypeText}>
-                {profileData?.onboardingData?.workArchetype || "Recruit"}
-              </Text>
-            </View>
-          </Animated.View>
-
-          {/* Efficiency Metrics */}
-          <Text style={styles.sectionHeader}>Efficiency Metrics</Text>
-          <View style={styles.statsGrid}>
-            <StatBox label="Streak" value={`${profileData?.stats?.streak || 0} Day`} icon={Zap} delay={200} />
-            <StatBox label="Hours" value={`${profileData?.stats?.hoursFocused || 0}h`} icon={Clock} delay={300} />
-            <StatBox label="Tasks" value={profileData?.stats?.tasksCrushed || 0} icon={Trophy} delay={400} />
-          </View>
-
-          {/* Cognitive DNA - RESTORED */}
-          <Text style={styles.sectionHeader}>Cognitive DNA</Text>
-          <View style={styles.dnaContainer}>
-            {profileData?.onboardingData?.focusWindow && (
-                <Animated.View entering={FadeInDown.delay(500)} style={styles.dnaTag}>
-                    <ArchetypeIcon size={14} color={colors.primary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.dnaText, { color: colors.primary }]}>
-                        {profileData.onboardingData.focusWindow.replace('-', ' ').toUpperCase()}
-                    </Text>
-                </Animated.View>
-            )}
-            
-            {profileData?.onboardingData?.distraction && (
-                <Animated.View entering={FadeInDown.delay(600)} style={styles.dnaTag}>
-                    <Target size={14} color="#10B981" style={{ marginRight: 6 }} />
-                    <Text style={[styles.dnaText, { color: "#10B981" }]}>
-                        FIGHTING: {profileData.onboardingData.distraction.toUpperCase()}
-                    </Text>
-                </Animated.View>
-            )}
-          </View>
-
-          {/* Mission Archive Section */}
-          <View style={styles.archiveHeaderRow}>
-            <Text style={styles.sectionHeader}>Mission Archive</Text>
-            <View style={styles.archiveCountBadge}>
-              <Archive size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
-              <Text style={styles.archiveCountText}>{archivedGoals.length}</Text>
-            </View>
-          </View>
-
-          {archivedGoals.length === 0 ? (
-            <View style={styles.emptyArchive}>
-              <Text style={styles.emptyText}>No completed missions yet.</Text>
-            </View>
-          ) : (
-            <View style={styles.archiveList}>
-              {archivedGoals.map((goal, index) => (
-                <MissionHistoryCard key={goal.id} goal={goal} delay={500 + (index * 100)} />
-              ))}
-            </View>
-          )}
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
-
-        <SettingsModal 
-          visible={settingsVisible} 
-          onClose={() => setSettingsVisible(false)}
-          onLogout={handleLogout}
-        />
-      </SafeAreaView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-  iconBtn: { padding: 8, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: colors.border },
-  scrollContent: { padding: 24 },
-  
-  identityCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4, borderWidth: 1, borderColor: colors.border, marginBottom: 32 },
-  avatarContainer: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  avatarText: { fontSize: 24, fontWeight: 'bold', color: '#FFF' },
-  identityText: { flex: 1 },
-  userName: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  userLevel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
-  archetypeBadge: { backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  archetypeText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'capitalize' },
-  
-  sectionHeader: { fontSize: 14, fontWeight: '800', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, marginLeft: 4 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32, gap: 12 },
-  statBox: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
-  statIconBg: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  statValue: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4, textAlign: 'center' },
-  statLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary, textAlign: 'center' },
-
-  // DNA Styles
-  dnaContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  dnaTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
-  dnaText: { fontSize: 13, fontWeight: '600' },
-
-  // Archive Styles
-  archiveHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  archiveCountBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  archiveCountText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
-  emptyArchive: { padding: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E5E7EB' },
-  emptyText: { color: colors.textSecondary, fontWeight: '500' },
-  archiveList: { gap: 12 },
-  
-  historyCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F3F4F6', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8 },
-  historyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  historyIcon: { marginRight: 12 },
-  historyTitleBox: { flex: 1 },
-  historyTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
-  historyDate: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  historyStats: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  historyStatItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  historyStatText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
-  historyBadge: { marginLeft: 'auto', backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  historyBadgeText: { fontSize: 10, fontWeight: '800', color: '#059669', letterSpacing: 0.5 },
-
-  // Settings Modal Styles
-  settingsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
-  settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border },
-  settingsTitle: { fontSize: 18, fontWeight: '700' },
-  closeBtn: { padding: 4 },
-  settingsContent: { padding: 24 },
-  settingGroup: { marginBottom: 32 },
-  settingGroupTitle: { fontSize: 12, fontWeight: '800', color: colors.textLight, marginBottom: 12, marginLeft: 4 },
-  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
-  settingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  settingIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  settingText: { fontSize: 16, fontWeight: '600', color: colors.text },
-  versionContainer: { alignItems: 'center', marginTop: 20 },
-  versionText: { color: colors.textLight, fontSize: 12 },
-});
 </file>
 
 <file path="backend/.gitignore">
@@ -12203,6 +10937,418 @@ export const ScaleButton: React.FC<ScaleButtonProps> = ({
 };
 </file>
 
+<file path="src/components/SessionDebrief.tsx">
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import Animated, { FadeIn, SlideInDown, SlideInUp } from 'react-native-reanimated';
+import { Check, X, Clock, ArrowRight, Plus, Minus, Target, AlertCircle } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+
+const { width } = Dimensions.get('window');
+
+interface SessionData {
+  completed: boolean;
+  distraction?: string;
+  addedMinutes?: number;
+}
+
+interface SessionDebriefProps {
+  visible: boolean;
+  onComplete: (data: SessionData) => void;
+}
+
+const FRICTION_POINTS = [
+  { id: 'distraction', label: 'Distractions', icon: '🔔' },
+  { id: 'estimation', label: 'Bad Estimate', icon: '⏱️' },
+  { id: 'energy', label: 'Low Energy', icon: '🔋' },
+  { id: 'blocked', label: 'Blocked', icon: '🚧' },
+];
+
+export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onComplete }) => {
+  const [step, setStep] = useState<'outcome' | 'analysis' | 'recovery'>('outcome');
+  const [friction, setFriction] = useState<string | null>(null);
+  const [addedTime, setAddedTime] = useState(15);
+
+  if (!visible) return null;
+
+  const handleSuccess = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Slight delay for animation before closing
+    setTimeout(() => {
+        onComplete({ completed: true });
+    }, 300);
+  };
+
+  const handleFailure = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setStep('analysis');
+  };
+
+  const handleFrictionSelect = (id: string) => {
+    Haptics.selectionAsync();
+    setFriction(id);
+    setTimeout(() => setStep('recovery'), 250);
+  };
+
+  const adjustTime = (delta: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAddedTime(prev => Math.max(5, prev + delta));
+  };
+
+  const handleExtension = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onComplete({ 
+        completed: false, 
+        distraction: friction || 'unknown',
+        addedMinutes: addedTime
+    });
+  };
+
+  // --- RENDER STEPS ---
+
+  const renderOutcome = () => (
+    <View style={styles.contentContainer}>
+      <Animated.View entering={SlideInDown.delay(100).springify()} style={styles.iconHeader}>
+        <View style={styles.badgeContainer}>
+            <Target size={16} color={colors.primary} />
+            <Text style={styles.badgeText}>MISSION REPORT</Text>
+        </View>
+        <Text style={styles.mainQuestion}>Did you secure the objective?</Text>
+      </Animated.View>
+
+      <View style={styles.cardContainer}>
+        {/* Success Card */}
+        <Animated.View entering={SlideInUp.delay(200).springify()} style={{ width: '100%' }}>
+            <TouchableOpacity 
+                style={styles.successCard} 
+                onPress={handleSuccess}
+                activeOpacity={0.9}
+            >
+                <View style={styles.successIconBox}>
+                    <Check size={28} color="#FFFFFF" strokeWidth={3} />
+                </View>
+                <View style={styles.cardTextContent}>
+                    <Text style={styles.successTitle}>OBJECTIVE COMPLETE</Text>
+                    <Text style={styles.successSubtitle}>Task finished successfully.</Text>
+                </View>
+                <ArrowRight size={20} color="#15803D" />
+            </TouchableOpacity>
+        </Animated.View>
+
+        {/* Fail Card */}
+        <Animated.View entering={SlideInUp.delay(300).springify()} style={{ width: '100%' }}>
+            <TouchableOpacity 
+                style={styles.failCard} 
+                onPress={handleFailure}
+                activeOpacity={0.9}
+            >
+                <View style={styles.failIconBox}>
+                    <Clock size={28} color={colors.text} strokeWidth={2.5} />
+                </View>
+                <View style={styles.cardTextContent}>
+                    <Text style={styles.failTitle}>NOT YET</Text>
+                    <Text style={styles.failSubtitle}>I need more time or got blocked.</Text>
+                </View>
+            </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </View>
+  );
+
+  const renderAnalysis = () => (
+    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
+      <Text style={styles.headerTitle}>DEBRIEF</Text>
+      <Text style={styles.headerSubtitle}>What was the primary obstacle?</Text>
+
+      <View style={styles.grid}>
+        {FRICTION_POINTS.map((item) => (
+            <TouchableOpacity 
+                key={item.id}
+                style={[styles.gridItem, friction === item.id && styles.gridItemSelected]}
+                onPress={() => handleFrictionSelect(item.id)}
+                activeOpacity={0.7}
+            >
+                <Text style={styles.gridIcon}>{item.icon}</Text>
+                <Text style={[styles.gridLabel, friction === item.id && styles.gridLabelSelected]}>
+                    {item.label}
+                </Text>
+            </TouchableOpacity>
+        ))}
+      </View>
+    </Animated.View>
+  );
+
+  const renderRecovery = () => (
+    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
+      <Text style={styles.headerTitle}>RECOVERY PROTOCOL</Text>
+      <Text style={styles.headerSubtitle}>How much more time do you need?</Text>
+
+      <View style={styles.timeControl}>
+        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(-5)}>
+            <Minus size={24} color={colors.text} />
+        </TouchableOpacity>
+        <View style={styles.timeDisplay}>
+            <Text style={styles.timeValue}>{addedTime}</Text>
+            <Text style={styles.timeUnit}>MINUTES</Text>
+        </View>
+        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(5)}>
+            <Plus size={24} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity style={styles.confirmBtn} onPress={handleExtension}>
+        <Text style={styles.confirmText}>UPDATE MISSION PARAMETERS</Text>
+        <ArrowRight size={20} color="#FFFFFF" />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+
+  return (
+    <View style={styles.container}>
+      {/* White Background Fade In */}
+      <Animated.View entering={FadeIn.duration(300)} style={styles.whiteBackground} />
+      
+      <View style={styles.safeArea}>
+        {step === 'outcome' && renderOutcome()}
+        {step === 'analysis' && renderAnalysis()}
+        {step === 'recovery' && renderRecovery()}
+      </View>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whiteBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#FFFFFF', // Clean white sheet
+  },
+  safeArea: {
+    width: '100%',
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  contentContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  
+  // --- Header Styles ---
+  iconHeader: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)', // Light orange pill
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 16,
+    gap: 6,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 1,
+  },
+  mainQuestion: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.text,
+    textAlign: 'center',
+    lineHeight: 34,
+  },
+
+  // --- Card Styles (New) ---
+  cardContainer: {
+    width: '100%',
+    gap: 16,
+  },
+  successCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4', // Very light green
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    padding: 20,
+    borderRadius: 24,
+    shadowColor: '#16A34A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  successIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#16A34A', // Green
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  cardTextContent: {
+    flex: 1,
+  },
+  successTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#14532D', // Dark green text
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  successSubtitle: {
+    fontSize: 14,
+    color: '#15803D',
+    fontWeight: '500',
+  },
+
+  failCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB', // Light Gray
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    padding: 20,
+    borderRadius: 24,
+  },
+  failIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  failTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  failSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+
+  // --- Reuse existing styles for other steps ---
+  headerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 2,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  headerSubtitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  gridItem: {
+    width: '47%',
+    aspectRatio: 1.2,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  gridItemSelected: {
+    borderColor: colors.primary,
+    backgroundColor: '#FFFBEB',
+  },
+  gridIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  gridLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  gridLabelSelected: {
+    color: colors.primaryDark,
+  },
+  timeControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 20,
+    marginBottom: 40,
+  },
+  timeBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timeDisplay: {
+    alignItems: 'center',
+  },
+  timeValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  timeUnit: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: 1,
+  },
+  confirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    width: '100%',
+    paddingVertical: 18,
+    borderRadius: 24,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+    gap: 8,
+  },
+  confirmText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+});
+</file>
+
 <file path="src/components/SwipableCardStack.tsx">
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
@@ -13629,6 +12775,43 @@ export interface ProductivityRating {
 }
 </file>
 
+<file path="app.json">
+{
+  "expo": {
+    "name": "productivity-ai",
+    "slug": "productivity-ai",
+    "owner": "goathezisplash123",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF8E7"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hezisplash133.productivityai"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF8E7"
+      },
+      "package": "com.hezisplash133.productivityai"
+    },
+    // CHANGED THIS LINE BELOW:
+    "scheme": "productivity-ai-goat",
+    "plugins": [
+      "expo-router",
+      "expo-apple-authentication"
+    ],
+    "sdkVersion": "54.0.0"
+  }
+}
+</file>
+
 <file path="app/goal-detail.tsx">
 import React, { useMemo, useState } from 'react';
 import { 
@@ -14403,315 +13586,398 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="backend/src/index.ts">
-import express from 'express';
-import cors from 'cors';
-import { PrismaClient } from '@prisma/client';
+<file path="app/profile.tsx">
+import React, { useEffect, useState, useMemo } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Modal, 
+  Switch,
+  Alert 
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import Animated, { FadeInDown, SlideInUp } from 'react-native-reanimated';
+import { 
+  ChevronLeft, 
+  Settings, 
+  Zap, 
+  Clock, 
+  Trophy, 
+  Target, 
+  Archive, 
+  CheckCircle2, 
+  User,
+  Moon,
+  Sunrise,
+  Coffee,
+  Bell,
+  LogOut,
+  ChevronRight,
+  X
+} from 'lucide-react-native';
+import { lightColors as colors } from '../src/constants/colors';
+import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
 
-const prisma = new PrismaClient();
-const app = express();
+// --- HELPER COMPONENTS ---
 
-const PORT = Number(process.env.PORT) || 3000;
-
-app.use(cors());
-app.use(express.json());
-
-// --- DATE HELPERS ---
-const isSameDay = (d1: Date, d2: Date) => {
-  return d1.toISOString().split('T')[0] === d2.toISOString().split('T')[0];
+const MissionHistoryCard = ({ goal, delay }: { goal: any, delay: number }) => {
+  const totalTasks = goal.tasks ? goal.tasks.length : 0;
+  const totalDuration = goal.tasks ? goal.tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0) : 0;
+  
+  return (
+    <Animated.View 
+      entering={FadeInDown.delay(delay).springify()}
+      style={styles.historyCard}
+    >
+      <View style={styles.historyHeader}>
+        <View style={styles.historyIcon}>
+          <CheckCircle2 size={20} color="#10B981" />
+        </View>
+        <View style={styles.historyTitleBox}>
+          <Text style={styles.historyTitle} numberOfLines={1}>{goal.title}</Text>
+          <Text style={styles.historyDate}>
+            {new Date(goal.completedAt || goal.createdAt).toLocaleDateString()}
+          </Text>
+        </View>
+      </View>
+      
+      <View style={styles.historyStats}>
+        <View style={styles.historyStatItem}>
+          <Clock size={12} color={colors.textSecondary} />
+          <Text style={styles.historyStatText}>{(totalDuration / 60).toFixed(1)}h Focused</Text>
+        </View>
+        <View style={styles.historyStatItem}>
+          <Target size={12} color={colors.textSecondary} />
+          <Text style={styles.historyStatText}>{totalTasks} Tasks</Text>
+        </View>
+        <View style={styles.historyBadge}>
+          <Text style={styles.historyBadgeText}>COMPLETED</Text>
+        </View>
+      </View>
+    </Animated.View>
+  );
 };
 
-const isYesterday = (today: Date, past: Date) => {
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  return isSameDay(yesterday, past);
+const StatBox = ({ label, value, icon: Icon, delay }: any) => (
+  <Animated.View 
+    entering={FadeInDown.delay(delay).springify()}
+    style={styles.statBox}
+  >
+    <View style={styles.statIconBg}>
+      <Icon size={20} color={colors.primary} />
+    </View>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </Animated.View>
+);
+
+const SettingsModal = ({ visible, onClose, onLogout }: any) => {
+  const [notifications, setNotifications] = useState(true);
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={styles.settingsContainer}>
+        <View style={styles.settingsHeader}>
+          <Text style={styles.settingsTitle}>Settings</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <X size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.settingsContent}>
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>PREFERENCES</Text>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#EEF2FF' }]}>
+                  <Bell size={20} color="#4F46E5" />
+                </View>
+                <Text style={styles.settingText}>Push Notifications</Text>
+              </View>
+              <Switch 
+                value={notifications} 
+                onValueChange={setNotifications}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+          </View>
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
+            
+            <TouchableOpacity style={styles.settingRow}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
+                  <User size={20} color={colors.text} />
+                </View>
+                <Text style={styles.settingText}>Edit Profile</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.settingRow} onPress={onLogout}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
+                  <LogOut size={20} color={colors.error} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>Productivity AI v1.0.2</Text>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
 };
 
-// --- LOGGING ---
-app.use((req, res, next) => {
-  console.log(`\n📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
-  next();
-});
+// --- MAIN COMPONENT ---
 
-// ==========================================
-// AUTH ROUTES
-// ==========================================
+export default function ProfileScreen() {
+  const router = useRouter();
+  const { user, goals, setUser } = useApp();
+  const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
-app.post('/register', async (req, res) => {
-  const { email, name, password, onboardingData } = req.body;
-  try {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) return res.status(400).json({ error: 'User already exists' });
-
-    const user = await prisma.user.create({
-      data: { 
-        email, 
-        name: name || 'Operative', 
-        password, 
-        provider: 'email',
-        onboardingData 
-      },
+  // Filter for archived/completed goals
+  const archivedGoals = useMemo(() => {
+    return goals.filter(g => g.status === 'archived').sort((a, b) => {
+      const dateA = new Date(a.completedAt || a.createdAt).getTime();
+      const dateB = new Date(b.completedAt || b.createdAt).getTime();
+      return dateB - dateA; // Newest first
     });
-    console.log(`✅ Registered user: ${email}`);
-    res.json(user);
-  } catch (error) {
-    console.error('Register Error:', error);
-    res.status(500).json({ error: 'Failed to register' });
-  }
-});
+  }, [goals]);
 
-app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    
-    if (!user) return res.status(401).json({ error: 'User not found' });
-
-    if (!user.password && user.provider !== 'email') {
-      return res.status(400).json({ error: `Please log in with ${user.provider}` });
-    }
-
-    if (user.password !== password) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    console.log(`🔑 Logged in: ${email}`);
-    res.json(user);
-  } catch (error) {
-    console.error('Login Error:', error);
-    res.status(500).json({ error: 'Login failed' });
-  }
-});
-
-app.post('/auth/social', async (req, res) => {
-  const { email, name, provider, socialId, onboardingData } = req.body;
-
-  try {
-    let user = null;
-    
-    // 1. Try lookup by Social ID (Stable identifier)
-    if (socialId) {
-      user = await prisma.user.findUnique({ where: { socialId } });
-    }
-
-    // 2. Try lookup by Email (Legacy/First time/Linking)
-    if (!user && email) {
-      user = await prisma.user.findUnique({ where: { email } });
-      
-      // If user found by email but missing socialId, link them now
-      if (user && socialId && !user.socialId) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { socialId }
-        });
-      }
-    }
-
-    // 3. If still no user, Create one
-    if (!user) {
-      // If email is missing (e.g. Apple Hide My Email), use a unique placeholder
-      const finalEmail = email || `${socialId}@privaterelay.appleid.com`;
-
-      user = await prisma.user.create({
-        data: {
-          email: finalEmail,
-          socialId: socialId,
-          name: name || 'Operative',
-          provider: provider || 'social',
-          password: null,
-          onboardingData: onboardingData || null, // Save onboarding if provided
-        },
-      });
-      console.log(`🆕 Created social user: ${finalEmail} (${provider})`);
-    } else {
-      console.log(`👋 Social login: ${user.email}`);
-      
-      // 4. If user exists AND we passed new onboarding data (from wizard), update it
-      if (onboardingData) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { onboardingData }
-        });
-        console.log(`📝 Updated onboarding data for ${user.email}`);
-      }
-    }
-
-    res.json(user);
-  } catch (error) {
-    console.error('Social Auth Error:', error);
-    res.status(500).json({ error: 'Social authentication failed' });
-  }
-});
-
-// ==========================================
-// USER ROUTES
-// ==========================================
-
-app.get('/users/:email', async (req, res) => {
-  const { email } = req.params;
-  try {
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { goals: { include: { tasks: true } } }
-    });
-    
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    let tasksCrushed = 0;
-    let totalMinutes = 0;
-    user.goals.forEach(goal => {
-      goal.tasks.forEach(task => {
-        if (task.status === 'completed') {
-          tasksCrushed++;
-          totalMinutes += task.duration;
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user?.email) {
+        try {
+          const data = await apiService.getUserProfile(user.email);
+          setProfileData(data);
+        } catch (error) {
+          console.error("Failed to load profile", error);
+        } finally {
+          setLoading(false);
         }
-      });
-    });
-
-    res.json({
-      ...user,
-      stats: {
-        tasksCrushed,
-        hoursFocused: (totalMinutes / 60).toFixed(1),
-        streak: user.currentStreak, 
-        level: Math.floor(tasksCrushed / 5) + 1
+      } else {
+        setLoading(false);
       }
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch profile' });
-  }
-});
+    };
+    fetchProfile();
+  }, [user]);
 
-// Update User (e.g. for saving onboarding later)
-app.patch('/users/:email', async (req, res) => {
-  const { email } = req.params;
-  const updates = req.body;
-  try {
-    const user = await prisma.user.update({
-      where: { email },
-      data: updates
-    });
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update user' });
-  }
-});
+  const handleLogout = () => {
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Log Out", 
+        style: "destructive", 
+        onPress: () => {
+          setSettingsVisible(false);
+          setUser(null);
+          router.replace('/auth');
+        }
+      }
+    ]);
+  };
 
-app.get('/leaderboard', async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      orderBy: { currentStreak: 'desc' },
-      take: 10,
-      select: { id: true, name: true, currentStreak: true }
-    });
+  // Helper for icons based on archetype
+  const getArchetypeIcon = () => {
+    const arch = profileData?.onboardingData?.focusWindow;
+    if (arch === 'night-owl') return Moon;
+    if (arch === 'early-bird') return Sunrise;
+    return Coffee; // Default
+  };
+  const ArchetypeIcon = getArchetypeIcon();
 
-    const leaderboard = users.map(user => ({
-      id: user.id,
-      name: user.name || 'Operative',
-      streak: user.currentStreak,
-    }));
-    
-    res.json(leaderboard);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch leaderboard' });
-  }
-});
-
-// ==========================================
-// GOAL & TASK ROUTES
-// ==========================================
-
-app.post('/goals', async (req, res) => {
-  const { title, userEmail } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email: userEmail }});
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const goal = await prisma.goal.create({
-      data: { title, userId: user.id }
-    });
-    res.json(goal);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create goal' });
-  }
-});
-
-app.patch('/goals/:goalId', async (req, res) => {
-  const { goalId } = req.params;
-  const updates = req.body;
-  try {
-    const goal = await prisma.goal.update({
-      where: { id: goalId },
-      data: updates
-    });
-    res.json(goal);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update goal' });
-  }
-});
-
-app.post('/goals/:goalId/tasks', async (req, res) => {
-  const { goalId } = req.params;
-  const { tasks } = req.body; 
-  try {
-    const dbTasks = tasks.map((task: any) => ({
-      title: task.title,
-      description: task.description || '',
-      duration: Number(task.duration) || 15,
-      status: 'queued',
-      goalId: goalId
-    }));
-
-    const createdTasks = await prisma.$transaction(
-      dbTasks.map((t: any) => prisma.task.create({ data: t }))
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
     );
-    res.json(createdTasks);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to add tasks' });
   }
-});
 
-app.patch('/tasks/:taskId', async (req, res) => {
-  const { taskId } = req.params;
-  const updates = req.body; 
-  try {
-    const cleanUpdates: any = {};
-    if (updates.status !== undefined) cleanUpdates.status = updates.status;
-    if (updates.completed !== undefined) cleanUpdates.status = updates.completed ? 'completed' : 'queued';
-    if (updates.duration !== undefined) cleanUpdates.duration = updates.duration;
-    if (updates.productivityRating !== undefined) cleanUpdates.productivityRating = updates.productivityRating;
+  return (
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+            <ChevronLeft size={28} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Operative Profile</Text>
+          <TouchableOpacity 
+            style={styles.iconBtn} 
+            onPress={() => setSettingsVisible(true)}
+          >
+            <Settings size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
 
-    const task = await prisma.task.update({
-      where: { id: taskId },
-      data: cleanUpdates,
-      include: { goal: { include: { user: true } } }
-    });
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          
+          {/* Identity Card */}
+          <Animated.View 
+            entering={FadeInDown.delay(100).springify()}
+            style={styles.identityCard}
+          >
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatarText}>{profileData?.name?.[0] || "U"}</Text>
+            </View>
+            <View style={styles.identityText}>
+              <Text style={styles.userName}>{profileData?.name || "Unknown Agent"}</Text>
+              <Text style={styles.userLevel}>
+                Level {profileData?.stats?.level || 1} Strategist
+              </Text>
+            </View>
+            <View style={styles.archetypeBadge}>
+              <Text style={styles.archetypeText}>
+                {profileData?.onboardingData?.workArchetype || "Recruit"}
+              </Text>
+            </View>
+          </Animated.View>
 
-    if (cleanUpdates.status === 'completed') {
-      const user = task.goal.user;
-      const today = new Date();
-      const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
-      let newStreak = user.currentStreak;
+          {/* Efficiency Metrics */}
+          <Text style={styles.sectionHeader}>Efficiency Metrics</Text>
+          <View style={styles.statsGrid}>
+            <StatBox label="Streak" value={`${profileData?.stats?.streak || 0} Day`} icon={Zap} delay={200} />
+            <StatBox label="Hours" value={`${profileData?.stats?.hoursFocused || 0}h`} icon={Clock} delay={300} />
+            <StatBox label="Tasks" value={profileData?.stats?.tasksCrushed || 0} icon={Trophy} delay={400} />
+          </View>
 
-      if (!lastActive) newStreak = 1;
-      else if (isSameDay(today, lastActive)) newStreak = user.currentStreak;
-      else if (isYesterday(today, lastActive)) newStreak = user.currentStreak + 1;
-      else newStreak = 1;
+          {/* Cognitive DNA - RESTORED */}
+          <Text style={styles.sectionHeader}>Cognitive DNA</Text>
+          <View style={styles.dnaContainer}>
+            {profileData?.onboardingData?.focusWindow && (
+                <Animated.View entering={FadeInDown.delay(500)} style={styles.dnaTag}>
+                    <ArchetypeIcon size={14} color={colors.primary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: colors.primary }]}>
+                        {profileData.onboardingData.focusWindow.replace('-', ' ').toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
+            
+            {profileData?.onboardingData?.distraction && (
+                <Animated.View entering={FadeInDown.delay(600)} style={styles.dnaTag}>
+                    <Target size={14} color="#10B981" style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: "#10B981" }]}>
+                        FIGHTING: {profileData.onboardingData.distraction.toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
+          </View>
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { currentStreak: newStreak, lastActiveDate: today }
-      });
-    }
-    res.json(task);
-  } catch (error) {
-    console.error('Update Task Error:', error);
-    res.status(500).json({ error: 'Failed to update task' });
-  }
-});
+          {/* Mission Archive Section */}
+          <View style={styles.archiveHeaderRow}>
+            <Text style={styles.sectionHeader}>Mission Archive</Text>
+            <View style={styles.archiveCountBadge}>
+              <Archive size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
+              <Text style={styles.archiveCountText}>{archivedGoals.length}</Text>
+            </View>
+          </View>
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server ready at http://localhost:${PORT}`);
+          {archivedGoals.length === 0 ? (
+            <View style={styles.emptyArchive}>
+              <Text style={styles.emptyText}>No completed missions yet.</Text>
+            </View>
+          ) : (
+            <View style={styles.archiveList}>
+              {archivedGoals.map((goal, index) => (
+                <MissionHistoryCard key={goal.id} goal={goal} delay={500 + (index * 100)} />
+              ))}
+            </View>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+
+        <SettingsModal 
+          visible={settingsVisible} 
+          onClose={() => setSettingsVisible(false)}
+          onLogout={handleLogout}
+        />
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  iconBtn: { padding: 8, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  scrollContent: { padding: 24 },
+  
+  identityCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4, borderWidth: 1, borderColor: colors.border, marginBottom: 32 },
+  avatarContainer: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  avatarText: { fontSize: 24, fontWeight: 'bold', color: '#FFF' },
+  identityText: { flex: 1 },
+  userName: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 },
+  userLevel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
+  archetypeBadge: { backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  archetypeText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'capitalize' },
+  
+  sectionHeader: { fontSize: 14, fontWeight: '800', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, marginLeft: 4 },
+  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32, gap: 12 },
+  statBox: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+  statIconBg: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  statValue: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4, textAlign: 'center' },
+  statLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary, textAlign: 'center' },
+
+  // DNA Styles
+  dnaContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
+  dnaTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
+  dnaText: { fontSize: 13, fontWeight: '600' },
+
+  // Archive Styles
+  archiveHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  archiveCountBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  archiveCountText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  emptyArchive: { padding: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E5E7EB' },
+  emptyText: { color: colors.textSecondary, fontWeight: '500' },
+  archiveList: { gap: 12 },
+  
+  historyCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F3F4F6', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8 },
+  historyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  historyIcon: { marginRight: 12 },
+  historyTitleBox: { flex: 1 },
+  historyTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+  historyDate: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  historyStats: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  historyStatItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  historyStatText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  historyBadge: { marginLeft: 'auto', backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  historyBadgeText: { fontSize: 10, fontWeight: '800', color: '#059669', letterSpacing: 0.5 },
+
+  // Settings Modal Styles
+  settingsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
+  settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border },
+  settingsTitle: { fontSize: 18, fontWeight: '700' },
+  closeBtn: { padding: 4 },
+  settingsContent: { padding: 24 },
+  settingGroup: { marginBottom: 32 },
+  settingGroupTitle: { fontSize: 12, fontWeight: '800', color: colors.textLight, marginBottom: 12, marginLeft: 4 },
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+  settingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  settingIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  settingText: { fontSize: 16, fontWeight: '600', color: colors.text },
+  versionContainer: { alignItems: 'center', marginTop: 20 },
+  versionText: { color: colors.textLight, fontSize: 12 },
 });
 </file>
 
@@ -14746,56 +14012,6 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-</file>
-
-<file path="package.json">
-{
-  "name": "productivity-ai",
-  "version": "1.0.0",
-  "main": "expo-router/entry",
-  "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
-  },
-  "dependencies": {
-    "@react-native-async-storage/async-storage": "^2.2.0",
-    "@shopify/react-native-skia": "2.2.12",
-    "babel-preset-expo": "~54.0.9",
-    "expo": "~54.0.0",
-    "expo-apple-authentication": "~8.0.8",
-    "expo-auth-session": "~7.0.10",
-    "expo-crypto": "~15.0.8",
-    "expo-haptics": "^15.0.8",
-    "expo-keep-awake": "~15.0.8",
-    "expo-linking": "~8.0.11",
-    "expo-network": "~8.0.8",
-    "expo-router": "~6.0.21",
-    "expo-sensors": "~15.0.8",
-    "expo-status-bar": "~3.0.9",
-    "expo-web-browser": "~15.0.10",
-    "lottie-react-native": "~7.3.1",
-    "lucide-react-native": "^0.562.0",
-    "moti": "^0.30.0",
-    "react": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-confetti-cannon": "^1.5.2",
-    "react-native-gesture-handler": "~2.28.0",
-    "react-native-reanimated": "~4.1.1",
-    "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0",
-    "react-native-svg": "15.12.1",
-    "react-native-worklets": "0.5.1",
-    "react-native-worklets-core": "^1.6.2"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.24.0",
-    "@types/react": "~19.1.10",
-    "typescript": "^5.3.3"
-  },
-  "private": true
-}
 </file>
 
 <file path="src/components/GhostHoursCalculator.tsx">
@@ -16023,339 +15239,453 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/TaskReactorCircle.tsx">
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
-import Animated, {
-  useSharedValue,
-  useAnimatedProps,
-  withTiming,
-  useAnimatedStyle,
-  withSpring,
-  withRepeat,
-  withSequence,
-  Easing,
-  interpolate,
-} from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-
-export interface TaskGoal {
-  id: string;
-  title: string;
-  color: string;
-  totalTime: number;
-  subTasks: {
-    id: string;
-    title: string;
-    duration: number;
-    isCompleted: boolean;
-  }[];
-  isFullyComplete?: boolean;
-}
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-const AnimatedView = Animated.createAnimatedComponent(View);
-const AnimatedText = Animated.createAnimatedComponent(Text);
-
-const CIRCLE_SIZE = 160; 
-const STROKE_WIDTH = 14;
-const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-
-const ARC_ANGLE = 270;
-const ARC_LENGTH = (ARC_ANGLE / 360) * CIRCUMFERENCE;
-const ROTATION = 135;
-
-const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress: (g: TaskGoal) => void }) => {
-  const animatedProgress = useSharedValue(0);
-  const scale = useSharedValue(1);
-  
-  // Single master value for the breathing glow animation (0 to 1)
-  const glowPhase = useSharedValue(0);
-
-  const completedCount = taskGoal.subTasks ? taskGoal.subTasks.filter((st) => st.isCompleted).length : 0;
-  const totalCount = taskGoal.subTasks ? taskGoal.subTasks.length : 1;
-  const percentage = totalCount > 0 ? completedCount / totalCount : 0;
-  const isComplete = percentage === 1;
-
-  useEffect(() => {
-    animatedProgress.value = withTiming(percentage, {
-      duration: 1200,
-      easing: Easing.out(Easing.cubic),
-    });
-
-    if (isComplete) {
-      // Continuous smooth breathing animation
-      glowPhase.value = withRepeat(
-        withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true // Reverse direction to make it breathe in and out
-      );
-    } else {
-        glowPhase.value = 0;
-    }
-  }, [percentage, isComplete]);
-
-  const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15 });
-    Haptics.selectionAsync();
-  };
-
-  const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15 });
-  };
-
-  const animatedCircleProps = useAnimatedProps(() => {
-    const targetOffset = CIRCUMFERENCE - (ARC_LENGTH * animatedProgress.value);
-    return {
-      strokeDashoffset: targetOffset,
-    };
-  });
-
-  const cardStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    borderColor: isComplete ? '#F59E0B' : '#F1F5F9',
-  }));
-
-  // Layer 1: Wide expanding ring (Radiates outward)
-  const glowLayer1Style = useAnimatedStyle(() => ({
-    opacity: interpolate(glowPhase.value, [0, 1], [0.4, 0.0]), // Fades out as it expands
-    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [1.0, 1.15]) }], // Expands outward
-  }));
-
-  // Layer 2: Intense backing glow (Pulses intensity)
-  const glowLayer2Style = useAnimatedStyle(() => ({
-    opacity: interpolate(glowPhase.value, [0, 1], [0.2, 0.5]),
-    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [0.98, 1.02]) }],
-  }));
-
-  // Text Pulse: Makes the "TAP TO CLAIM" text breathe
-  const textPulseStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(glowPhase.value, [0, 1], [0.7, 1]),
-    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [0.95, 1.05]) }],
-  }));
-
-  const gradientId = `neon-${isComplete ? 'gold' : 'blue'}-${taskGoal.id}`;
-
-  return (
-    <Animated.View style={[styles.container, cardStyle]}>
-      {isComplete && (
-        <>
-          {/* Layer 1: Wide expanding ring */}
-          <AnimatedView style={[styles.glowRing, glowLayer1Style]} />
-          {/* Layer 2: Intense backing glow */}
-          <AnimatedView style={[styles.glowBackground, glowLayer2Style]} />
-        </>
-      )}
-      
-      <Pressable 
-        onPress={() => onPress(taskGoal)}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        style={[styles.card, isComplete && styles.completedCard]}
-      >
-        <View style={styles.gaugeContainer}>
-          <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
-            <Defs>
-              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-                <Stop offset="0%" stopColor={isComplete ? "#F59E0B" : "#00F0FF"} />
-                <Stop offset="100%" stopColor={isComplete ? "#FBBF24" : "#2563EB"} />
-              </LinearGradient>
-            </Defs>
-
-            {/* Track */}
-            <Circle
-              cx={CIRCLE_SIZE / 2}
-              cy={CIRCLE_SIZE / 2}
-              r={RADIUS}
-              stroke={isComplete ? "rgba(245, 158, 11, 0.1)" : "#F1F5F9"}
-              strokeWidth={STROKE_WIDTH}
-              fill="transparent"
-              strokeLinecap="round"
-              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
-              rotation={ROTATION}
-              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
-            />
-
-            {/* Progress Fill */}
-            <AnimatedCircle
-              cx={CIRCLE_SIZE / 2}
-              cy={CIRCLE_SIZE / 2}
-              r={RADIUS}
-              stroke={`url(#${gradientId})`}
-              strokeWidth={STROKE_WIDTH}
-              fill="transparent"
-              strokeLinecap="round"
-              strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
-              rotation={ROTATION}
-              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
-              animatedProps={animatedCircleProps}
-            />
-          </Svg>
-          
-          <View style={styles.centerContent}>
-            {isComplete ? (
-                <>
-                    <Text style={[styles.percentText, { color: '#D97706' }]}>100%</Text>
-                    <Text style={styles.completedLabel}>COMPLETE</Text>
-                    <AnimatedText style={[styles.tapToClaimLabel, textPulseStyle]}>
-                        TAP TO CLAIM
-                    </AnimatedText>
-                </>
-            ) : (
-                <Text style={styles.percentText}>{Math.round(percentage * 100)}%</Text>
-            )}
-          </View>
-        </View>
-
-        <View style={styles.infoContainer}>
-          <Text style={[styles.title, isComplete && { color: '#B45309' }]} numberOfLines={1}>
-            {taskGoal.title}
-          </Text>
-          <Text style={[styles.description, isComplete && { color: '#D97706' }]}>
-            {completedCount} / {totalCount} Steps
-          </Text>
-        </View>
-      </Pressable>
-    </Animated.View>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: { width: '48%', marginBottom: 16 },
-  glowBackground: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#F59E0B',
-    borderRadius: 24,
-    zIndex: -1,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 15,
-    elevation: 10,
-  },
-  glowRing: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#F59E0B',
-    zIndex: -2,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  completedCard: {
-    backgroundColor: '#FFFBEB', // Light gold bg
-    borderColor: '#FCD34D',
-  },
-  gaugeContainer: {
-    position: 'relative',
-    width: CIRCLE_SIZE,
-    height: CIRCLE_SIZE - 25,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    marginBottom: 4,
-  },
-  centerContent: {
-    position: 'absolute',
-    top: 0, 
-    left: 0, 
-    right: 0, 
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: 10,
-  },
-  percentText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1A1A1A',
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    letterSpacing: -1,
-  },
-  completedLabel: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#F59E0B',
-    marginTop: 4,
-    letterSpacing: 1,
-  },
-  tapToClaimLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#B45309', // Darker gold/brown for contrast
-    marginTop: 4,
-    letterSpacing: 0.5,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  infoContainer: {
-    alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: 4,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E293B',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  description: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#64748B',
-  },
-});
-
-export default TaskReactorCircle;
-</file>
-
 <file path="src/config/api.ts">
 export const API_BASE_URL = 'https://emile-actiniform-omer.ngrok-free.dev';
 </file>
 
-<file path="app/onboarding.tsx">
-import React from 'react';
-import { OnboardingWizard, OnboardingData } from '../src/components/OnboardingWizard';
-import { useRouter } from 'expo-router';
+<file path="app/auth.tsx">
+import React, { useState, useEffect } from 'react';
+import { 
+  View, Text, StyleSheet, TextInput, TouchableOpacity, 
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert 
+} from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { apiService } from '../src/services/api';
 import { useApp } from '../src/context/AppContext';
+import { lightColors as colors } from '../src/constants/colors';
+import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import Svg, { Path } from 'react-native-svg'; 
 
-export default function OnboardingScreen() {
+// --- AUTH IMPORTS ---
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { makeRedirectUri } from 'expo-auth-session';
+import { auth, GoogleAuthProvider, signInWithCredential } from '../src/config/firebase'; 
+
+// Ensure the browser closes on redirect
+WebBrowser.maybeCompleteAuthSession();
+
+export default function AuthScreen() {
   const router = useRouter();
-  const { user, saveOnboarding } = useApp();
+  const params = useLocalSearchParams();
+  const { setUser } = useApp();
+  
+  const onboardingDataString = params.onboardingData as string;
+  const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
 
-  const handleComplete = async (data: OnboardingData) => {
-    if (user) {
-      // User is already logged in (came from auth screen but had incomplete profile)
-      await saveOnboarding(data);
-      router.replace('/home');
-    } else {
-      // User is new, needs to create account
-      router.push({
-        pathname: '/auth',
-        params: { onboardingData: JSON.stringify(data) }
+  const [isLogin, setIsLogin] = useState(params.mode === 'login');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // --- FIREBASE GOOGLE AUTH SETUP ---
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: "204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com",
+    // This points to the Expo Proxy, which redirects to your unique scheme
+    redirectUri: "https://auth.expo.io/@goathezisplash123/productivity-ai",
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleFirebaseSignIn(id_token);
+    } else if (response?.type === 'error') {
+      console.error("Google Auth Error:", response.error);
+      Alert.alert("Auth Failed", "Could not connect to Google.");
+    }
+  }, [response]);
+
+  const handleFirebaseSignIn = async (idToken: string) => {
+    setLoading(true);
+    try {
+      // 1. Sign in to Firebase
+      const credential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      const firebaseUser = userCredential.user;
+
+      // 2. Sync with YOUR Backend
+      const backendUser = await apiService.socialLogin({
+        email: firebaseUser.email,
+        name: firebaseUser.displayName,
+        socialId: firebaseUser.uid, 
+        provider: 'google',
+        onboardingData: onboardingData
       });
+
+      handleAuthSuccess(backendUser);
+
+    } catch (error: any) {
+      console.error("Firebase Login Error:", error);
+      Alert.alert("Login Failed", error.message);
+      setLoading(false);
     }
   };
 
-  return <OnboardingWizard onComplete={handleComplete} />;
+  const handleAppleLogin = async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      setLoading(true);
+      
+      let fullName = null;
+      if (credential.fullName?.givenName) {
+        fullName = `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim();
+      }
+
+      const backendUser = await apiService.socialLogin({
+        email: credential.email, 
+        socialId: credential.user, 
+        name: fullName,
+        provider: 'apple',
+        onboardingData: onboardingData
+      });
+
+      handleAuthSuccess(backendUser);
+
+    } catch (e: any) {
+      if (e.code !== 'ERR_CANCELED') {
+        Alert.alert('Apple Login Failed', e.message);
+      }
+      setLoading(false);
+    }
+  };
+
+  const handleAuthSuccess = (responseUser: any) => {
+    setUser(responseUser);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (responseUser.onboardingData) {
+      router.replace('/home');
+    } else {
+      Alert.alert(
+        "Setup Required",
+        "We need to calibrate your profile before we begin.",
+        [
+          { 
+            text: "Start Assessment", 
+            onPress: () => router.replace('/ghost-hours') 
+          }
+        ]
+      );
+    }
+    setLoading(false);
+  };
+
+  const handleSubmit = async () => {
+    if (!email || !password || (!isLogin && !name)) {
+      Alert.alert('Missing Fields', 'Please fill in all fields.');
+      return;
+    }
+
+    if (!isLogin && !onboardingData) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        "Assessment Required",
+        "You cannot create an account without a personalized plan.",
+        [
+          { text: "Go to Onboarding", onPress: () => router.replace('/ghost-hours') },
+          { text: "Cancel", style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    setLoading(true);
+    Haptics.selectionAsync();
+
+    try {
+      let responseUser;
+      if (isLogin) {
+        responseUser = await apiService.login({ email, password });
+      } else {
+        responseUser = await apiService.register({
+          email,
+          name,
+          password,
+          onboardingData 
+        });
+      }
+      handleAuthSuccess(responseUser);
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Authentication Failed', error.message);
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <StatusBar style="dark" />
+      
+      <View style={styles.content}>
+        <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
+        <Text style={styles.subtitle}>
+          {isLogin 
+            ? 'Sign in to access your dashboard.' 
+            : 'Create an account to save your productivity plan.'}
+        </Text>
+
+        <View style={styles.form}>
+          {!isLogin && (
+            <View style={styles.inputContainer}>
+              <User size={20} color={colors.textSecondary} style={styles.icon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Full Name"
+                value={name}
+                onChangeText={setName}
+                placeholderTextColor={colors.textLight}
+              />
+            </View>
+          )}
+
+          <View style={styles.inputContainer}>
+            <Mail size={20} color={colors.textSecondary} style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholderTextColor={colors.textLight}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Lock size={20} color={colors.textSecondary} style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholderTextColor={colors.textLight}
+            />
+          </View>
+
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.buttonText}>
+                  {isLogin ? 'Log In' : 'Complete Setup'}
+                </Text>
+                <ArrowRight size={20} color="#FFFFFF" />
+              </>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or continue with</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <View style={styles.socialButtonsContainer}>
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity 
+                style={styles.appleCustomButton} 
+                onPress={handleAppleLogin}
+              >
+                <View style={styles.iconContainer}>
+                  <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
+                    <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
+                  </Svg>
+                </View>
+                <Text style={styles.appleButtonText}>Continue with Apple</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Google Login with Firebase */}
+            <TouchableOpacity 
+              style={styles.googleButton} 
+              onPress={() => {
+                if (request) promptAsync();
+                else Alert.alert("Setup Required", "Google ID not configured in auth.tsx");
+              }}
+            >
+              <View style={styles.iconContainer}>
+                <Svg width={24} height={24} viewBox="0 0 48 48">
+                  <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                  <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                  <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                  <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                </Svg>
+              </View>
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity 
+            style={styles.switchButton} 
+            onPress={() => {
+              setIsLogin(!isLogin);
+            }}
+          >
+            <Text style={styles.switchText}>
+              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  content: {
+    flex: 1,
+    padding: 30,
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginBottom: 32,
+  },
+  form: {
+    gap: 16,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundLight,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    height: 56,
+    paddingHorizontal: 16,
+  },
+  icon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    height: 56,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+  switchButton: {
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  switchText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    color: colors.textLight,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  socialButtonsContainer: {
+    gap: 12,
+  },
+  appleCustomButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#000000', 
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  appleButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  googleButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  iconContainer: {
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#1A1A1A',
+  },
+});
 </file>
 
 <file path="app/welcome.tsx">
@@ -16889,177 +16219,619 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="backend/prisma/schema.prisma">
-generator client {
-  provider = "prisma-client-js"
-}
+<file path="backend/src/index.ts">
+import express from 'express';
+import cors from 'cors';
+import { PrismaClient } from '@prisma/client';
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+const prisma = new PrismaClient();
+const app = express();
 
-model User {
-  id             String   @id @default(uuid())
-  email          String   @unique
-  socialId       String?  @unique // <--- ADD THIS LINE
-  name           String?
-  
-  password       String?
-  provider       String   @default("email")
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
-  currentStreak  Int      @default(0)
-  lastActiveDate DateTime? 
-  
-  onboardingData Json?
-  goals          Goal[]
-}
+const PORT = Number(process.env.PORT) || 3000;
 
-// ... Goal and Task models remain the same ...
-model Goal {
-  id        String   @id @default(uuid())
-  title     String
-  status    String   @default("active")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  tasks     Task[]
-}
+app.use(cors());
+app.use(express.json());
 
-model Task {
-  id          String   @id @default(uuid())
-  title       String
-  description String?
-  duration    Int
-  status      String   @default("queued")
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  goalId      String
-  goal        Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
-}
+// --- DATE HELPERS ---
+const isSameDay = (d1: Date, d2: Date) => {
+  return d1.toISOString().split('T')[0] === d2.toISOString().split('T')[0];
+};
+
+const isYesterday = (today: Date, past: Date) => {
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return isSameDay(yesterday, past);
+};
+
+// --- LOGGING ---
+app.use((req, res, next) => {
+  console.log(`\n📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// ==========================================
+// AUTH ROUTES
+// ==========================================
+
+app.post('/register', async (req, res) => {
+  const { email, name, password, onboardingData } = req.body;
+  try {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) return res.status(400).json({ error: 'User already exists' });
+
+    const user = await prisma.user.create({
+      data: { 
+        email, 
+        name: name || 'Operative', 
+        password, 
+        provider: 'email',
+        onboardingData 
+      },
+    });
+    console.log(`✅ Registered user: ${email}`);
+    res.json(user);
+  } catch (error) {
+    console.error('Register Error:', error);
+    res.status(500).json({ error: 'Failed to register' });
+  }
+});
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    
+    if (!user) return res.status(401).json({ error: 'User not found' });
+
+    if (!user.password && user.provider !== 'email') {
+      return res.status(400).json({ error: `Please log in with ${user.provider}` });
+    }
+
+    if (user.password !== password) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    console.log(`🔑 Logged in: ${email}`);
+    res.json(user);
+  } catch (error) {
+    console.error('Login Error:', error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.post('/auth/social', async (req, res) => {
+  const { email, name, provider, socialId, onboardingData } = req.body;
+
+  try {
+    let user = null;
+    
+    // 1. Try lookup by Social ID (Stable identifier)
+    if (socialId) {
+      user = await prisma.user.findUnique({ where: { socialId } });
+    }
+
+    // 2. Try lookup by Email (Legacy/First time/Linking)
+    if (!user && email) {
+      user = await prisma.user.findUnique({ where: { email } });
+      
+      // If user found by email but missing socialId, link them now
+      if (user && socialId && !user.socialId) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { socialId }
+        });
+      }
+    }
+
+    // 3. If still no user, Create one
+    if (!user) {
+      // If email is missing (e.g. Apple Hide My Email), use a unique placeholder
+      const finalEmail = email || `${socialId}@privaterelay.appleid.com`;
+
+      user = await prisma.user.create({
+        data: {
+          email: finalEmail,
+          socialId: socialId,
+          name: name || 'Operative',
+          provider: provider || 'social',
+          password: null,
+          onboardingData: onboardingData || null, // Save onboarding if provided
+        },
+      });
+      console.log(`🆕 Created social user: ${finalEmail} (${provider})`);
+    } else {
+      console.log(`👋 Social login: ${user.email}`);
+      
+      // 4. If user exists AND we passed new onboarding data (from wizard), update it
+      if (onboardingData) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { onboardingData }
+        });
+        console.log(`📝 Updated onboarding data for ${user.email}`);
+      }
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Social Auth Error:', error);
+    res.status(500).json({ error: 'Social authentication failed' });
+  }
+});
+
+// ==========================================
+// USER ROUTES
+// ==========================================
+
+app.get('/users/:email', async (req, res) => {
+  const { email } = req.params;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { goals: { include: { tasks: true } } }
+    });
+    
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    let tasksCrushed = 0;
+    let totalMinutes = 0;
+    user.goals.forEach(goal => {
+      goal.tasks.forEach(task => {
+        if (task.status === 'completed') {
+          tasksCrushed++;
+          totalMinutes += task.duration;
+        }
+      });
+    });
+
+    res.json({
+      ...user,
+      stats: {
+        tasksCrushed,
+        hoursFocused: (totalMinutes / 60).toFixed(1),
+        streak: user.currentStreak, 
+        level: Math.floor(tasksCrushed / 5) + 1
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// Update User (e.g. for saving onboarding later)
+app.patch('/users/:email', async (req, res) => {
+  const { email } = req.params;
+  const updates = req.body;
+  try {
+    const user = await prisma.user.update({
+      where: { email },
+      data: updates
+    });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+app.get('/leaderboard', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { currentStreak: 'desc' },
+      take: 10,
+      select: { id: true, name: true, currentStreak: true }
+    });
+
+    const leaderboard = users.map(user => ({
+      id: user.id,
+      name: user.name || 'Operative',
+      streak: user.currentStreak,
+    }));
+    
+    res.json(leaderboard);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
+});
+
+// ==========================================
+// GOAL & TASK ROUTES
+// ==========================================
+
+app.post('/goals', async (req, res) => {
+  const { title, userEmail } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email: userEmail }});
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const goal = await prisma.goal.create({
+      data: { title, userId: user.id }
+    });
+    res.json(goal);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create goal' });
+  }
+});
+
+app.patch('/goals/:goalId', async (req, res) => {
+  const { goalId } = req.params;
+  const updates = req.body;
+  try {
+    const goal = await prisma.goal.update({
+      where: { id: goalId },
+      data: updates
+    });
+    res.json(goal);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update goal' });
+  }
+});
+
+app.post('/goals/:goalId/tasks', async (req, res) => {
+  const { goalId } = req.params;
+  const { tasks } = req.body; 
+  try {
+    const dbTasks = tasks.map((task: any) => ({
+      title: task.title,
+      description: task.description || '',
+      duration: Number(task.duration) || 15,
+      status: 'queued',
+      goalId: goalId
+    }));
+
+    const createdTasks = await prisma.$transaction(
+      dbTasks.map((t: any) => prisma.task.create({ data: t }))
+    );
+    res.json(createdTasks);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add tasks' });
+  }
+});
+
+app.patch('/tasks/:taskId', async (req, res) => {
+  const { taskId } = req.params;
+  const updates = req.body; 
+  try {
+    const cleanUpdates: any = {};
+    if (updates.status !== undefined) cleanUpdates.status = updates.status;
+    if (updates.completed !== undefined) cleanUpdates.status = updates.completed ? 'completed' : 'queued';
+    if (updates.duration !== undefined) cleanUpdates.duration = updates.duration;
+    if (updates.productivityRating !== undefined) cleanUpdates.productivityRating = updates.productivityRating;
+
+    const task = await prisma.task.update({
+      where: { id: taskId },
+      data: cleanUpdates,
+      include: { goal: { include: { user: true } } }
+    });
+
+    if (cleanUpdates.status === 'completed') {
+      const user = task.goal.user;
+      const today = new Date();
+      const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
+      let newStreak = user.currentStreak;
+
+      if (!lastActive) newStreak = 1;
+      else if (isSameDay(today, lastActive)) newStreak = user.currentStreak;
+      else if (isYesterday(today, lastActive)) newStreak = user.currentStreak + 1;
+      else newStreak = 1;
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { currentStreak: newStreak, lastActiveDate: today }
+      });
+    }
+    res.json(task);
+  } catch (error) {
+    console.error('Update Task Error:', error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server ready at http://localhost:${PORT}`);
+});
 </file>
 
-<file path="src/services/api.ts">
-import { API_BASE_URL } from '../config/api';
+<file path="src/components/TaskReactorCircle.tsx">
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  withTiming,
+  useAnimatedStyle,
+  withSpring,
+  withRepeat,
+  withSequence,
+  Easing,
+  interpolate,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 
-const getHeaders = () => {
-  return {
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
-    'User-Agent': 'ProductivityAI-Mobile',
-  };
-};
+export interface TaskGoal {
+  id: string;
+  title: string;
+  color: string;
+  totalTime: number;
+  subTasks: {
+    id: string;
+    title: string;
+    duration: number;
+    isCompleted: boolean;
+  }[];
+  isFullyComplete?: boolean;
+}
 
-const handleResponse = async (response: Response) => {
-  const text = await response.text();
-  if (text.trim().startsWith('<')) {
-    console.log('🛑 BLOCKED HTML RESPONSE:', text.substring(0, 200));
-    throw new Error('Server Error: Endpoint returned HTML. Check API URL.');
-  }
-  if (!response.ok) {
-    let errorMessage = `Request failed: ${response.status}`;
-    try {
-      const json = JSON.parse(text);
-      if (json.error) errorMessage = json.error;
-    } catch (e) {
-      errorMessage = text || errorMessage;
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedView = Animated.createAnimatedComponent(View);
+const AnimatedText = Animated.createAnimatedComponent(Text);
+
+const CIRCLE_SIZE = 160; 
+const STROKE_WIDTH = 14;
+const RADIUS = (CIRCLE_SIZE - STROKE_WIDTH) / 2;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+const ARC_ANGLE = 270;
+const ARC_LENGTH = (ARC_ANGLE / 360) * CIRCUMFERENCE;
+const ROTATION = 135;
+
+const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress: (g: TaskGoal) => void }) => {
+  const animatedProgress = useSharedValue(0);
+  const scale = useSharedValue(1);
+  
+  // Single master value for the breathing glow animation (0 to 1)
+  const glowPhase = useSharedValue(0);
+
+  const completedCount = taskGoal.subTasks ? taskGoal.subTasks.filter((st) => st.isCompleted).length : 0;
+  const totalCount = taskGoal.subTasks ? taskGoal.subTasks.length : 1;
+  const percentage = totalCount > 0 ? completedCount / totalCount : 0;
+  const isComplete = percentage === 1;
+
+  useEffect(() => {
+    animatedProgress.value = withTiming(percentage, {
+      duration: 1200,
+      easing: Easing.out(Easing.cubic),
+    });
+
+    if (isComplete) {
+      // Continuous smooth breathing animation
+      glowPhase.value = withRepeat(
+        withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true // Reverse direction to make it breathe in and out
+      );
+    } else {
+        glowPhase.value = 0;
     }
-    throw new Error(errorMessage);
-  }
-  return text ? JSON.parse(text) : null;
+  }, [percentage, isComplete]);
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.96, { damping: 15 });
+    Haptics.selectionAsync();
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15 });
+  };
+
+  const animatedCircleProps = useAnimatedProps(() => {
+    const targetOffset = CIRCUMFERENCE - (ARC_LENGTH * animatedProgress.value);
+    return {
+      strokeDashoffset: targetOffset,
+    };
+  });
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    borderColor: isComplete ? '#F59E0B' : '#F1F5F9',
+  }));
+
+  // Layer 1: Wide expanding ring (Radiates outward)
+  const glowLayer1Style = useAnimatedStyle(() => ({
+    opacity: interpolate(glowPhase.value, [0, 1], [0.4, 0.0]), // Fades out as it expands
+    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [1.0, 1.15]) }], // Expands outward
+  }));
+
+  // Layer 2: Intense backing glow (Pulses intensity)
+  const glowLayer2Style = useAnimatedStyle(() => ({
+    opacity: interpolate(glowPhase.value, [0, 1], [0.2, 0.5]),
+    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [0.98, 1.02]) }],
+  }));
+
+  // Text Pulse: Makes the "TAP TO CLAIM" text breathe
+  const textPulseStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(glowPhase.value, [0, 1], [0.7, 1]),
+    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [0.95, 1.05]) }],
+  }));
+
+  const gradientId = `neon-${isComplete ? 'gold' : 'blue'}-${taskGoal.id}`;
+
+  return (
+    <Animated.View style={[styles.container, cardStyle]}>
+      {isComplete && (
+        <>
+          {/* Layer 1: Wide expanding ring */}
+          <AnimatedView style={[styles.glowRing, glowLayer1Style]} />
+          {/* Layer 2: Intense backing glow */}
+          <AnimatedView style={[styles.glowBackground, glowLayer2Style]} />
+        </>
+      )}
+      
+      <Pressable 
+        onPress={() => onPress(taskGoal)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={[styles.card, isComplete && styles.completedCard]}
+      >
+        <View style={styles.gaugeContainer}>
+          <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
+            <Defs>
+              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                <Stop offset="0%" stopColor={isComplete ? "#F59E0B" : "#00F0FF"} />
+                <Stop offset="100%" stopColor={isComplete ? "#FBBF24" : "#2563EB"} />
+              </LinearGradient>
+            </Defs>
+
+            {/* Track */}
+            <Circle
+              cx={CIRCLE_SIZE / 2}
+              cy={CIRCLE_SIZE / 2}
+              r={RADIUS}
+              stroke={isComplete ? "rgba(245, 158, 11, 0.1)" : "#F1F5F9"}
+              strokeWidth={STROKE_WIDTH}
+              fill="transparent"
+              strokeLinecap="round"
+              strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE}`}
+              rotation={ROTATION}
+              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
+            />
+
+            {/* Progress Fill */}
+            <AnimatedCircle
+              cx={CIRCLE_SIZE / 2}
+              cy={CIRCLE_SIZE / 2}
+              r={RADIUS}
+              stroke={`url(#${gradientId})`}
+              strokeWidth={STROKE_WIDTH}
+              fill="transparent"
+              strokeLinecap="round"
+              strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+              rotation={ROTATION}
+              origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
+              animatedProps={animatedCircleProps}
+            />
+          </Svg>
+          
+          <View style={styles.centerContent}>
+            {isComplete ? (
+                <>
+                    <Text style={[styles.percentText, { color: '#D97706' }]}>100%</Text>
+                    <Text style={styles.completedLabel}>COMPLETE</Text>
+                    <AnimatedText style={[styles.tapToClaimLabel, textPulseStyle]}>
+                        TAP TO CLAIM
+                    </AnimatedText>
+                </>
+            ) : (
+                <Text style={styles.percentText}>{Math.round(percentage * 100)}%</Text>
+            )}
+          </View>
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Text style={[styles.title, isComplete && { color: '#B45309' }]} numberOfLines={1}>
+            {taskGoal.title}
+          </Text>
+          <Text style={[styles.description, isComplete && { color: '#D97706' }]}>
+            {completedCount} / {totalCount} Steps
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
 };
 
-export const apiService = {
-  async register(userData: any) {
-    return fetch(`${API_BASE_URL}/register`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(userData),
-    }).then(handleResponse);
+const styles = StyleSheet.create({
+  container: { width: '48%', marginBottom: 16 },
+  glowBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#F59E0B',
+    borderRadius: 24,
+    zIndex: -1,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 15,
+    elevation: 10,
   },
-
-  async login(credentials: any) {
-    return fetch(`${API_BASE_URL}/login`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(credentials),
-    }).then(handleResponse);
+  glowRing: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+    zIndex: -2,
   },
-
-  async socialLogin(data: { 
-    email?: string | null; 
-    name?: string | null; 
-    provider: 'google' | 'apple';
-    socialId?: string | null;
-    onboardingData?: any;
-  }) {
-    return fetch(`${API_BASE_URL}/auth/social`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(data),
-    }).then(handleResponse);
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
   },
-
-  async getUserProfile(email: string) {
-    return fetch(`${API_BASE_URL}/users/${email}`, {
-      method: 'GET',
-      headers: getHeaders(),
-    }).then(handleResponse);
+  completedCard: {
+    backgroundColor: '#FFFBEB', // Light gold bg
+    borderColor: '#FCD34D',
   },
-
-  // --- NEW: Update User ---
-  async updateUser(email: string, updates: any) {
-    return fetch(`${API_BASE_URL}/users/${email}`, {
-      method: 'PATCH',
-      headers: getHeaders(),
-      body: JSON.stringify(updates),
-    }).then(handleResponse);
+  gaugeContainer: {
+    position: 'relative',
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE - 25,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginBottom: 4,
   },
-
-  async createGoal(email: string, title: string) {
-    return fetch(`${API_BASE_URL}/goals`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ title, userEmail: email }),
-    }).then(handleResponse);
+  centerContent: {
+    position: 'absolute',
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 10,
   },
-
-  async updateGoal(goalId: string, updates: any) {
-    return fetch(`${API_BASE_URL}/goals/${goalId}`, {
-      method: 'PATCH',
-      headers: getHeaders(),
-      body: JSON.stringify(updates),
-    }).then(handleResponse);
+  percentText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1A1A1A',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: -1,
   },
-
-  async addTasksToGoal(goalId: string, tasks: any[]) {
-    return fetch(`${API_BASE_URL}/goals/${goalId}/tasks`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ tasks }),
-    }).then(handleResponse);
+  completedLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#F59E0B',
+    marginTop: 4,
+    letterSpacing: 1,
   },
-
-  async updateTask(taskId: string, updates: any) {
-    return fetch(`${API_BASE_URL}/tasks/${taskId}`, {
-      method: 'PATCH',
-      headers: getHeaders(),
-      body: JSON.stringify(updates),
-    }).then(handleResponse);
+  tapToClaimLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#B45309', // Darker gold/brown for contrast
+    marginTop: 4,
+    letterSpacing: 0.5,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: 'hidden',
   },
+  infoContainer: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 4,
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  description: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+});
 
-  async getLeaderboard() {
-    return fetch(`${API_BASE_URL}/leaderboard`, {
-      method: 'GET',
-      headers: getHeaders(),
-    }).then(handleResponse);
-  }
-};
+export default TaskReactorCircle;
 </file>
 
 <file path="app/_layout.tsx">
@@ -17438,6 +17210,259 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+</file>
+
+<file path="app/onboarding.tsx">
+import React from 'react';
+import { OnboardingWizard, OnboardingData } from '../src/components/OnboardingWizard';
+import { useRouter } from 'expo-router';
+import { useApp } from '../src/context/AppContext';
+
+export default function OnboardingScreen() {
+  const router = useRouter();
+  const { user, saveOnboarding } = useApp();
+
+  const handleComplete = async (data: OnboardingData) => {
+    if (user) {
+      // User is already logged in (came from auth screen but had incomplete profile)
+      await saveOnboarding(data);
+      router.replace('/home');
+    } else {
+      // User is new, needs to create account
+      router.push({
+        pathname: '/auth',
+        params: { onboardingData: JSON.stringify(data) }
+      });
+    }
+  };
+
+  return <OnboardingWizard onComplete={handleComplete} />;
+}
+</file>
+
+<file path="backend/prisma/schema.prisma">
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  socialId       String?  @unique // <--- ADD THIS LINE
+  name           String?
+  
+  password       String?
+  provider       String   @default("email")
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  currentStreak  Int      @default(0)
+  lastActiveDate DateTime? 
+  
+  onboardingData Json?
+  goals          Goal[]
+}
+
+// ... Goal and Task models remain the same ...
+model Goal {
+  id        String   @id @default(uuid())
+  title     String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tasks     Task[]
+}
+
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  duration    Int
+  status      String   @default("queued")
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  goalId      String
+  goal        Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "productivity-ai",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@shopify/react-native-skia": "2.2.12",
+    "babel-preset-expo": "~54.0.9",
+    "expo": "~54.0.0",
+    "expo-apple-authentication": "~8.0.8",
+    "expo-auth-session": "~7.0.10",
+    "expo-crypto": "~15.0.8",
+    "expo-haptics": "^15.0.8",
+    "expo-keep-awake": "~15.0.8",
+    "expo-linking": "~8.0.11",
+    "expo-network": "~8.0.8",
+    "expo-router": "~6.0.21",
+    "expo-sensors": "~15.0.8",
+    "expo-status-bar": "~3.0.9",
+    "expo-web-browser": "~15.0.10",
+    "firebase": "12.8.0",
+    "lottie-react-native": "~7.3.1",
+    "lucide-react-native": "^0.562.0",
+    "moti": "^0.30.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-confetti-cannon": "^1.5.2",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-worklets": "0.5.1",
+    "react-native-worklets-core": "^1.6.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/react": "~19.1.10",
+    "typescript": "^5.3.3"
+  },
+  "private": true
+}
+</file>
+
+<file path="src/services/api.ts">
+import { API_BASE_URL } from '../config/api';
+
+const getHeaders = () => {
+  return {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+    'User-Agent': 'ProductivityAI-Mobile',
+  };
+};
+
+const handleResponse = async (response: Response) => {
+  const text = await response.text();
+  if (text.trim().startsWith('<')) {
+    console.log('🛑 BLOCKED HTML RESPONSE:', text.substring(0, 200));
+    throw new Error('Server Error: Endpoint returned HTML. Check API URL.');
+  }
+  if (!response.ok) {
+    let errorMessage = `Request failed: ${response.status}`;
+    try {
+      const json = JSON.parse(text);
+      if (json.error) errorMessage = json.error;
+    } catch (e) {
+      errorMessage = text || errorMessage;
+    }
+    throw new Error(errorMessage);
+  }
+  return text ? JSON.parse(text) : null;
+};
+
+export const apiService = {
+  async register(userData: any) {
+    return fetch(`${API_BASE_URL}/register`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(userData),
+    }).then(handleResponse);
+  },
+
+  async login(credentials: any) {
+    return fetch(`${API_BASE_URL}/login`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(credentials),
+    }).then(handleResponse);
+  },
+
+  async socialLogin(data: { 
+    email?: string | null; 
+    name?: string | null; 
+    provider: 'google' | 'apple';
+    socialId?: string | null;
+    onboardingData?: any;
+  }) {
+    return fetch(`${API_BASE_URL}/auth/social`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    }).then(handleResponse);
+  },
+
+  async getUserProfile(email: string) {
+    return fetch(`${API_BASE_URL}/users/${email}`, {
+      method: 'GET',
+      headers: getHeaders(),
+    }).then(handleResponse);
+  },
+
+  // --- NEW: Update User ---
+  async updateUser(email: string, updates: any) {
+    return fetch(`${API_BASE_URL}/users/${email}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(updates),
+    }).then(handleResponse);
+  },
+
+  async createGoal(email: string, title: string) {
+    return fetch(`${API_BASE_URL}/goals`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ title, userEmail: email }),
+    }).then(handleResponse);
+  },
+
+  async updateGoal(goalId: string, updates: any) {
+    return fetch(`${API_BASE_URL}/goals/${goalId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(updates),
+    }).then(handleResponse);
+  },
+
+  async addTasksToGoal(goalId: string, tasks: any[]) {
+    return fetch(`${API_BASE_URL}/goals/${goalId}/tasks`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ tasks }),
+    }).then(handleResponse);
+  },
+
+  async updateTask(taskId: string, updates: any) {
+    return fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(updates),
+    }).then(handleResponse);
+  },
+
+  async getLeaderboard() {
+    return fetch(`${API_BASE_URL}/leaderboard`, {
+      method: 'GET',
+      headers: getHeaders(),
+    }).then(handleResponse);
+  }
+};
 </file>
 
 <file path="src/context/AppContext.tsx">
