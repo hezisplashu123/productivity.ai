@@ -1,32 +1,78 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
-import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, BedDouble, MessagesSquare, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon, GraduationCap, Code, PenTool, TrendingUp } from 'lucide-react-native';
+import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, BedDouble, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon, GraduationCap, PenTool, TrendingUp, Shield, Globe, Gem, ChevronsRight, Home, Layers } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
 
-// --- NEW DATA: IDENTITIES ---
+// --- UPDATED IDENTITIES (Broad & Relatable) ---
 const IDENTITIES = [
-  { id: 'student', label: 'Student', description: 'Assignments, Exams, Studying.', icon: GraduationCap },
-  { id: 'creative', label: 'Creative', description: 'Design, Writing, Art, Media.', icon: PenTool },
-  { id: 'developer', label: 'Developer', description: 'Coding, Engineering, Data.', icon: Code },
-  { id: 'founder', label: 'Founder/Exec', description: 'Strategy, Management, Growth.', icon: TrendingUp },
-  { id: 'professional', label: 'Professional', description: 'Corporate, Admin, Operations.', icon: Briefcase },
+  { 
+    id: 'student', 
+    label: 'Student', 
+    description: 'Assignments, Exams, Studying, Research.', 
+    icon: GraduationCap 
+  },
+  { 
+    id: 'professional', 
+    label: 'Professional', 
+    description: '9-5 Career, Meetings, Admin, Corporate.', 
+    icon: Briefcase 
+  },
+  { 
+    id: 'entrepreneur', 
+    label: 'Entrepreneur', 
+    description: 'Business, Freelancing, Side Hustles.', 
+    icon: TrendingUp 
+  },
+  { 
+    id: 'maker', 
+    label: 'Maker / Creative', 
+    description: 'Building, Coding, Writing, Designing, Art.', 
+    icon: PenTool 
+  },
+  { 
+    id: 'personal', 
+    label: 'Life Admin', 
+    description: 'Chores, Errands, Finances, Home.', 
+    icon: Home 
+  },
 ];
 
 const ARCHETYPES = [
-  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Briefcase },
+  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Layers }, // Re-using Layers here fits structure
   { id: 'firefighter', label: 'The Firefighter', description: 'I only work when the deadline is scary.', icon: Flame },
   { id: 'sprinter', label: 'The Sprinter', description: 'I work in intense bursts, then crash.', icon: Zap },
   { id: 'deep_worker', label: 'The Deep Worker', description: 'I need long hours of total silence.', icon: Brain },
 ];
 
+// --- UPDATED VILLAINS (Replaced Yap Fatigue with Multitasking) ---
 const VILLAINS = [
-  { id: 'doomscrolling', label: 'The Scroll', description: 'Getting sucked into social media loops.', icon: Smartphone },
-  { id: 'side_quests', label: 'Side Quests', description: 'Cleaning the room to avoid the real task.', icon: Gamepad2 },
-  { id: 'rotting', label: 'Brain Fog', description: 'Feeling paralyzed and low energy.', icon: BedDouble },
-  { id: 'yap_fatigue', label: 'Over-Communication', description: 'Drained by too many messages/calls.', icon: MessagesSquare },
+  { 
+    id: 'doomscrolling', 
+    label: 'The Scroll', 
+    description: 'Getting sucked into social media loops.', 
+    icon: Smartphone 
+  },
+  { 
+    id: 'multitasking', 
+    label: 'The Juggler', 
+    description: 'Trying to do 3 things at once and finishing nothing.', 
+    icon: Layers 
+  },
+  { 
+    id: 'side_quests', 
+    label: 'Side Quests', 
+    description: 'Cleaning the room to avoid the real task.', 
+    icon: Gamepad2 
+  },
+  { 
+    id: 'rotting', 
+    label: 'Brain Fog', 
+    description: 'Feeling paralyzed and low energy.', 
+    icon: BedDouble 
+  },
 ];
 
 const MENTAL_BLOCKS = [
@@ -44,14 +90,42 @@ const FOCUS_WINDOWS = [
   { id: 'late_night', label: 'Late Night', time: '9 PM - 2 AM', icon: Moon, skyColor: '#1E293B', textColor: '#FFFFFF' },
 ];
 
+const CORE_DRIVERS = [
+  { 
+    id: 'velocity', 
+    label: 'Velocity', 
+    description: 'I value Speed. I want to finish early and reclaim my time.', 
+    icon: ChevronsRight 
+  },
+  { 
+    id: 'mastery', 
+    label: 'Mastery', 
+    description: 'I value Quality. I want to do deep, excellent work.', 
+    icon: Gem 
+  },
+  { 
+    id: 'survival', 
+    label: 'Survival', 
+    description: 'I value Sanity. I am burnt out and just need to get by.', 
+    icon: Shield 
+  },
+  { 
+    id: 'impact', 
+    label: 'Impact', 
+    description: 'I value Leverage. I only want to do the high-ROI tasks.', 
+    icon: Globe 
+  },
+];
+
 export const OnboardingWizard = ({ onComplete }: any) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [data, setData] = useState({ 
-    identity: null, // NEW FIELD
+    identity: null,
     workArchetype: null, 
     frictionVillain: null, 
     mentalBlock: null, 
-    focusWindow: null 
+    focusWindow: null,
+    coreDriver: null
   });
   
   const stepTransition = useSharedValue(0);
@@ -60,7 +134,7 @@ export const OnboardingWizard = ({ onComplete }: any) => {
 
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (currentStep < 4) setCurrentStep(currentStep + 1); // Increased steps to 4
+    if (currentStep < 5) setCurrentStep(currentStep + 1);
     else onComplete(data);
   };
 
@@ -69,11 +143,12 @@ export const OnboardingWizard = ({ onComplete }: any) => {
     { title: "How do you work?", data: ARCHETYPES, key: 'workArchetype' },
     { title: "Your Nemesis?", data: VILLAINS, key: 'frictionVillain' },
     { title: "The Inner Barrier.", data: MENTAL_BLOCKS, key: 'mentalBlock' },
-    { title: "Peak Energy.", data: FOCUS_WINDOWS, key: 'focusWindow' }
+    { title: "Peak Energy.", data: FOCUS_WINDOWS, key: 'focusWindow' },
+    { title: "The North Star.", data: CORE_DRIVERS, key: 'coreDriver' }
   ];
 
   const currentStepData = steps[currentStep];
-  const isLastStep = currentStep === 4;
+  const isLastStep = currentStep === 5;
   
   // @ts-ignore
   const canProceed = data[currentStepData.key] !== null;
@@ -92,7 +167,7 @@ export const OnboardingWizard = ({ onComplete }: any) => {
         <View style={styles.content}>
           <Text style={styles.stepTitle}>{currentStepData.title}</Text>
           <View style={{ flex: 1 }}>
-            {!isLastStep ? (
+            {currentStepData.key !== 'focusWindow' ? (
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
                 {currentStepData.data.map((item: any) => (
                   <PillCard 

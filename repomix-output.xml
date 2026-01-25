@@ -68,6 +68,7 @@ backend/prisma/migrations/20260115212653_add_streak_fields/migration.sql
 backend/prisma/migrations/20260120024253_add_social_auth/migration.sql
 backend/prisma/migrations/20260120031137_add_social_id/migration.sql
 backend/prisma/migrations/20260121225651_add_journey_fields/migration.sql
+backend/prisma/migrations/20260122100000_add_daily_minutes/migration.sql
 backend/prisma/migrations/migration_lock.toml
 backend/prisma/schema.prisma
 backend/README.md
@@ -153,173 +154,6 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
-
-<file path="backend/prisma/migrations/20260121225651_add_journey_fields/migration.sql">
--- AlterTable
-ALTER TABLE "Goal" ADD COLUMN     "startDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-ADD COLUMN     "targetDate" TIMESTAMP(3),
-ADD COLUMN     "type" TEXT NOT NULL DEFAULT 'project';
-</file>
-
-<file path="src/components/LongTermSetupModal.tsx">
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Platform } from 'react-native';
-import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
-import { Calendar, ArrowRight, Clock, Minus, Plus } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import * as Haptics from 'expo-haptics';
-import DateTimePicker from '@react-native-community/datetimepicker';
-
-interface LongTermSetupModalProps {
-  visible: boolean;
-  goalTitle: string;
-  aiReason: string;
-  onConfirm: (date: Date, dailyMinutes: number) => void; // Updated signature
-  onCancel: () => void;
-}
-
-export const LongTermSetupModal = ({ visible, goalTitle, aiReason, onConfirm, onCancel }: LongTermSetupModalProps) => {
-  const [date, setDate] = useState(new Date(Date.now() + 86400000 * 30));
-  const [showPicker, setShowPicker] = useState(false);
-  
-  // New State for Daily Time
-  const [dailyMinutes, setDailyMinutes] = useState(45); 
-
-  if (!visible) return null;
-
-  const handleConfirm = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onConfirm(date, dailyMinutes);
-  };
-
-  const handleTimeChange = (delta: number) => {
-    const newVal = Math.max(15, Math.min(240, dailyMinutes + delta)); // Min 15m, Max 4h
-    if (newVal !== dailyMinutes) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setDailyMinutes(newVal);
-    }
-  };
-
-  const daysUntil = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') setShowPicker(false);
-    if (selectedDate) setDate(selectedDate);
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="none">
-      <View style={styles.overlay}>
-        <Animated.View entering={FadeInUp.springify()} exiting={FadeOutDown} style={styles.card}>
-          
-          <View style={styles.headerRow}>
-            <View style={styles.iconContainer}>
-              <Calendar size={28} color={colors.primary} />
-            </View>
-            <View style={{flex: 1}}>
-              <Text style={styles.title}>Journey Detected</Text>
-              <Text style={styles.subtitle} numberOfLines={2}>"{goalTitle}" is a long-term goal.</Text>
-            </View>
-          </View>
-
-          {/* SECTION 1: DEADLINE */}
-          <View style={styles.section}>
-            <Text style={styles.label}>WHEN DO YOU WANT TO FINISH?</Text>
-            <TouchableOpacity 
-              style={styles.dateButton} 
-              onPress={() => setShowPicker(!showPicker)}
-            >
-              <Text style={styles.dateText}>{date.toDateString()}</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{daysUntil} DAYS</Text>
-              </View>
-            </TouchableOpacity>
-
-            {showPicker && (
-              <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : undefined}>
-                <DateTimePicker
-                  value={date}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? "spinner" : "default"}
-                  minimumDate={new Date()}
-                  onChange={onDateChange}
-                  textColor={colors.text}
-                />
-              </View>
-            )}
-          </View>
-
-          {/* SECTION 2: DAILY CAPACITY */}
-          <View style={styles.section}>
-            <Text style={styles.label}>DAILY TIME COMMITMENT</Text>
-            <View style={styles.timeControl}>
-              <TouchableOpacity style={styles.stepperBtn} onPress={() => handleTimeChange(-15)}>
-                <Minus size={20} color={colors.text} />
-              </TouchableOpacity>
-              
-              <View style={styles.timeDisplay}>
-                <Clock size={16} color={colors.primary} style={{marginBottom: 4}} />
-                <Text style={styles.timeValue}>
-                  {dailyMinutes >= 60 ? `${Math.floor(dailyMinutes/60)}h ${dailyMinutes%60 > 0 ? dailyMinutes%60 + 'm' : ''}` : `${dailyMinutes}m`}
-                </Text>
-                <Text style={styles.timeSub}>PER DAY</Text>
-              </View>
-
-              <TouchableOpacity style={styles.stepperBtn} onPress={() => handleTimeChange(15)}>
-                <Plus size={20} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={onCancel}>
-              <Text style={styles.secondaryText}>Switch to Single Project</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.primaryBtn} onPress={handleConfirm}>
-              <Text style={styles.primaryText}>Design Plan</Text>
-              <ArrowRight size={18} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-};
-
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
-  card: { backgroundColor: '#FFF', borderRadius: 24, padding: 24 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 16 },
-  iconContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 20, fontWeight: '800', color: colors.text },
-  subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-  
-  section: { marginBottom: 24 },
-  label: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, marginBottom: 12, letterSpacing: 1 },
-  
-  dateButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#F9FAFB', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' },
-  dateText: { fontSize: 16, fontWeight: '700', color: colors.text },
-  badge: { backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  badgeText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
-  
-  iosPickerContainer: { marginTop: 10, backgroundColor: '#F9FAFB', borderRadius: 12, overflow: 'hidden' },
-
-  // Time Control Styles
-  timeControl: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F9FAFB', borderRadius: 16, padding: 8, borderWidth: 1, borderColor: '#E5E7EB' },
-  stepperBtn: { width: 48, height: 48, backgroundColor: '#FFF', borderRadius: 14, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  timeDisplay: { alignItems: 'center', flex: 1 },
-  timeValue: { fontSize: 22, fontWeight: '800', color: colors.text },
-  timeSub: { fontSize: 10, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.5 },
-
-  actions: { gap: 12, marginTop: 8 },
-  primaryBtn: { backgroundColor: colors.primary, padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  primaryText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  secondaryBtn: { padding: 12, alignItems: 'center' },
-  secondaryText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
-});
-</file>
 
 <file path="app/focus-session.tsx">
 import React, { useState, useEffect, useRef } from 'react';
@@ -1125,302 +959,22 @@ ALTER TABLE "User" ADD COLUMN     "socialId" TEXT;
 CREATE UNIQUE INDEX "User_socialId_key" ON "User"("socialId");
 </file>
 
+<file path="backend/prisma/migrations/20260121225651_add_journey_fields/migration.sql">
+-- AlterTable
+ALTER TABLE "Goal" ADD COLUMN     "startDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "targetDate" TIMESTAMP(3),
+ADD COLUMN     "type" TEXT NOT NULL DEFAULT 'project';
+</file>
+
+<file path="backend/prisma/migrations/20260122100000_add_daily_minutes/migration.sql">
+-- AlterTable
+ALTER TABLE "Goal" ADD COLUMN "dailyMinutes" INTEGER NOT NULL DEFAULT 45;
+</file>
+
 <file path="backend/prisma/migrations/migration_lock.toml">
 # Please do not edit this file manually
 # It should be added in your version-control system (i.e. Git)
 provider = "postgresql"
-</file>
-
-<file path="backend/src/services/ai.service.ts">
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-/**
- * 🧠 IDENTITY PROTOCOLS
- */
-const IDENTITY_FRAMEWORK: Record<string, string> = {
-  'student': "CONTEXT: User is a STUDENT. Critical variables: Exam date, specific subject module, existing notes vs. starting from scratch. TONE: Academic Coach.",
-  'developer': "CONTEXT: User is a DEVELOPER. Critical variables: New feature vs. bug fix, local env setup status, specific library/framework constraints. TONE: Senior Tech Lead.",
-  'creative': "CONTEXT: User is a CREATIVE. Critical variables: Ideation phase vs. execution phase, rough draft vs. final polish, specific software tool. TONE: Creative Director.",
-  'founder': "CONTEXT: User is a FOUNDER. Critical variables: Strategic planning vs. urgent execution, delegation potential, ROI of the task. TONE: Board Member.",
-  'professional': "CONTEXT: User is a PROFESSIONAL. Critical variables: Hard deadline, stakeholder requirements, specific document/email format. TONE: Project Manager."
-};
-
-/**
- * 🧠 ACTION PROTOCOLS
- */
-const GRANULARITY_INSTRUCTIONS: Record<string, string> = {
-  'architect': "STRATEGY: 'The Blueprint'. The first task MUST be a detailed bullet-point list. Do not let them start 'working' until the plan is set.",
-  'firefighter': "STRATEGY: 'Triage Mode'. Ignore structure. Point them to the single most painful/urgent sub-task immediately.",
-  'sprinter': "STRATEGY: 'Interval Training'. Tasks must be 20 minutes MAX. High intensity, clear finish line.",
-  'deep_worker': "STRATEGY: 'Monk Mode'. Group all prep work into Task 1. Task 2 is a long, uninterrupted execution block."
-};
-
-const EXTERNAL_DEFENSE: Record<string, string> = {
-  'doomscrolling': "DEFENSE: 'Friction Injection'. Instruct user to check phone battery, then place it face down. Enable 'Do Not Disturb'.",
-  'side_quests': "DEFENSE: 'Tunnel Vision'. Explicitly forbid specific side-tasks (e.g., 'Do not check email', 'Do not clean the desk').",
-  'rotting': "DEFENSE: 'The 2-Minute Rule'. The first task must be so easy it requires zero willpower.",
-  'yap_fatigue': "DEFENSE: 'Hermit Protocol'. Instruct user to put headphones on to signal 'Do Not Disturb'.",
-};
-
-const INTERNAL_DEFENSE: Record<string, string> = {
-  'perfectionism': "MINDSET: 'Trash Draft'. Command them to write a 'bad' version first. Forbid editing.",
-  'overwhelm': "MINDSET: 'One Brick'. The tasks should only reveal the immediate next step, not the whole project.",
-  'procrastination': "MINDSET: 'Activation Energy'. Frame the task as 'Just setting up', not 'Doing the work'.",
-  'boredom': "MINDSET: 'Time Attack'. Assign aggressive time limits to tasks to create artificial urgency."
-};
-
-/** 
- * 🧠 STEP 1: THE CLARIFIER
- */
-export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
-  const onboarding = userProfile.onboardingData || {};
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
-  
-  const systemPrompt = `
-    You are an elite Project Manager and Interrogator.
-    ${identityPrompt}
-    
-    The user has a goal: "${goal}".
-    
-    Your job is NOT to be polite. Your job is to find the "Execution Gap"—the missing piece of information that makes the difference between a vague plan and a concrete strategy.
-    
-    ANALYZE THE GOAL:
-    1. Is the *starting state* clear? (Are they starting from zero or finishing something?)
-    2. Is the *constraint* clear? (Is there a word count, a specific bug, a deadline?)
-    3. Is the *tool* clear? (Are they using Excel, VS Code, a physical notebook?)
-    
-    MISSION:
-    Ask ONE high-precision question (max 15-20 words) that forces the user to define the SCOPE or METHOD.
-    
-    OUTPUT JSON:
-    { "question": "..." }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: goal }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature: 0.7, 
-    });
-    const result = JSON.parse(completion.choices[0].message.content || "{}");
-    return result.question || "What is the immediate specific outcome you need to see in the next hour?";
-  } catch (error) {
-    return "To plan this effectively, are you starting from scratch or continuing previous work?";
-  }
-};
-
-/**
- * 🧠 STEP 1.5: THE CLASSIFIER
- */
-export const analyzeGoalType = async (goal: string) => {
-  const systemPrompt = `
-    Analyze this goal: "${goal}".
-    
-    Is this a "PROJECT" (finite set of tasks done in 1-3 sessions, e.g., "Build a website", "Write an essay")
-    OR a "JOURNEY" (repetitive/cumulative effort over days/weeks, e.g., "Lose 10lbs", "Learn Spanish", "Study for SATs", "Gym Routine")?
-    
-    OUTPUT JSON:
-    { 
-      "type": "project" | "journey",
-      "reason": "Short explanation of why",
-      "suggested_duration_days": 30
-    }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-    });
-    return JSON.parse(completion.choices[0].message.content || '{"type": "project"}');
-  } catch (error) {
-    return { type: 'project' };
-  }
-};
-
-/** 
- * 🧠 STEP 2: THE STRATEGIST
- */
-export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "") => {
-  const onboarding = userProfile.onboardingData || {};
-  
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
-  const breakdownRule = GRANULARITY_INSTRUCTIONS[onboarding.workArchetype] || "Standard breakdown.";
-  const externalRule = EXTERNAL_DEFENSE[onboarding.frictionVillain] || "Minimize noise.";
-  const internalRule = INTERNAL_DEFENSE[onboarding.mentalBlock] || "Just execute.";
-
-  const systemPrompt = `
-    You are the user's specialized Chief of Staff.
-    
-    USER PROFILE:
-    - ${identityPrompt}
-    - Strategy: ${breakdownRule}
-    - Enemy: ${externalRule}
-    - Mindset: ${internalRule}
-    
-    GOAL: "${goal}"
-    CONTEXT: "${clarification}"
-
-    MISSION:
-    Create a "High-Resolution" Execution Plan.
-    Use the CONTEXT provided to tailor the starting point.
-
-    CRITICAL CONSTRAINTS:
-    1. THE PHONE IS THE TOOL: The user is holding their phone. It is their timer. Tell them to use it (e.g., "Set phone on desk, face up").
-    2. MICRO-SCRIPTS: Give exact instructions (e.g., "Open file X", "Write header Y").
-    3. FIRST TASK IS MOMENTUM: Duration 2-5 mins.
-    4. NO VAGUE VERBS: Ban words like "Plan", "Think", "Prepare". Use "Draft", "Compile", "Sketch".
-
-    OUTPUT FORMAT (JSON):
-    {
-      "short_title": "2-Word Mission Name (e.g. 'Project Alpha')",
-      "tasks": [ 
-        { 
-          "title": "Action Verb + Object", 
-          "duration": 25, 
-          "description": "2 sentences. 1: The physical action. 2: A defense against their specific villain." 
-        } 
-      ]
-    }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini", 
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    });
-
-    const content = completion.choices[0].message.content;
-    if (!content) throw new Error("No content received");
-
-    const result = JSON.parse(content);
-    const trimmedTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : "Mission Alpha";
-
-    return { 
-      shortTitle: trimmedTitle, 
-      tasks: result.tasks || [] 
-    };
-
-  } catch (error) {
-    console.error("❌ OpenAI API Error:", error);
-    return null; 
-  }
-};
-
-/**
- * 🧠 STEP 2 (VARIANT): THE COACH (Daily Generator)
- */
-export const generateDailyPlan = async (
-  goal: string, 
-  userProfile: any, 
-  dayNumber: number, 
-  totalDays: number,
-  dailyMinutes: number = 45 // Default if not provided
-) => {
-  const onboarding = userProfile.onboardingData || {};
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || "";
-  
-  const systemPrompt = `
-    You are an expert Coach & Chief of Staff.
-    ${identityPrompt}
-    
-    MAIN GOAL: "${goal}"
-    CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
-    TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
-    
-    MISSION:
-    Generate a tactical plan for TODAY (Day ${dayNumber}) that fits exactly within ${dailyMinutes} minutes.
-    
-    RULES:
-    1. STRICT TIME LIMIT: The sum of all task durations MUST equal exactly ${dailyMinutes} minutes.
-    2. TASK COUNT: 
-       - If budget < 30m: 1-2 tasks.
-       - If budget > 60m: 3-4 tasks.
-    3. PROGRESSION:
-       - Day 1: Setup & Foundational Reps.
-       - Middle Days: Deep Work / Heavy Lifting.
-       - Final Days: Review & Final Polish.
-    4. MICRO-SCRIPTS: Instructions must be specific physical actions.
-    
-    OUTPUT JSON:
-    {
-      "short_title": "Day ${dayNumber} Theme",
-      "tasks": [ 
-        { 
-          "title": "Specific Exercise/Task", 
-          "duration": 15, 
-          "description": "Specific instruction for this session." 
-        } 
-      ]
-    }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-    });
-    const result = JSON.parse(completion.choices[0].message.content || "{}");
-    return { 
-      shortTitle: result.short_title || `Day ${dayNumber}`, 
-      tasks: result.tasks || [] 
-    };
-  } catch (error) {
-    return null;
-  }
-};
-
-/** 
- * 🧠 STEP 3: THE FIXER
- */
-export const refineSingleTask = async (task: any, feedback: string, userProfile: any) => {
-  const onboarding = userProfile.onboardingData || {};
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
-
-  const systemPrompt = `
-    You are a pragmatic Chief of Staff.
-    ${identityPrompt}
-    
-    ORIGINAL TASK: "${task.title}"
-    USER OBSTACLE: "${feedback}"
-    
-    MISSION:
-    Rewrite this task to bypass the obstacle.
-    - If they lack energy -> Simplify to the absolute bare minimum (e.g., "Just read 1 page").
-    - If they lack time -> Compress to a sprint.
-    - If they lack equipment -> Find a workaround.
-    
-    Keep the tone encouraging but directive.
-
-    OUTPUT JSON:
-    { "title": "New Task Name", "duration": 15, "description": "Specific tactical instructions..." }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-    });
-
-    const content = completion.choices[0].message.content;
-    if (!content) return task;
-
-    return JSON.parse(content);
-  } catch (error) {
-    console.error("❌ Task Refinement Error:", error);
-    return task;
-  }
-};
 </file>
 
 <file path="src/components/ActiveTaskCard.tsx">
@@ -4556,6 +4110,166 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '600',
   },
+});
+</file>
+
+<file path="src/components/LongTermSetupModal.tsx">
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
+import { Calendar, ArrowRight, Clock, Minus, Plus } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+interface LongTermSetupModalProps {
+  visible: boolean;
+  goalTitle: string;
+  aiReason: string;
+  onConfirm: (date: Date, dailyMinutes: number) => void; // Updated signature
+  onCancel: () => void;
+}
+
+export const LongTermSetupModal = ({ visible, goalTitle, aiReason, onConfirm, onCancel }: LongTermSetupModalProps) => {
+  const [date, setDate] = useState(new Date(Date.now() + 86400000 * 30));
+  const [showPicker, setShowPicker] = useState(false);
+  
+  // New State for Daily Time
+  const [dailyMinutes, setDailyMinutes] = useState(45); 
+
+  if (!visible) return null;
+
+  const handleConfirm = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onConfirm(date, dailyMinutes);
+  };
+
+  const handleTimeChange = (delta: number) => {
+    const newVal = Math.max(15, Math.min(240, dailyMinutes + delta)); // Min 15m, Max 4h
+    if (newVal !== dailyMinutes) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setDailyMinutes(newVal);
+    }
+  };
+
+  const daysUntil = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') setShowPicker(false);
+    if (selectedDate) setDate(selectedDate);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="none">
+      <View style={styles.overlay}>
+        <Animated.View entering={FadeInUp.springify()} exiting={FadeOutDown} style={styles.card}>
+          
+          <View style={styles.headerRow}>
+            <View style={styles.iconContainer}>
+              <Calendar size={28} color={colors.primary} />
+            </View>
+            <View style={{flex: 1}}>
+              <Text style={styles.title}>Journey Detected</Text>
+              <Text style={styles.subtitle} numberOfLines={2}>"{goalTitle}" is a long-term goal.</Text>
+            </View>
+          </View>
+
+          {/* SECTION 1: DEADLINE */}
+          <View style={styles.section}>
+            <Text style={styles.label}>WHEN DO YOU WANT TO FINISH?</Text>
+            <TouchableOpacity 
+              style={styles.dateButton} 
+              onPress={() => setShowPicker(!showPicker)}
+            >
+              <Text style={styles.dateText}>{date.toDateString()}</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{daysUntil} DAYS</Text>
+              </View>
+            </TouchableOpacity>
+
+            {showPicker && (
+              <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : undefined}>
+                <DateTimePicker
+                  value={date}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? "spinner" : "default"}
+                  minimumDate={new Date()}
+                  onChange={onDateChange}
+                  textColor={colors.text}
+                />
+              </View>
+            )}
+          </View>
+
+          {/* SECTION 2: DAILY CAPACITY */}
+          <View style={styles.section}>
+            <Text style={styles.label}>DAILY TIME COMMITMENT</Text>
+            <View style={styles.timeControl}>
+              <TouchableOpacity style={styles.stepperBtn} onPress={() => handleTimeChange(-15)}>
+                <Minus size={20} color={colors.text} />
+              </TouchableOpacity>
+              
+              <View style={styles.timeDisplay}>
+                <Clock size={16} color={colors.primary} style={{marginBottom: 4}} />
+                <Text style={styles.timeValue}>
+                  {dailyMinutes >= 60 ? `${Math.floor(dailyMinutes/60)}h ${dailyMinutes%60 > 0 ? dailyMinutes%60 + 'm' : ''}` : `${dailyMinutes}m`}
+                </Text>
+                <Text style={styles.timeSub}>PER DAY</Text>
+              </View>
+
+              <TouchableOpacity style={styles.stepperBtn} onPress={() => handleTimeChange(15)}>
+                <Plus size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={onCancel}>
+              <Text style={styles.secondaryText}>Switch to Single Project</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.primaryBtn} onPress={handleConfirm}>
+              <Text style={styles.primaryText}>Design Plan</Text>
+              <ArrowRight size={18} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 },
+  card: { backgroundColor: '#FFF', borderRadius: 24, padding: 24 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 16 },
+  iconContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center' },
+  title: { fontSize: 20, fontWeight: '800', color: colors.text },
+  subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  
+  section: { marginBottom: 24 },
+  label: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, marginBottom: 12, letterSpacing: 1 },
+  
+  dateButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, backgroundColor: '#F9FAFB', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB' },
+  dateText: { fontSize: 16, fontWeight: '700', color: colors.text },
+  badge: { backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  badgeText: { color: '#FFF', fontSize: 11, fontWeight: '800' },
+  
+  iosPickerContainer: { marginTop: 10, backgroundColor: '#F9FAFB', borderRadius: 12, overflow: 'hidden' },
+
+  // Time Control Styles
+  timeControl: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F9FAFB', borderRadius: 16, padding: 8, borderWidth: 1, borderColor: '#E5E7EB' },
+  stepperBtn: { width: 48, height: 48, backgroundColor: '#FFF', borderRadius: 14, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  timeDisplay: { alignItems: 'center', flex: 1 },
+  timeValue: { fontSize: 22, fontWeight: '800', color: colors.text },
+  timeSub: { fontSize: 10, fontWeight: '700', color: colors.textSecondary, letterSpacing: 0.5 },
+
+  actions: { gap: 12, marginTop: 8 },
+  primaryBtn: { backgroundColor: colors.primary, padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  primaryText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  secondaryBtn: { padding: 12, alignItems: 'center' },
+  secondaryText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
 });
 </file>
 
@@ -9632,6 +9346,316 @@ export const prisma =
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 </file>
 
+<file path="backend/src/services/ai.service.ts">
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/**
+ * 🧠 IDENTITY PROTOCOLS
+ */
+const IDENTITY_FRAMEWORK: Record<string, string> = {
+  'student': "CONTEXT: User is a STUDENT. Critical variables: Exam date, specific subject module, existing notes vs. starting from scratch. TONE: Academic Coach.",
+  'developer': "CONTEXT: User is a DEVELOPER. Critical variables: New feature vs. bug fix, local env setup status, specific library/framework constraints. TONE: Senior Tech Lead.",
+  'creative': "CONTEXT: User is a CREATIVE. Critical variables: Ideation phase vs. execution phase, rough draft vs. final polish, specific software tool. TONE: Creative Director.",
+  'founder': "CONTEXT: User is a FOUNDER. Critical variables: Strategic planning vs. urgent execution, delegation potential, ROI of the task. TONE: Board Member.",
+  'professional': "CONTEXT: User is a PROFESSIONAL. Critical variables: Hard deadline, stakeholder requirements, specific document/email format. TONE: Project Manager."
+};
+
+/**
+ * 🧠 ACTION PROTOCOLS
+ */
+const GRANULARITY_INSTRUCTIONS: Record<string, string> = {
+  'architect': "STRATEGY: 'The Blueprint'. The first task MUST be a detailed bullet-point list. Do not let them start 'working' until the plan is set.",
+  'firefighter': "STRATEGY: 'Triage Mode'. Ignore structure. Point them to the single most painful/urgent sub-task immediately.",
+  'sprinter': "STRATEGY: 'Interval Training'. Tasks must be 20 minutes MAX. High intensity, clear finish line.",
+  'deep_worker': "STRATEGY: 'Monk Mode'. Group all prep work into Task 1. Task 2 is a long, uninterrupted execution block."
+};
+
+// UPDATED: Removed phone/battery references
+const EXTERNAL_DEFENSE: Record<string, string> = {
+  'doomscrolling': "DEFENSE: 'Digital Blinders'. Explicitly forbid opening new tabs or checking social media. Focus purely on the active window.",
+  'side_quests': "DEFENSE: 'Tunnel Vision'. Explicitly forbid specific side-tasks (e.g., 'Do not check email', 'Do not clean the desk').",
+  'rotting': "DEFENSE: 'Micro-Step'. The first task must be an extremely low-effort cognitive action (e.g., 'Read one paragraph').",
+  'yap_fatigue': "DEFENSE: 'Hermit Protocol'. Instruct user to ignore all incoming messages.",
+};
+
+const INTERNAL_DEFENSE: Record<string, string> = {
+  'perfectionism': "MINDSET: 'Trash Draft'. Command them to write a 'bad' version first. Forbid editing.",
+  'overwhelm': "MINDSET: 'One Brick'. The tasks should only reveal the immediate next step, not the whole project.",
+  'procrastination': "MINDSET: 'Activation Energy'. Frame the task as 'Just setting up', not 'Doing the work'.",
+  'boredom': "MINDSET: 'Time Attack'. Assign aggressive time limits to tasks to create artificial urgency."
+};
+
+/** 
+ * 🧠 STEP 1: THE CLARIFIER
+ */
+export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
+  const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
+  
+  const systemPrompt = `
+    You are an elite Project Manager and Interrogator.
+    ${identityPrompt}
+    
+    The user has a goal: "${goal}".
+    
+    Your job is to find the "Execution Gap"—the missing piece of information needed to build a specific plan.
+    
+    CRITICAL RULES:
+    1. DO NOT ask about "When", "Deadlines", "Timelines", or "How much time you have". The app handles scheduling automatically.
+    2. DO ask about SCOPE (e.g., "Are you starting from scratch?", "What is the specific topic?").
+    3. DO ask about TOOLS/STATE (e.g., "Do you have the environment set up?", "Is this for a specific client?").
+    4. Keep it short (max 15 words). One question only.
+    
+    OUTPUT JSON:
+    { "question": "..." }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: goal }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      temperature: 0.7, 
+    });
+    const result = JSON.parse(completion.choices[0].message.content || "{}");
+    return result.question || "What is the specific outcome you need to achieve?";
+  } catch (error) {
+    return "What is the immediate next physical step you need to take?";
+  }
+};
+
+/**
+ * 🧠 STEP 1.5: THE CLASSIFIER
+ */
+export const analyzeGoalType = async (goal: string) => {
+  const systemPrompt = `
+    Analyze this goal: "${goal}".
+    
+    Is this a "PROJECT" (finite set of tasks done in 1-3 sessions, e.g., "Build a website", "Write an essay")
+    OR a "JOURNEY" (repetitive/cumulative effort over days/weeks, e.g., "Lose 10lbs", "Learn Spanish", "Study for SATs", "Gym Routine")?
+    
+    OUTPUT JSON:
+    { 
+      "type": "project" | "journey",
+      "reason": "Short explanation of why",
+      "suggested_duration_days": 30
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+    });
+    return JSON.parse(completion.choices[0].message.content || '{"type": "project"}');
+  } catch (error) {
+    return { type: 'project' };
+  }
+};
+
+/** 
+ * 🧠 STEP 2: THE STRATEGIST
+ */
+export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "", dailyMinutes: number = 0) => {
+  const onboarding = userProfile.onboardingData || {};
+  
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
+  const breakdownRule = GRANULARITY_INSTRUCTIONS[onboarding.workArchetype] || "Standard breakdown.";
+  const externalRule = EXTERNAL_DEFENSE[onboarding.frictionVillain] || "Minimize noise.";
+  const internalRule = INTERNAL_DEFENSE[onboarding.mentalBlock] || "Just execute.";
+
+  // TIME BUDGET LOGIC
+  let timeConstraintPrompt = "";
+  if (dailyMinutes > 0) {
+    timeConstraintPrompt = `
+    CRITICAL CONSTRAINT: STRICT TIME BUDGET
+    - The user has explicitly committed exactly ${dailyMinutes} minutes for this session.
+    - The sum of all task durations MUST be exactly ${dailyMinutes} minutes.
+    - Start immediately with the first real step of the work.
+    - If ${dailyMinutes} > 45, allow for deep work blocks.
+    `;
+  } else {
+    timeConstraintPrompt = `
+    - FIRST TASK IS MOMENTUM: Duration 2-5 mins (Cognitive Setup, e.g., "Outline the document", "Locate the file").
+    - Subsequent tasks should fill about 45-60 mins total.
+    `;
+  }
+
+  const systemPrompt = `
+    You are the user's specialized Chief of Staff.
+    
+    USER PROFILE:
+    - ${identityPrompt}
+    - Strategy: ${breakdownRule}
+    - Enemy: ${externalRule}
+    - Mindset: ${internalRule}
+    
+    GOAL: "${goal}"
+    CONTEXT/CLARIFICATION: "${clarification}"
+
+    MISSION:
+    Create a "High-Resolution" Execution Plan.
+    
+    RULES:
+    1. THE PHONE IS THE TOOL: The user is holding their phone. It is their timer.
+    2. MICRO-SCRIPTS: Give exact instructions.
+    3. NO VAGUE VERBS: Ban words like "Plan", "Think", "Prepare". Use "Draft", "Compile", "Sketch".
+    4. BANNED TASKS (STRICT):
+       - DO NOT generate tasks for "Check battery", "Turn on DND", "Put phone away", "Drink water", "Open Laptop", or "Sit down".
+       - These are trivial and annoying. Assume the user is ready to work.
+       - Start directly with the actual task (e.g., instead of "Open Word", say "Type the first heading").
+    ${timeConstraintPrompt}
+
+    OUTPUT FORMAT (JSON):
+    {
+      "short_title": "2-Word Mission Name (e.g. 'Project Alpha')",
+      "tasks": [ 
+        { 
+          "title": "Action Verb + Object", 
+          "duration": 25, 
+          "description": "2 sentences. 1: The physical action. 2: A defense against their specific villain." 
+        } 
+      ]
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini", 
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+
+    const content = completion.choices[0].message.content;
+    if (!content) throw new Error("No content received");
+
+    const result = JSON.parse(content);
+    const trimmedTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : "Mission Alpha";
+
+    return { 
+      shortTitle: trimmedTitle, 
+      tasks: result.tasks || [] 
+    };
+
+  } catch (error) {
+    console.error("❌ OpenAI API Error:", error);
+    return null; 
+  }
+};
+
+/**
+ * 🧠 STEP 2 (VARIANT): THE COACH (Daily Generator)
+ */
+export const generateDailyPlan = async (
+  goal: string, 
+  userProfile: any, 
+  dayNumber: number, 
+  totalDays: number,
+  dailyMinutes: number = 45 // Default if not provided
+) => {
+  const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || "";
+  
+  const systemPrompt = `
+    You are an expert Coach & Chief of Staff.
+    ${identityPrompt}
+    
+    MAIN GOAL: "${goal}"
+    CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
+    TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
+    
+    MISSION:
+    Generate a tactical plan for TODAY (Day ${dayNumber}) that fits exactly within ${dailyMinutes} minutes.
+    
+    RULES:
+    1. STRICT TIME LIMIT: The sum of all task durations MUST equal exactly ${dailyMinutes} minutes.
+    2. NO TRIVIAL TASKS: Do not include "setup", "put phone away", or "hydration" tasks.
+    3. PROGRESSION:
+       - Day 1: Setup & Foundational Reps.
+       - Middle Days: Deep Work / Heavy Lifting.
+       - Final Days: Review & Final Polish.
+    4. MICRO-SCRIPTS: Instructions must be specific physical actions.
+    
+    OUTPUT JSON:
+    {
+      "short_title": "Day ${dayNumber} Theme",
+      "tasks": [ 
+        { 
+          "title": "Specific Exercise/Task", 
+          "duration": 15, 
+          "description": "Specific instruction for this session." 
+        } 
+      ]
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+    const result = JSON.parse(completion.choices[0].message.content || "{}");
+    return { 
+      shortTitle: result.short_title || `Day ${dayNumber}`, 
+      tasks: result.tasks || [] 
+    };
+  } catch (error) {
+    return null;
+  }
+};
+
+/** 
+ * 🧠 STEP 3: THE FIXER
+ */
+export const refineSingleTask = async (task: any, feedback: string, userProfile: any) => {
+  const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
+
+  const systemPrompt = `
+    You are a pragmatic Chief of Staff.
+    ${identityPrompt}
+    
+    ORIGINAL TASK: "${task.title}"
+    USER OBSTACLE: "${feedback}"
+    
+    MISSION:
+    Rewrite this task to bypass the obstacle.
+    - If they lack energy -> Simplify to the absolute bare minimum (e.g., "Just read 1 page").
+    - If they lack time -> Compress to a sprint.
+    - If they lack equipment -> Find a workaround.
+    
+    Keep the tone encouraging but directive.
+
+    OUTPUT JSON:
+    { "title": "New Task Name", "duration": 15, "description": "Specific tactical instructions..." }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+    });
+
+    const content = completion.choices[0].message.content;
+    if (!content) return task;
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error("❌ Task Refinement Error:", error);
+    return task;
+  }
+};
+</file>
+
 <file path="backend/tsconfig.json">
 {
   "compilerOptions": {
@@ -12183,388 +12207,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/TaskEditModal.tsx">
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  Modal, 
-  TouchableOpacity, 
-  Dimensions, 
-  TextInput, 
-  ActivityIndicator,
-  Platform,
-  KeyboardAvoidingView
-} from 'react-native';
-import { X, Minus, Plus, Send, Sparkles, Info, CheckCircle2, Circle } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  FadeIn, 
-  FadeOut 
-} from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { useApp } from '../context/AppContext';
-
-const { height } = Dimensions.get('window');
-
-interface TaskEditModalProps {
-  visible: boolean;
-  task: any;
-  onClose: () => void;
-  onUpdate: (id: string, updates: any) => void;
-}
-
-export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onClose, onUpdate }) => {
-  const { reportTaskIssue } = useApp();
-  
-  // Animation & State
-  const translateY = useSharedValue(height);
-  const [feedback, setFeedback] = useState('');
-  const [isRefining, setIsRefining] = useState(false);
-
-  // --- FIX: Hooks must be called before conditional returns ---
-  const animatedContainerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  useEffect(() => {
-    if (visible) {
-      // Slide Up
-      translateY.value = withSpring(0, {
-        damping: 40,
-        stiffness: 300,
-        mass: 0.8,
-      });
-      setFeedback('');
-    } else {
-      // Slide Down
-      translateY.value = height;
-    }
-  }, [visible]);
-
-  // --- FIX: Conditional return moved after all hooks ---
-  if (!task) return null;
-
-  const handleTimeChange = (diff: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onUpdate(task.id, { duration: Math.max(5, (task.duration || 15) + diff) });
-  };
-
-  const toggleComplete = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onUpdate(task.id, { 
-      status: task.status === 'completed' ? 'queued' : 'completed' 
-    });
-  };
-
-  const handleReportToAI = async () => {
-    if (!feedback.trim()) return;
-    
-    setIsRefining(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    try {
-      // Calls the AI refinement logic in AppContext
-      await reportTaskIssue(task.id, feedback);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onClose(); // Close to show the updated task
-    } catch (error) {
-      console.error("Refinement failed:", error);
-    } finally {
-      setIsRefining(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="none">
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        style={{ flex: 1 }}
-      >
-        <View style={styles.overlay}>
-          {/* Background Fade */}
-          <Animated.View 
-            entering={FadeIn.duration(200)} 
-            exiting={FadeOut.duration(200)}
-            style={StyleSheet.absoluteFill}
-          >
-            <TouchableOpacity 
-              style={styles.dismissArea} 
-              activeOpacity={1} 
-              onPress={onClose} 
-            />
-          </Animated.View>
-          
-          {/* Main Slide-up Container */}
-          <Animated.View style={[styles.container, animatedContainerStyle]}>
-            <View style={styles.handle} />
-            
-            <View style={styles.header}>
-              <Text style={styles.headerLabel}>EDIT PARAMETERS</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <X size={18} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.title}>{task.title}</Text>
-
-            {/* AI Context Card */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeaderRow}>
-                  <Info size={12} color={colors.primary} />
-                  <Text style={styles.sectionLabel}>AI TACTICAL CONTEXT</Text>
-              </View>
-              <View style={styles.descriptionCard}>
-                <Text style={styles.descriptionText}>
-                  {task.description || "No specific instructions provided."}
-                </Text>
-              </View>
-            </View>
-
-            {/* AI Refinement / Report Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeaderRow}>
-                  <Sparkles size={12} color={colors.primary} />
-                  <Text style={styles.sectionLabel}>REPORT ISSUE TO AI</Text>
-              </View>
-              <View style={styles.reportRow}>
-                <TextInput
-                  style={styles.reportInput}
-                  placeholder="Tell the AI why you can't do this..."
-                  placeholderTextColor={colors.textLight}
-                  value={feedback}
-                  onChangeText={setFeedback}
-                  multiline
-                />
-                <TouchableOpacity 
-                  style={[styles.sendBtn, !feedback.trim() && styles.sendBtnDisabled]}
-                  onPress={handleReportToAI}
-                  disabled={!feedback.trim() || isRefining}
-                >
-                  {isRefining ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <Send size={18} color="#FFF" />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Duration Editor */}
-            <View style={styles.editorSection}>
-              <Text style={styles.sectionLabel}>ADJUST DURATION</Text>
-              <View style={styles.stepper}>
-                <TouchableOpacity style={styles.stepBtn} onPress={() => handleTimeChange(-5)}>
-                  <Minus size={22} color="#1A1A1A" />
-                </TouchableOpacity>
-                
-                <View style={styles.timeValueBox}>
-                  <Text style={styles.timeValue}>{task.duration || 0}</Text>
-                  <Text style={styles.minLabel}>MINS</Text>
-                </View>
-
-                <TouchableOpacity style={styles.stepBtn} onPress={() => handleTimeChange(5)}>
-                  <Plus size={22} color="#1A1A1A" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Primary Action Button */}
-            <TouchableOpacity 
-              style={[styles.completeBtn, task.status === 'completed' && styles.completeBtnActive]} 
-              onPress={toggleComplete}
-              activeOpacity={0.8}
-            >
-              {task.status === 'completed' ? (
-                <CheckCircle2 size={20} color="#FFFFFF" fill="rgba(255,255,255,0.2)" />
-              ) : (
-                <Circle size={20} color="#FFFFFF" opacity={0.5} />
-              )}
-              <Text style={styles.completeBtnText}>
-                {task.status === 'completed' ? 'MARK AS INCOMPLETE' : 'MARK AS FINISHED'}
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-};
-
-const styles = StyleSheet.create({
-  overlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.4)', 
-    justifyContent: 'flex-end' 
-  },
-  dismissArea: { 
-    flex: 1,
-    backgroundColor: 'transparent'
-  },
-  container: { 
-    backgroundColor: '#FFFFFF', 
-    borderTopLeftRadius: 32, 
-    borderTopRightRadius: 32, 
-    padding: 24, 
-    paddingBottom: Platform.OS === 'ios' ? 45 : 30,
-    borderTopWidth: 1,
-    borderColor: '#F0F0F0',
-  },
-  handle: { 
-    width: 36, 
-    height: 4, 
-    backgroundColor: '#F3F4F6', 
-    borderRadius: 2, 
-    alignSelf: 'center', 
-    marginBottom: 20 
-  },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 12 
-  },
-  headerLabel: { 
-    fontSize: 10, 
-    fontWeight: '900', 
-    color: colors.primary, 
-    letterSpacing: 1.5 
-  },
-  closeBtn: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 16, 
-    backgroundColor: '#F9FAFB', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  title: { 
-    fontSize: 22, 
-    fontWeight: '800', 
-    color: '#1A1A1A', 
-    marginBottom: 24,
-    lineHeight: 28 
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6,
-    marginBottom: 8,
-  },
-  sectionLabel: { 
-    fontSize: 10, 
-    fontWeight: '800', 
-    color: '#9CA3AF', 
-    letterSpacing: 1 
-  },
-  descriptionCard: { 
-    backgroundColor: '#F9FAFB', 
-    padding: 16, 
-    borderRadius: 16, 
-    borderWidth: 1, 
-    borderColor: '#F3F4F6'
-  },
-  descriptionText: { 
-    fontSize: 14, 
-    color: '#4B5563', 
-    lineHeight: 20,
-    fontWeight: '500'
-  },
-  reportRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingRight: 8,
-  },
-  reportInput: {
-    flex: 1,
-    padding: 12,
-    fontSize: 14,
-    color: colors.text,
-    minHeight: 45,
-  },
-  sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendBtnDisabled: {
-    backgroundColor: colors.textLight,
-  },
-  editorSection: { 
-    alignItems: 'center', 
-    marginBottom: 32,
-    marginTop: 10
-  },
-  stepper: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 40 
-  },
-  stepBtn: { 
-    width: 50, 
-    height: 50, 
-    borderRadius: 25, 
-    backgroundColor: '#FFFFFF', 
-    borderWidth: 1, 
-    borderColor: '#E5E7EB', 
-    justifyContent: 'center', 
-    alignItems: 'center',
-  },
-  timeValueBox: { 
-    alignItems: 'center',
-    minWidth: 80
-  },
-  timeValue: { 
-    fontSize: 42, 
-    fontWeight: '900', 
-    color: '#1A1A1A' 
-  },
-  minLabel: { 
-    fontSize: 10, 
-    fontWeight: '800', 
-    color: '#9CA3AF', 
-    marginTop: -4 
-  },
-  completeBtn: { 
-    flexDirection: 'row', 
-    backgroundColor: '#1A1A1A', 
-    paddingVertical: 18, 
-    borderRadius: 20, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  completeBtnActive: { 
-    backgroundColor: colors.success 
-  },
-  completeBtnText: { 
-    color: '#FFFFFF', 
-    fontSize: 14, 
-    fontWeight: '800', 
-    letterSpacing: 1 
-  },
-});
-</file>
-
 <file path="src/constants/colors.ts">
 export const lightColors = {
   // Backgrounds - Set to Pure White
@@ -12792,48 +12434,6 @@ export const mockTasks: Task[] = [
 ];
 </file>
 
-<file path="src/types/index.ts">
-export interface Goal {
-  id: string;
-  title: string;
-  createdAt: Date;
-  completedAt?: Date;
-  status: 'active' | 'completed';
-}
-
-export type TaskStatus = 'queued' | 'in_progress' | 'completed';
-
-export interface Task {
-  id: string;
-  goalId: string;
-  title: string;
-  description?: string;
-  duration: number; // in minutes - the focus time for this task
-  status: TaskStatus;
-  order?: number; // Order in the queue (for drag-and-drop)
-  dueDate?: Date;
-  completedAt?: Date;
-  productivityRating?: number; // 1-5
-  subTasks?: SubTask[];
-  // Legacy support - will be removed
-  completed?: boolean;
-  timeBudget?: number;
-}
-
-export interface SubTask {
-  id: string;
-  title: string;
-  completed: boolean;
-  duration?: number; // in minutes
-}
-
-export interface ProductivityRating {
-  taskId: string;
-  rating: number; // 1-5
-  timestamp: Date;
-}
-</file>
-
 <file path="tsconfig.json">
 {
   "extends": "expo/tsconfig.base",
@@ -12887,638 +12487,6 @@ export interface ProductivityRating {
     "sdkVersion": "54.0.0"
   }
 }
-</file>
-
-<file path="app/goal-detail.tsx">
-import React, { useMemo, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Dimensions, 
-  Modal, 
-  TouchableWithoutFeedback,
-  Alert
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { 
-  ChevronLeft, 
-  CheckCircle2, 
-  Circle, 
-  Clock, 
-  Target, 
-  MoreHorizontal, 
-  Trash2, 
-  Edit3,
-  Calendar as CalendarIcon,
-  ChevronRight
-} from 'lucide-react-native';
-import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown, FadeIn, Layout } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-
-import { useApp } from '../src/context/AppContext';
-import { lightColors as colors } from '../src/constants/colors';
-import { TaskEditModal } from '../src/components/TaskEditModal';
-
-const { width } = Dimensions.get('window');
-
-export default function GoalDetailScreen() {
-  const { goalId } = useLocalSearchParams();
-  const router = useRouter();
-  const { goals, tasks, updateTask, deleteGoal } = useApp();
-  
-  // State
-  const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [menuVisible, setMenuVisible] = useState(false);
-
-  // Safe data retrieval
-  const goal = useMemo(() => goals.find(g => g.id === goalId), [goals, goalId]);
-  const goalTasks = useMemo(() => tasks.filter(t => t.goalId === goalId), [tasks, goalId]);
-
-  const progress = useMemo(() => {
-    const completed = goalTasks.filter(t => t.status === 'completed').length;
-    return goalTasks.length > 0 ? (completed / goalTasks.length) * 100 : 0;
-  }, [goalTasks]);
-
-  const totalTime = useMemo(() => {
-    return goalTasks.reduce((acc, t) => acc + (t.duration || 0), 0);
-  }, [goalTasks]);
-
-  // Derived days for Journey Mode
-  const currentDay = useMemo(() => {
-    // If regular project or missing dates, default to 1
-    if (!goal || !goal.startDate) return 1;
-    const start = new Date(goal.startDate).getTime();
-    const now = Date.now();
-    // Calculate days elapsed (1-indexed)
-    return Math.max(1, Math.ceil((now - start) / (1000 * 60 * 60 * 24)));
-  }, [goal]);
-
-  const totalDays = useMemo(() => {
-    if (!goal || !goal.targetDate || !goal.startDate) return 30;
-    const start = new Date(goal.startDate).getTime();
-    const target = new Date(goal.targetDate).getTime();
-    return Math.max(1, Math.ceil((target - start) / (1000 * 60 * 60 * 24)));
-  }, [goal]);
-
-  if (!goal) return null;
-
-  // --- Actions ---
-
-  const handleMenuPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setMenuVisible(true);
-  };
-
-  const closeMenu = () => {
-    setMenuVisible(false);
-  };
-
-  const handleRefine = () => {
-    setMenuVisible(false);
-    // Navigate to Input Screen with 'Edit Mode' parameters
-    router.push({
-      pathname: '/goal-input',
-      params: { 
-        initialText: goal.title, 
-        editingGoalId: goal.id 
-      }
-    });
-  };
-
-  const handleDelete = () => {
-    setMenuVisible(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    
-    Alert.alert(
-      "Abort Mission?",
-      "This will permanently delete the mission and all associated tasks.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Abort", 
-          style: "destructive", 
-          onPress: () => {
-            deleteGoal(goal.id);
-            router.back();
-          }
-        }
-      ]
-    );
-  };
-
-  const handleStartSession = () => {
-    if (goalTasks.length > 0) {
-      // Find the first uncompleted task, or default to the first task if all are done (for replay)
-      const nextTask = goalTasks.find(t => t.status !== 'completed') || goalTasks[0];
-      
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Navigate to the Sentinel Focus Session
-      router.push({
-        pathname: '/focus-session',
-        params: { 
-          taskId: nextTask.id,
-          duration: nextTask.duration
-        }
-      });
-    } else {
-      Alert.alert("Mission Complete", "All tasks are already finished! Add more steps to continue.");
-    }
-  };
-
-  // --- Render Helpers ---
-
-  const renderJourneyHeader = () => (
-    <View style={styles.journeyHeader}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calendarStrip}>
-        {Array.from({ length: 7 }).map((_, i) => {
-          // Show current day + next 6 days
-          const dayNum = currentDay + i;
-          const isToday = i === 0;
-          return (
-            <TouchableOpacity 
-              key={i} 
-              style={[styles.dayPill, isToday && styles.dayPillActive]}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.dayLabel, isToday && styles.dayLabelActive]}>DAY</Text>
-              <Text style={[styles.dayNumber, isToday && styles.dayLabelActive]}>{dayNum}</Text>
-            </TouchableOpacity>
-          );
-        })}
-        <View style={styles.dayPillBlur}>
-            <Text style={styles.dayLabel}>...</Text>
-        </View>
-      </ScrollView>
-      
-      <View style={styles.journeyProgress}>
-        <Text style={styles.journeyProgressText}>Day {currentDay} of {totalDays}</Text>
-        <View style={styles.journeyProgressBarBg}>
-            <View style={[styles.journeyProgressBarFill, { width: `${Math.min(100, (currentDay/totalDays)*100)}%` }]} />
-        </View>
-      </View>
-    </View>
-  );
-
-  return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => router.back()} 
-            style={styles.backButton}
-            activeOpacity={0.7}
-          >
-            <ChevronLeft size={28} color={colors.text} />
-          </TouchableOpacity>
-          
-          <View style={styles.headerRight}>
-            <TouchableOpacity 
-              style={styles.iconButton} 
-              onPress={handleMenuPress}
-              activeOpacity={0.7}
-            >
-                <MoreHorizontal size={24} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <ScrollView 
-            contentContainerStyle={styles.scrollContent} 
-            showsVerticalScrollIndicator={false}
-        >
-            {/* Conditional Rendering based on Goal Type */}
-            {goal.type === 'journey' ? (
-                <>
-                    {/* Journey Title Block */}
-                    <View style={styles.titleSection}>
-                        <View style={[styles.tagContainer, { backgroundColor: '#E0F2FE' }]}>
-                            <CalendarIcon size={12} color="#0284C7" />
-                            <Text style={[styles.tagText, { color: '#0284C7' }]}>LONG-TERM JOURNEY</Text>
-                        </View>
-                        <Text style={styles.pageTitle}>{goal.title}</Text>
-                    </View>
-                    
-                    {/* Calendar Strip */}
-                    {renderJourneyHeader()}
-                </>
-            ) : (
-                // Standard Project Title Block
-                <View style={styles.titleSection}>
-                    <View style={styles.tagContainer}>
-                        <Target size={12} color={colors.primary} />
-                        <Text style={styles.tagText}>MISSION PARAMETERS</Text>
-                    </View>
-                    <Text style={styles.pageTitle}>{goal.title}</Text>
-                    
-                    <View style={styles.metaRow}>
-                        <Text style={styles.metaText}>{goalTasks.length} Steps</Text>
-                        <View style={styles.dot} />
-                        <Text style={styles.metaText}>{Math.round(totalTime / 60)}h {(totalTime % 60)}m Total Focus</Text>
-                    </View>
-                </View>
-            )}
-
-            {/* Progress Card (Only for projects, Journey has day progress) */}
-            {goal.type !== 'journey' && (
-                <View style={styles.progressCard}>
-                    <View style={styles.progressInfo}>
-                        <Text style={styles.progressLabel}>Completion Status</Text>
-                        <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
-                    </View>
-                    <View style={styles.progressBarBg}>
-                        <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
-                    </View>
-                </View>
-            )}
-
-            {/* Task List */}
-            <View style={styles.taskList}>
-                <Text style={styles.sectionHeader}>
-                    {goal.type === 'journey' ? `Tasks for Day ${currentDay}` : "Execution Steps"}
-                </Text>
-                
-                {goalTasks.length === 0 && (
-                    <View style={{ padding: 20, alignItems: 'center' }}>
-                        <Text style={{color: colors.textSecondary, textAlign: 'center'}}>
-                            No tasks scheduled. Tap "Refine Directive" to generate more.
-                        </Text>
-                    </View>
-                )}
-
-                {goalTasks.map((task, index) => (
-                    <Animated.View 
-                        key={task.id} 
-                        entering={FadeInDown.delay(index * 100).springify()}
-                        layout={Layout.springify()}
-                    >
-                        <TouchableOpacity 
-                            style={[
-                                styles.taskCard, 
-                                task.status === 'completed' && styles.taskCardDone
-                            ]}
-                            onPress={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                                setSelectedTask(task);
-                            }}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.checkContainer}>
-                                {task.status === 'completed' ? (
-                                    <CheckCircle2 size={24} color={colors.primary} fill={colors.primary} />
-                                ) : (
-                                    <Circle size={24} color="#E5E7EB" strokeWidth={2} />
-                                )}
-                            </View>
-
-                            <View style={styles.taskContent}>
-                                <Text 
-                                    style={[
-                                        styles.taskTitle, 
-                                        task.status === 'completed' && styles.taskTextDone
-                                    ]}
-                                >
-                                    {task.title}
-                                </Text>
-                                <View style={styles.taskMeta}>
-                                    <Clock size={12} color={colors.textSecondary} />
-                                    <Text style={styles.taskDuration}>{task.duration} min</Text>
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                    </Animated.View>
-                ))}
-
-                {/* Journey Mode: "Prepare Next Day" Button (Stub) */}
-                {goal.type === 'journey' && goalTasks.length > 0 && goalTasks.every(t => t.status === 'completed') && (
-                    <TouchableOpacity 
-                        style={styles.nextDayBtn} 
-                        onPress={() => Alert.alert("Coming Soon", "This would generate the plan for tomorrow based on your progress.")}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={styles.nextDayText}>PREPARE DAY {currentDay + 1}</Text>
-                        <ChevronRight size={20} color="#FFF" />
-                    </TouchableOpacity>
-                )}
-            </View>
-        </ScrollView>
-
-        {/* Floating Action Button - START SESSION */}
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={styles.primaryBtn} 
-            activeOpacity={0.9}
-            onPress={handleStartSession}
-          >
-            <Text style={styles.primaryBtnText}>START SESSION</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Task Edit Modal */}
-        <TaskEditModal 
-          visible={!!selectedTask}
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-          onUpdate={(id: string, updates: any) => {
-            updateTask(id, updates);
-            setSelectedTask((prev: any) => ({ ...prev, ...updates }));
-          }}
-        />
-
-        {/* Menu Modal */}
-        <Modal
-          visible={menuVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={closeMenu}
-        >
-          <TouchableWithoutFeedback onPress={closeMenu}>
-            <View style={styles.menuOverlay}>
-              <Animated.View 
-                entering={FadeIn.duration(200)}
-                style={styles.menuContainer}
-              >
-                <TouchableOpacity style={styles.menuItem} onPress={handleRefine}>
-                  <Edit3 size={18} color={colors.text} />
-                  <Text style={styles.menuText}>Refine Directive</Text>
-                </TouchableOpacity>
-                <View style={styles.menuDivider} />
-                <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
-                  <Trash2 size={18} color={colors.error} />
-                  <Text style={[styles.menuText, { color: colors.error }]}>Abort Mission</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-
-      </SafeAreaView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
-  container: { flex: 1 },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingHorizontal: 20, 
-    paddingVertical: 12,
-    zIndex: 10,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerRight: { flexDirection: 'row', gap: 12 },
-  iconButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 22,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 120 },
-  
-  titleSection: { marginVertical: 20 },
-  tagContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 6, 
-    marginBottom: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6
-  },
-  tagText: { 
-    fontSize: 10, 
-    fontWeight: '800', 
-    color: colors.primary, 
-    letterSpacing: 1 
-  },
-  pageTitle: { 
-    fontSize: 28, 
-    fontWeight: '800', 
-    color: '#1A1A1A', 
-    marginBottom: 8,
-    lineHeight: 34
-  },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  metaText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB' },
-
-  progressCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  progressInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  progressLabel: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
-  progressPercent: { fontSize: 14, fontWeight: '800', color: colors.primary },
-  progressBarBg: { height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' },
-  progressBarFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 4 },
-
-  taskList: { gap: 16 },
-  sectionHeader: { 
-    fontSize: 14, 
-    fontWeight: '800', 
-    color: '#9CA3AF', 
-    textTransform: 'uppercase', 
-    letterSpacing: 1,
-    marginBottom: 8 
-  },
-  taskCard: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: 16, 
-    borderRadius: 16, 
-    backgroundColor: '#FFFFFF', 
-    borderWidth: 1, 
-    borderColor: '#F3F4F6', 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.03, 
-    shadowRadius: 8, 
-    elevation: 2 
-  },
-  taskCardDone: { opacity: 0.6, backgroundColor: '#FAFAFA' },
-  checkContainer: { marginRight: 16 },
-  taskContent: { flex: 1 },
-  taskTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A', marginBottom: 4 },
-  taskTextDone: { textDecorationLine: 'line-through', color: '#9CA3AF' },
-  taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  taskDuration: { fontSize: 12, fontWeight: '500', color: colors.textSecondary },
-
-  footer: { 
-    position: 'absolute', 
-    bottom: 0, 
-    left: 0, 
-    right: 0, 
-    padding: 24, 
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6'
-  },
-  primaryBtn: { 
-    backgroundColor: '#1A1A1A', 
-    paddingVertical: 18, 
-    borderRadius: 24, 
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5
-  },
-  primaryBtnText: { 
-    color: '#FFFFFF', 
-    fontSize: 16, 
-    fontWeight: '700', 
-    letterSpacing: 1 
-  },
-
-  // --- Journey Styles ---
-  journeyHeader: { marginBottom: 24 },
-  calendarStrip: { flexDirection: 'row', gap: 10, paddingBottom: 16 },
-  dayPill: { 
-    width: 50, 
-    height: 60, 
-    borderRadius: 12, 
-    backgroundColor: '#F9FAFB', 
-    borderWidth: 1, 
-    borderColor: '#F3F4F6', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  dayPillActive: { 
-    backgroundColor: '#1A1A1A', 
-    borderColor: '#1A1A1A' 
-  },
-  dayPillBlur: { 
-    width: 50, 
-    height: 60, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    opacity: 0.5 
-  },
-  dayLabel: { 
-    fontSize: 10, 
-    fontWeight: '700', 
-    color: '#9CA3AF', 
-    marginBottom: 2 
-  },
-  dayNumber: { 
-    fontSize: 18, 
-    fontWeight: '800', 
-    color: '#1A1A1A' 
-  },
-  dayLabelActive: { 
-    color: '#FFFFFF' 
-  },
-  
-  journeyProgress: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 12 
-  },
-  journeyProgressText: { 
-    fontSize: 13, 
-    fontWeight: '600', 
-    color: colors.textSecondary, 
-    width: 80 
-  },
-  journeyProgressBarBg: { 
-    flex: 1, 
-    height: 6, 
-    backgroundColor: '#F3F4F6', 
-    borderRadius: 3 
-  },
-  journeyProgressBarFill: { 
-    height: '100%', 
-    backgroundColor: colors.primary, 
-    borderRadius: 3 
-  },
-
-  nextDayBtn: { 
-    marginTop: 20, 
-    backgroundColor: '#059669', 
-    padding: 16, 
-    borderRadius: 16, 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    gap: 8 
-  },
-  nextDayText: { 
-    color: '#FFF', 
-    fontWeight: '800', 
-    fontSize: 14, 
-    letterSpacing: 1 
-  },
-
-  // --- Menu Styles ---
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  menuContainer: {
-    position: 'absolute',
-    top: 110,
-    right: 24,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 8,
-    width: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  menuText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  menuDivider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: 16,
-  },
-});
 </file>
 
 <file path="app/profile.tsx">
@@ -14785,7 +13753,7 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/TaskStagingModal.tsx">
+<file path="src/components/TaskEditModal.tsx">
 import React, { useState, useEffect } from 'react';
 import { 
   View, 
@@ -14793,242 +13761,426 @@ import {
   StyleSheet, 
   Modal, 
   TouchableOpacity, 
-  ScrollView, 
-  TextInput, 
   Dimensions, 
-  ActivityIndicator, 
-  KeyboardAvoidingView,
-  Platform 
+  TextInput, 
+  ActivityIndicator,
+  Platform,
+  KeyboardAvoidingView
 } from 'react-native';
-import Animated, { ZoomIn, FadeInRight, FadeOutLeft } from 'react-native-reanimated';
-import { Play, X, ChevronLeft, Minus, Plus, Info, Edit3, Sparkles, Send } from 'lucide-react-native';
+import { X, Minus, Plus, Send, Sparkles, Info, CheckCircle2, Circle } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  FadeIn, 
+  FadeOut 
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { useApp } from '../context/AppContext';
 
 const { height } = Dimensions.get('window');
 
-export interface StagingTask {
-  id: string;
-  title: string;
-  duration: number;
-  description?: string;
-}
-
-interface TaskStagingModalProps {
+interface TaskEditModalProps {
   visible: boolean;
-  goalTitle: string;
-  generatedTasks: StagingTask[];
-  onConfirm: (tasks: StagingTask[], title: string) => void;
-  onRefine: (feedback: string) => Promise<void>; // New Prop for AI Regeneration
+  task: any;
   onClose: () => void;
+  onUpdate: (id: string, updates: any) => void;
 }
 
-export const TaskStagingModal = ({ visible, goalTitle, generatedTasks, onConfirm, onRefine, onClose }: TaskStagingModalProps) => {
-  const [tasks, setTasks] = useState<StagingTask[]>([]);
-  const [editableTitle, setEditableTitle] = useState(goalTitle);
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editingTask, setEditingTask] = useState<StagingTask | null>(null);
+export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onClose, onUpdate }) => {
+  const { reportTaskIssue } = useApp();
   
-  // AI Refinement State
-  const [refineFeedback, setRefineFeedback] = useState('');
+  // Animation & State
+  const translateY = useSharedValue(height);
+  const [feedback, setFeedback] = useState('');
   const [isRefining, setIsRefining] = useState(false);
+
+  // --- FIX: Hooks must be called before conditional returns ---
+  const animatedContainerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
 
   useEffect(() => {
     if (visible) {
-      setEditableTitle(goalTitle);
-      setTasks(generatedTasks || []);
-      setEditingTask(null);
-      setRefineFeedback('');
-      setIsRefining(false);
+      // Slide Up
+      translateY.value = withSpring(0, {
+        damping: 40,
+        stiffness: 300,
+        mass: 0.8,
+      });
+      setFeedback('');
+    } else {
+      // Slide Down
+      translateY.value = height;
     }
-  }, [visible, goalTitle, generatedTasks]);
+  }, [visible]);
 
-  const handleUpdateDuration = (id: string, delta: number) => {
+  // --- FIX: Conditional return moved after all hooks ---
+  if (!task) return null;
+
+  const handleTimeChange = (diff: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, duration: Math.max(5, t.duration + delta) } : t));
+    onUpdate(task.id, { duration: Math.max(5, (task.duration || 15) + diff) });
   };
 
-  const handleInitialize = () => {
+  const toggleComplete = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onConfirm(tasks, editableTitle);
+    onUpdate(task.id, { 
+      status: task.status === 'completed' ? 'queued' : 'completed' 
+    });
   };
 
-  const handleAiRefine = async () => {
-    if (!refineFeedback.trim()) return;
+  const handleReportToAI = async () => {
+    if (!feedback.trim()) return;
     
     setIsRefining(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     try {
-      // Send context to parent to regenerate plan
-      await onRefine(`Regarding task "${editingTask?.title}": ${refineFeedback}`);
-      setEditingTask(null); // Go back to list view to show new tasks
-      setRefineFeedback('');
+      // Calls the AI refinement logic in AppContext
+      await reportTaskIssue(task.id, feedback);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onClose(); // Close to show the updated task
     } catch (error) {
-      console.error(error);
+      console.error("Refinement failed:", error);
     } finally {
       setIsRefining(false);
     }
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
-        <Animated.View entering={ZoomIn.duration(400)} style={styles.container}>
-          {editingTask ? (
-            <Animated.View entering={FadeInRight} exiting={FadeOutLeft} style={{ flex: 1 }}>
-              <TouchableOpacity onPress={() => setEditingTask(null)} style={styles.backBtn}>
-                <ChevronLeft size={20} color={colors.primary} />
-                <Text style={styles.backText}>Back to mission</Text>
-              </TouchableOpacity>
-              
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.editTitle}>{editingTask.title}</Text>
-                
-                <View style={styles.descBox}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                    <Info size={14} color={colors.primary} />
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>AI STRATEGY</Text>
-                  </View>
-                  <Text style={styles.descText}>{editingTask.description}</Text>
-                </View>
-
-                {/* --- NEW: AI REFINEMENT SECTION --- */}
-                <View style={styles.refineSection}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                    <Sparkles size={14} color={colors.primary} />
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>CAN'T DO THIS?</Text>
-                  </View>
-                  <View style={styles.refineInputRow}>
-                    <TextInput
-                      style={styles.refineInput}
-                      placeholder="Tell AI why (e.g., 'I don't have budget')"
-                      placeholderTextColor={colors.textLight}
-                      value={refineFeedback}
-                      onChangeText={setRefineFeedback}
-                      multiline
-                    />
-                    <TouchableOpacity 
-                      style={[styles.refineBtn, !refineFeedback.trim() && styles.refineBtnDisabled]}
-                      onPress={handleAiRefine}
-                      disabled={!refineFeedback.trim() || isRefining}
-                    >
-                      {isRefining ? <ActivityIndicator color="#FFF" size="small" /> : <Send size={16} color="#FFF" />}
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.refineHint}>This will regenerate the entire plan based on your constraint.</Text>
-                </View>
-
-                <View style={styles.editorSection}>
-                  <Text style={styles.sectionLabel}>FOCUS DURATION</Text>
-                  <View style={styles.stepper}>
-                    <TouchableOpacity onPress={() => handleUpdateDuration(editingTask.id, -5)} style={styles.stepBtn}>
-                      <Minus color={colors.text} />
-                    </TouchableOpacity>
-                    <View style={styles.timeValueBox}>
-                      <Text style={styles.durVal}>{tasks.find(t => t.id === editingTask.id)?.duration}</Text>
-                      <Text style={styles.minLab}>MINS</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => handleUpdateDuration(editingTask.id, 5)} style={styles.stepBtn}>
-                      <Plus color={colors.text} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </ScrollView>
-              
-              <TouchableOpacity style={styles.saveBtn} onPress={() => setEditingTask(null)}>
-                <Text style={styles.saveText}>Save Parameters</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          ) : (
-            <View style={{ flex: 1 }}>
-              <View style={styles.header}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.topLab}>MISSION STAGING</Text>
-                  <TouchableOpacity onPress={() => setIsEditingTitle(true)} style={styles.titleRow}>
-                    {isEditingTitle ? (
-                      <TextInput 
-                        value={editableTitle} 
-                        onChangeText={setEditableTitle} 
-                        autoFocus 
-                        onBlur={() => setIsEditingTitle(false)} 
-                        style={styles.titleInput} 
-                      />
-                    ) : (
-                      <>
-                        <Text style={styles.goalTitle} numberOfLines={2}>{editableTitle}</Text>
-                        <Edit3 size={16} color={colors.textLight} style={{ marginLeft: 8 }} />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={20} color={colors.textSecondary} /></TouchableOpacity>
-              </View>
-
-              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                {tasks.map((task, i) => (
-                  <TouchableOpacity key={task.id} style={styles.taskRow} onPress={() => setEditingTask(task)}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowTitle}>{task.title}</Text>
-                      <Text style={styles.tapToEdit}>Tap to edit details</Text>
-                    </View>
-                    <View style={styles.timeBadge}><Text style={styles.timeText}>{task.duration}m</Text></View>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleInitialize}>
-                <Text style={styles.btnText}>INITIALIZE SEQUENCE</Text>
-                <Play size={18} color="#FFF" fill="#FFF" />
+    <Modal visible={visible} transparent animationType="none">
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={{ flex: 1 }}
+      >
+        <View style={styles.overlay}>
+          {/* Background Fade */}
+          <Animated.View 
+            entering={FadeIn.duration(200)} 
+            exiting={FadeOut.duration(200)}
+            style={StyleSheet.absoluteFill}
+          >
+            <TouchableOpacity 
+              style={styles.dismissArea} 
+              activeOpacity={1} 
+              onPress={onClose} 
+            />
+          </Animated.View>
+          
+          {/* Main Slide-up Container */}
+          <Animated.View style={[styles.container, animatedContainerStyle]}>
+            <View style={styles.handle} />
+            
+            <View style={styles.header}>
+              <Text style={styles.headerLabel}>EDIT PARAMETERS</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <X size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-          )}
-        </Animated.View>
+
+            <Text style={styles.title}>{task.title}</Text>
+
+            {/* AI Context Card */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                  <Info size={12} color={colors.primary} />
+                  <Text style={styles.sectionLabel}>AI TACTICAL CONTEXT</Text>
+              </View>
+              <View style={styles.descriptionCard}>
+                <Text style={styles.descriptionText}>
+                  {task.description || "No specific instructions provided."}
+                </Text>
+              </View>
+            </View>
+
+            {/* AI Refinement / Report Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                  <Sparkles size={12} color={colors.primary} />
+                  <Text style={styles.sectionLabel}>REPORT ISSUE TO AI</Text>
+              </View>
+              <View style={styles.reportRow}>
+                <TextInput
+                  style={styles.reportInput}
+                  placeholder="Tell the AI why you can't do this..."
+                  placeholderTextColor={colors.textLight}
+                  value={feedback}
+                  onChangeText={setFeedback}
+                  multiline
+                />
+                <TouchableOpacity 
+                  style={[styles.sendBtn, !feedback.trim() && styles.sendBtnDisabled]}
+                  onPress={handleReportToAI}
+                  disabled={!feedback.trim() || isRefining}
+                >
+                  {isRefining ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Send size={18} color="#FFF" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Duration Editor */}
+            <View style={styles.editorSection}>
+              <Text style={styles.sectionLabel}>ADJUST DURATION</Text>
+              <View style={styles.stepper}>
+                <TouchableOpacity style={styles.stepBtn} onPress={() => handleTimeChange(-5)}>
+                  <Minus size={22} color="#1A1A1A" />
+                </TouchableOpacity>
+                
+                <View style={styles.timeValueBox}>
+                  <Text style={styles.timeValue}>{task.duration || 0}</Text>
+                  <Text style={styles.minLabel}>MINS</Text>
+                </View>
+
+                <TouchableOpacity style={styles.stepBtn} onPress={() => handleTimeChange(5)}>
+                  <Plus size={22} color="#1A1A1A" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Primary Action Button */}
+            <TouchableOpacity 
+              style={[styles.completeBtn, task.status === 'completed' && styles.completeBtnActive]} 
+              onPress={toggleComplete}
+              activeOpacity={0.8}
+            >
+              {task.status === 'completed' ? (
+                <CheckCircle2 size={20} color="#FFFFFF" fill="rgba(255,255,255,0.2)" />
+              ) : (
+                <Circle size={20} color="#FFFFFF" opacity={0.5} />
+              )}
+              <Text style={styles.completeBtnText}>
+                {task.status === 'completed' ? 'MARK AS INCOMPLETE' : 'MARK AS FINISHED'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
-  container: { backgroundColor: '#FFF', borderRadius: 32, padding: 24, height: height * 0.8 },
-  header: { flexDirection: 'row', marginBottom: 24, gap: 12 },
-  topLab: { fontSize: 11, fontWeight: '800', color: colors.primary, letterSpacing: 1.5, marginBottom: 4 },
-  titleRow: { flexDirection: 'row', alignItems: 'center' },
-  goalTitle: { fontSize: 22, fontWeight: '700', color: colors.text, maxWidth: '90%' },
-  titleInput: { fontSize: 22, fontWeight: '700', borderBottomWidth: 2, borderBottomColor: colors.primary, color: colors.text, padding: 0 },
-  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center' },
-  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18, borderBottomWidth: 1, borderColor: '#F3F4F6' },
-  rowTitle: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 2 },
-  tapToEdit: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
-  timeBadge: { backgroundColor: colors.glow, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.primary },
-  timeText: { color: colors.primary, fontWeight: '800' },
-  primaryBtn: { backgroundColor: colors.primary, padding: 20, borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 20, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
-  btnText: { color: '#FFF', fontWeight: '800', letterSpacing: 1 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 4 },
-  backText: { color: colors.primary, fontWeight: '700' },
-  editTitle: { fontSize: 22, fontWeight: '700', marginBottom: 16, color: colors.text },
-  descBox: { backgroundColor: '#F9FAFB', padding: 16, borderRadius: 20, marginBottom: 20, borderWidth: 1, borderColor: '#F3F4F6' },
-  descText: { fontSize: 15, color: '#4B5563', lineHeight: 22 },
-  
-  // Refine Styles
-  refineSection: { marginBottom: 30, backgroundColor: '#F9FAFB', padding: 16, borderRadius: 20, borderWidth: 1, borderColor: '#F3F4F6' },
-  refineInputRow: { flexDirection: 'row', gap: 10 },
-  refineInput: { flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E5E7EB', minHeight: 45, fontSize: 14 },
-  refineBtn: { width: 45, borderRadius: 12, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
-  refineBtnDisabled: { backgroundColor: '#D1D5DB' },
-  refineHint: { fontSize: 11, color: colors.textSecondary, marginTop: 8, fontStyle: 'italic' },
-
-  editorSection: { alignItems: 'center', marginBottom: 40 },
-  sectionLabel: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, marginBottom: 20 },
-  stepper: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 40 },
-  stepBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#EEE' },
-  timeValueBox: { alignItems: 'center', minWidth: 80 },
-  durVal: { fontSize: 48, fontWeight: '800', color: colors.text },
-  minLab: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginTop: -4 },
-  saveBtn: { backgroundColor: colors.text, padding: 18, borderRadius: 16, alignItems: 'center', marginTop: 'auto' },
-  saveText: { color: '#FFF', fontWeight: '800' }
+  overlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.4)', 
+    justifyContent: 'flex-end' 
+  },
+  dismissArea: { 
+    flex: 1,
+    backgroundColor: 'transparent'
+  },
+  container: { 
+    backgroundColor: '#FFFFFF', 
+    borderTopLeftRadius: 32, 
+    borderTopRightRadius: 32, 
+    padding: 24, 
+    paddingBottom: Platform.OS === 'ios' ? 45 : 30,
+    borderTopWidth: 1,
+    borderColor: '#F0F0F0',
+  },
+  handle: { 
+    width: 36, 
+    height: 4, 
+    backgroundColor: '#F3F4F6', 
+    borderRadius: 2, 
+    alignSelf: 'center', 
+    marginBottom: 20 
+  },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 12 
+  },
+  headerLabel: { 
+    fontSize: 10, 
+    fontWeight: '900', 
+    color: colors.primary, 
+    letterSpacing: 1.5 
+  },
+  closeBtn: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 16, 
+    backgroundColor: '#F9FAFB', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  title: { 
+    fontSize: 22, 
+    fontWeight: '800', 
+    color: '#1A1A1A', 
+    marginBottom: 24,
+    lineHeight: 28 
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6,
+    marginBottom: 8,
+  },
+  sectionLabel: { 
+    fontSize: 10, 
+    fontWeight: '800', 
+    color: '#9CA3AF', 
+    letterSpacing: 1 
+  },
+  descriptionCard: { 
+    backgroundColor: '#F9FAFB', 
+    padding: 16, 
+    borderRadius: 16, 
+    borderWidth: 1, 
+    borderColor: '#F3F4F6'
+  },
+  descriptionText: { 
+    fontSize: 14, 
+    color: '#4B5563', 
+    lineHeight: 20,
+    fontWeight: '500'
+  },
+  reportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingRight: 8,
+  },
+  reportInput: {
+    flex: 1,
+    padding: 12,
+    fontSize: 14,
+    color: colors.text,
+    minHeight: 45,
+  },
+  sendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendBtnDisabled: {
+    backgroundColor: colors.textLight,
+  },
+  editorSection: { 
+    alignItems: 'center', 
+    marginBottom: 32,
+    marginTop: 10
+  },
+  stepper: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 40 
+  },
+  stepBtn: { 
+    width: 50, 
+    height: 50, 
+    borderRadius: 25, 
+    backgroundColor: '#FFFFFF', 
+    borderWidth: 1, 
+    borderColor: '#E5E7EB', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+  },
+  timeValueBox: { 
+    alignItems: 'center',
+    minWidth: 80
+  },
+  timeValue: { 
+    fontSize: 42, 
+    fontWeight: '900', 
+    color: '#1A1A1A' 
+  },
+  minLabel: { 
+    fontSize: 10, 
+    fontWeight: '800', 
+    color: '#9CA3AF', 
+    marginTop: -4 
+  },
+  completeBtn: { 
+    flexDirection: 'row', 
+    backgroundColor: '#1A1A1A', 
+    paddingVertical: 18, 
+    borderRadius: 20, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  completeBtnActive: { 
+    backgroundColor: colors.success 
+  },
+  completeBtnText: { 
+    color: '#FFFFFF', 
+    fontSize: 14, 
+    fontWeight: '800', 
+    letterSpacing: 1 
+  },
 });
+</file>
+
+<file path="src/types/index.ts">
+export interface Goal {
+  id: string;
+  title: string;
+  createdAt: Date | string; // Allow string for API responses
+  completedAt?: Date | string;
+  status: 'active' | 'completed' | 'archived';
+  
+  // --- NEW FIELDS (The missing piece) ---
+  type?: 'project' | 'journey';
+  targetDate?: Date | string;
+  startDate?: Date | string;
+  dailyMinutes?: number;
+}
+
+export type TaskStatus = 'queued' | 'in_progress' | 'completed';
+
+export interface Task {
+  id: string;
+  goalId: string;
+  title: string;
+  description?: string;
+  duration: number; // in minutes
+  status: TaskStatus;
+  order?: number; 
+  dueDate?: Date | string;
+  completedAt?: Date | string;
+  productivityRating?: number;
+  subTasks?: SubTask[];
+  // Legacy support
+  completed?: boolean;
+  timeBudget?: number;
+}
+
+export interface SubTask {
+  id: string;
+  title: string;
+  completed: boolean;
+  duration?: number;
+}
+
+export interface ProductivityRating {
+  taskId: string;
+  rating: number;
+  timestamp: Date;
+}
 </file>
 
 <file path="app/auth.tsx">
@@ -15472,6 +14624,671 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#1A1A1A',
+  },
+});
+</file>
+
+<file path="app/goal-detail.tsx">
+import React, { useMemo, useState } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  Dimensions, 
+  Modal, 
+  TouchableWithoutFeedback,
+  Alert
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { 
+  ChevronLeft, 
+  CheckCircle2, 
+  Circle, 
+  Clock, 
+  Target, 
+  MoreHorizontal, 
+  Trash2, 
+  Edit3,
+  Calendar as CalendarIcon,
+  ChevronRight,
+  RefreshCw
+} from 'lucide-react-native';
+import { StatusBar } from 'expo-status-bar';
+import Animated, { FadeInDown, FadeIn, Layout } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+
+import { useApp } from '../src/context/AppContext';
+import { lightColors as colors } from '../src/constants/colors';
+import { TaskEditModal } from '../src/components/TaskEditModal';
+import { Task } from '../src/types'; 
+
+const { width } = Dimensions.get('window');
+
+export default function GoalDetailScreen() {
+  // 1. Safe Parameter Handling
+  const params = useLocalSearchParams();
+  const goalId = typeof params.goalId === 'string' ? params.goalId : '';
+
+  const router = useRouter();
+  const { goals, tasks, updateTask, deleteGoal } = useApp();
+  
+  // State
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  // 2. Safe Data Retrieval
+  const goal = useMemo(() => goals.find(g => g.id === goalId), [goals, goalId]);
+  const goalTasks = useMemo(() => tasks.filter(t => t.goalId === goalId), [tasks, goalId]);
+
+  const progress = useMemo(() => {
+    const completed = goalTasks.filter(t => t.status === 'completed').length;
+    return goalTasks.length > 0 ? (completed / goalTasks.length) * 100 : 0;
+  }, [goalTasks]);
+
+  const totalTime = useMemo(() => {
+    return goalTasks.reduce((acc, t) => acc + (t.duration || 0), 0);
+  }, [goalTasks]);
+
+  // 3. Derived Days Logic (Journey Mode)
+  const currentDay = useMemo(() => {
+    if (!goal || !goal.startDate) return 1;
+    const start = new Date(goal.startDate).getTime();
+    const now = Date.now();
+    const diffTime = Math.abs(now - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    return Math.max(1, diffDays);
+  }, [goal]);
+
+  const totalDays = useMemo(() => {
+    if (!goal || !goal.targetDate || !goal.startDate) return 30;
+    const start = new Date(goal.startDate).getTime();
+    const target = new Date(goal.targetDate).getTime();
+    const diffTime = Math.abs(target - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, diffDays);
+  }, [goal]);
+
+  if (!goal) {
+    return (
+        <View style={styles.loadingContainer}>
+            <Text style={{color: colors.textSecondary}}>Loading Mission...</Text>
+        </View>
+    );
+  }
+
+  // --- Actions ---
+
+  const handleMenuPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMenuVisible(true);
+  };
+
+  const closeMenu = () => {
+    setMenuVisible(false);
+  };
+
+  const handleRefine = () => {
+    setMenuVisible(false);
+    router.push({
+      pathname: '/goal-input',
+      params: { 
+        initialText: goal.title, 
+        editingGoalId: goal.id 
+      }
+    });
+  };
+
+  const handleDelete = () => {
+    setMenuVisible(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    
+    Alert.alert(
+      "Abort Mission?",
+      "This will permanently delete the mission and all associated tasks.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Abort", 
+          style: "destructive", 
+          onPress: () => {
+            deleteGoal(goal.id);
+            router.back();
+          }
+        }
+      ]
+    );
+  };
+
+  const handleStartSession = () => {
+    if (goalTasks.length > 0) {
+      const nextTask = goalTasks.find(t => t.status !== 'completed') || goalTasks[0];
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      router.push({
+        pathname: '/focus-session',
+        params: { 
+          taskId: nextTask.id,
+          duration: nextTask.duration.toString()
+        }
+      });
+    } else {
+      Alert.alert("Mission Complete", "All tasks are already finished! Add more steps to continue.");
+    }
+  };
+
+  // --- Render Helpers ---
+
+  const renderJourneyHeader = () => (
+    <View style={styles.journeyHeader}>
+      {/* Daily Refresh Note */}
+      <View style={styles.refreshNote}>
+        <RefreshCw size={12} color="#059669" />
+        <Text style={styles.refreshNoteText}>Tasks refresh daily. Check back tomorrow for your next directive.</Text>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calendarStrip}>
+        {Array.from({ length: 7 }).map((_, i) => {
+          const dayNum = currentDay + i;
+          const isToday = i === 0;
+          return (
+            <TouchableOpacity 
+              key={i} 
+              style={[styles.dayPill, isToday && styles.dayPillActive]}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.dayLabel, isToday && styles.dayLabelActive]}>DAY</Text>
+              <Text style={[styles.dayNumber, isToday && styles.dayLabelActive]}>{dayNum}</Text>
+            </TouchableOpacity>
+          );
+        })}
+        <View style={styles.dayPillBlur}>
+            <Text style={styles.dayLabel}>...</Text>
+        </View>
+      </ScrollView>
+      
+      <View style={styles.journeyProgress}>
+        <Text style={styles.journeyProgressText}>Day {currentDay} of {totalDays}</Text>
+        <View style={styles.journeyProgressBarBg}>
+            <View style={[styles.journeyProgressBarFill, { width: `${Math.min(100, (currentDay/totalDays)*100)}%` }]} />
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.root}>
+      <StatusBar style="dark" />
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft size={28} color={colors.text} />
+          </TouchableOpacity>
+          
+          <View style={styles.headerRight}>
+            <TouchableOpacity 
+              style={styles.iconButton} 
+              onPress={handleMenuPress}
+              activeOpacity={0.7}
+            >
+                <MoreHorizontal size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView 
+            contentContainerStyle={styles.scrollContent} 
+            showsVerticalScrollIndicator={false}
+        >
+            {/* Conditional Rendering based on Goal Type */}
+            {goal.type === 'journey' ? (
+                <>
+                    {/* Journey Title Block */}
+                    <View style={styles.titleSection}>
+                        <View style={[styles.tagContainer, { backgroundColor: '#E0F2FE' }]}>
+                            <CalendarIcon size={12} color="#0284C7" />
+                            <Text style={[styles.tagText, { color: '#0284C7' }]}>LONG-TERM JOURNEY</Text>
+                        </View>
+                        <Text style={styles.pageTitle}>{goal.title}</Text>
+                    </View>
+                    
+                    {/* Calendar Strip */}
+                    {renderJourneyHeader()}
+                </>
+            ) : (
+                // Standard Project Title Block
+                <View style={styles.titleSection}>
+                    <View style={styles.tagContainer}>
+                        <Target size={12} color={colors.primary} />
+                        <Text style={styles.tagText}>MISSION PARAMETERS</Text>
+                    </View>
+                    <Text style={styles.pageTitle}>{goal.title}</Text>
+                    
+                    <View style={styles.metaRow}>
+                        <Text style={styles.metaText}>{goalTasks.length} Steps</Text>
+                        <View style={styles.dot} />
+                        <Text style={styles.metaText}>{Math.round(totalTime / 60)}h {(totalTime % 60)}m Total Focus</Text>
+                    </View>
+                </View>
+            )}
+
+            {/* Progress Card (Only for projects, Journey has day progress) */}
+            {goal.type !== 'journey' && (
+                <View style={styles.progressCard}>
+                    <View style={styles.progressInfo}>
+                        <Text style={styles.progressLabel}>Completion Status</Text>
+                        <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
+                    </View>
+                    <View style={styles.progressBarBg}>
+                        <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+                    </View>
+                </View>
+            )}
+
+            {/* Task List */}
+            <View style={styles.taskList}>
+                <Text style={styles.sectionHeader}>
+                    {goal.type === 'journey' ? `Tasks for Day ${currentDay}` : "Execution Steps"}
+                </Text>
+                
+                {goalTasks.length === 0 && (
+                    <View style={{ padding: 20, alignItems: 'center' }}>
+                        <Text style={{color: colors.textSecondary, textAlign: 'center'}}>
+                            No tasks scheduled. Tap "Refine Directive" to generate more.
+                        </Text>
+                    </View>
+                )}
+
+                {goalTasks.map((task, index) => (
+                    <Animated.View 
+                        key={task.id} 
+                        entering={FadeInDown.delay(index * 100).springify()}
+                        layout={Layout.springify()}
+                    >
+                        <TouchableOpacity 
+                            style={[
+                                styles.taskCard, 
+                                task.status === 'completed' && styles.taskCardDone
+                            ]}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                setSelectedTask(task);
+                            }}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.checkContainer}>
+                                {task.status === 'completed' ? (
+                                    <CheckCircle2 size={24} color={colors.primary} fill={colors.primary} />
+                                ) : (
+                                    <Circle size={24} color="#E5E7EB" strokeWidth={2} />
+                                )}
+                            </View>
+
+                            <View style={styles.taskContent}>
+                                <Text 
+                                    style={[
+                                        styles.taskTitle, 
+                                        task.status === 'completed' && styles.taskTextDone
+                                    ]}
+                                >
+                                    {task.title}
+                                </Text>
+                                <View style={styles.taskMeta}>
+                                    <Clock size={12} color={colors.textSecondary} />
+                                    <Text style={styles.taskDuration}>{task.duration} min</Text>
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                    </Animated.View>
+                ))}
+
+                {/* Journey Mode: "Prepare Next Day" Button (Stub) */}
+                {goal.type === 'journey' && goalTasks.length > 0 && goalTasks.every(t => t.status === 'completed') && (
+                    <TouchableOpacity 
+                        style={styles.nextDayBtn} 
+                        onPress={() => Alert.alert("Coming Soon", "This would generate the plan for tomorrow based on your progress.")}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.nextDayText}>PREPARE DAY {currentDay + 1}</Text>
+                        <ChevronRight size={20} color="#FFF" />
+                    </TouchableOpacity>
+                )}
+            </View>
+        </ScrollView>
+
+        {/* Floating Action Button - START SESSION */}
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={styles.primaryBtn} 
+            activeOpacity={0.9}
+            onPress={handleStartSession}
+          >
+            <Text style={styles.primaryBtnText}>START SESSION</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Task Edit Modal */}
+        <TaskEditModal 
+          visible={!!selectedTask}
+          task={selectedTask}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={(id: string, updates: any) => {
+            updateTask(id, updates);
+            setSelectedTask((prev: any) => ({ ...prev, ...updates }));
+          }}
+        />
+
+        {/* Menu Modal */}
+        <Modal
+          visible={menuVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={closeMenu}
+        >
+          <TouchableWithoutFeedback onPress={closeMenu}>
+            <View style={styles.menuOverlay}>
+              <Animated.View 
+                entering={FadeIn.duration(200)}
+                style={styles.menuContainer}
+              >
+                <TouchableOpacity style={styles.menuItem} onPress={handleRefine}>
+                  <Edit3 size={18} color={colors.text} />
+                  <Text style={styles.menuText}>Refine Directive</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
+                  <Trash2 size={18} color={colors.error} />
+                  <Text style={[styles.menuText, { color: colors.error }]}>Abort Mission</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingHorizontal: 20, 
+    paddingVertical: 12,
+    zIndex: 10,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerRight: { flexDirection: 'row', gap: 12 },
+  iconButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 120 },
+  
+  titleSection: { marginVertical: 20 },
+  tagContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 6, 
+    marginBottom: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6
+  },
+  tagText: { 
+    fontSize: 10, 
+    fontWeight: '800', 
+    color: colors.primary, 
+    letterSpacing: 1 
+  },
+  pageTitle: { 
+    fontSize: 28, 
+    fontWeight: '800', 
+    color: '#1A1A1A', 
+    marginBottom: 8,
+    lineHeight: 34
+  },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metaText: { fontSize: 14, fontWeight: '500', color: colors.textSecondary },
+  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#D1D5DB' },
+
+  progressCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  progressInfo: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  progressLabel: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
+  progressPercent: { fontSize: 14, fontWeight: '800', color: colors.primary },
+  progressBarBg: { height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 4 },
+
+  taskList: { gap: 16 },
+  sectionHeader: { 
+    fontSize: 14, 
+    fontWeight: '800', 
+    color: '#9CA3AF', 
+    textTransform: 'uppercase', 
+    letterSpacing: 1,
+    marginBottom: 8 
+  },
+  taskCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 16, 
+    borderRadius: 16, 
+    backgroundColor: '#FFFFFF', 
+    borderWidth: 1, 
+    borderColor: '#F3F4F6', 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.03, 
+    shadowRadius: 8, 
+    elevation: 2 
+  },
+  taskCardDone: { opacity: 0.6, backgroundColor: '#FAFAFA' },
+  checkContainer: { marginRight: 16 },
+  taskContent: { flex: 1 },
+  taskTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A', marginBottom: 4 },
+  taskTextDone: { textDecorationLine: 'line-through', color: '#9CA3AF' },
+  taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  taskDuration: { fontSize: 12, fontWeight: '500', color: colors.textSecondary },
+
+  footer: { 
+    position: 'absolute', 
+    bottom: 0, 
+    left: 0, 
+    right: 0, 
+    padding: 24, 
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6'
+  },
+  primaryBtn: { 
+    backgroundColor: '#1A1A1A', 
+    paddingVertical: 18, 
+    borderRadius: 24, 
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5
+  },
+  primaryBtnText: { 
+    color: '#FFFFFF', 
+    fontSize: 16, 
+    fontWeight: '700', 
+    letterSpacing: 1 
+  },
+
+  // --- Journey Styles ---
+  journeyHeader: { marginBottom: 24 },
+  calendarStrip: { flexDirection: 'row', gap: 10, paddingBottom: 16 },
+  dayPill: { 
+    width: 50, 
+    height: 60, 
+    borderRadius: 12, 
+    backgroundColor: '#F9FAFB', 
+    borderWidth: 1, 
+    borderColor: '#F3F4F6', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  dayPillActive: { 
+    backgroundColor: '#1A1A1A', 
+    borderColor: '#1A1A1A' 
+  },
+  dayPillBlur: { 
+    width: 50, 
+    height: 60, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    opacity: 0.5 
+  },
+  dayLabel: { 
+    fontSize: 10, 
+    fontWeight: '700', 
+    color: '#9CA3AF', 
+    marginBottom: 2 
+  },
+  dayNumber: { 
+    fontSize: 18, 
+    fontWeight: '800', 
+    color: '#1A1A1A' 
+  },
+  dayLabelActive: { 
+    color: '#FFFFFF' 
+  },
+  
+  journeyProgress: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12 
+  },
+  journeyProgressText: { 
+    fontSize: 13, 
+    fontWeight: '600', 
+    color: colors.textSecondary, 
+    width: 80 
+  },
+  journeyProgressBarBg: { 
+    flex: 1, 
+    height: 6, 
+    backgroundColor: '#F3F4F6', 
+    borderRadius: 3 
+  },
+  journeyProgressBarFill: { 
+    height: '100%', 
+    backgroundColor: colors.primary, 
+    borderRadius: 3 
+  },
+
+  nextDayBtn: { 
+    marginTop: 20, 
+    backgroundColor: '#059669', 
+    padding: 16, 
+    borderRadius: 16, 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    gap: 8 
+  },
+  nextDayText: { 
+    color: '#FFF', 
+    fontWeight: '800', 
+    fontSize: 14, 
+    letterSpacing: 1 
+  },
+  
+  refreshNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    gap: 6
+  },
+  refreshNoteText: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '600'
+  },
+
+  // --- Menu Styles ---
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  menuContainer: {
+    position: 'absolute',
+    top: 110,
+    right: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 8,
+    width: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  menuText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginHorizontal: 16,
   },
 });
 </file>
@@ -16174,156 +15991,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/OnboardingWizard.tsx">
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
-import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, BedDouble, MessagesSquare, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon, GraduationCap, Code, PenTool, TrendingUp } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import * as Haptics from 'expo-haptics';
-
-// --- NEW DATA: IDENTITIES ---
-const IDENTITIES = [
-  { id: 'student', label: 'Student', description: 'Assignments, Exams, Studying.', icon: GraduationCap },
-  { id: 'creative', label: 'Creative', description: 'Design, Writing, Art, Media.', icon: PenTool },
-  { id: 'developer', label: 'Developer', description: 'Coding, Engineering, Data.', icon: Code },
-  { id: 'founder', label: 'Founder/Exec', description: 'Strategy, Management, Growth.', icon: TrendingUp },
-  { id: 'professional', label: 'Professional', description: 'Corporate, Admin, Operations.', icon: Briefcase },
-];
-
-const ARCHETYPES = [
-  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Briefcase },
-  { id: 'firefighter', label: 'The Firefighter', description: 'I only work when the deadline is scary.', icon: Flame },
-  { id: 'sprinter', label: 'The Sprinter', description: 'I work in intense bursts, then crash.', icon: Zap },
-  { id: 'deep_worker', label: 'The Deep Worker', description: 'I need long hours of total silence.', icon: Brain },
-];
-
-const VILLAINS = [
-  { id: 'doomscrolling', label: 'The Scroll', description: 'Getting sucked into social media loops.', icon: Smartphone },
-  { id: 'side_quests', label: 'Side Quests', description: 'Cleaning the room to avoid the real task.', icon: Gamepad2 },
-  { id: 'rotting', label: 'Brain Fog', description: 'Feeling paralyzed and low energy.', icon: BedDouble },
-  { id: 'yap_fatigue', label: 'Over-Communication', description: 'Drained by too many messages/calls.', icon: MessagesSquare },
-];
-
-const MENTAL_BLOCKS = [
-  { id: 'perfectionism', label: 'Perfectionism', description: 'If it\'s not perfect, I won\'t start.', icon: Target },
-  { id: 'overwhelm', label: 'Overwhelm', description: 'The project feels too massive.', icon: Activity },
-  { id: 'procrastination', label: 'Resistance', description: 'I just don\'t feel like it yet.', icon: AlertTriangle },
-  { id: 'boredom', label: 'Boredom', description: 'The task is dull and painful.', icon: Anchor },
-];
-
-const FOCUS_WINDOWS = [
-  { id: 'early_morning', label: 'Early Morning', time: '5 AM - 9 AM', icon: Sunrise, skyColor: '#FFE4E1', textColor: '#1A1A1A' },
-  { id: 'late_morning', label: 'Late Morning', time: '9 AM - 12 PM', icon: Sun, skyColor: '#E0F7FA', textColor: '#1A1A1A' },
-  { id: 'afternoon', label: 'Afternoon', time: '1 PM - 5 PM', icon: CloudSun, skyColor: '#FFF8E1', textColor: '#1A1A1A' },
-  { id: 'evening', label: 'Evening', time: '5 PM - 9 PM', icon: Sunset, skyColor: '#F3E5F5', textColor: '#1A1A1A' },
-  { id: 'late_night', label: 'Late Night', time: '9 PM - 2 AM', icon: Moon, skyColor: '#1E293B', textColor: '#FFFFFF' },
-];
-
-export const OnboardingWizard = ({ onComplete }: any) => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [data, setData] = useState({ 
-    identity: null, // NEW FIELD
-    workArchetype: null, 
-    frictionVillain: null, 
-    mentalBlock: null, 
-    focusWindow: null 
-  });
-  
-  const stepTransition = useSharedValue(0);
-
-  useEffect(() => { stepTransition.value = 0; stepTransition.value = withSpring(1); }, [currentStep]);
-
-  const handleNext = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (currentStep < 4) setCurrentStep(currentStep + 1); // Increased steps to 4
-    else onComplete(data);
-  };
-
-  const steps = [
-    { title: "Who are you?", data: IDENTITIES, key: 'identity' },
-    { title: "How do you work?", data: ARCHETYPES, key: 'workArchetype' },
-    { title: "Your Nemesis?", data: VILLAINS, key: 'frictionVillain' },
-    { title: "The Inner Barrier.", data: MENTAL_BLOCKS, key: 'mentalBlock' },
-    { title: "Peak Energy.", data: FOCUS_WINDOWS, key: 'focusWindow' }
-  ];
-
-  const currentStepData = steps[currentStep];
-  const isLastStep = currentStep === 4;
-  
-  // @ts-ignore
-  const canProceed = data[currentStepData.key] !== null;
-
-  const PillCard = ({ item, isSelected, onPress }: any) => (
-    <TouchableOpacity style={[styles.pillCard, isSelected && styles.selectedCard]} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.pillIcon}><item.icon size={22} color={isSelected ? colors.primary : colors.textSecondary} /></View>
-      <View style={{ flex: 1 }}><Text style={styles.pillLabel}>{item.label}</Text><Text style={styles.pillDesc}>{item.description}</Text></View>
-      <View style={[styles.radio, isSelected && styles.radioActive]}>{isSelected && <Check size={12} color="#FFF" />}</View>
-    </TouchableOpacity>
-  );
-
-  return (
-    <View style={styles.container}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <View style={styles.content}>
-          <Text style={styles.stepTitle}>{currentStepData.title}</Text>
-          <View style={{ flex: 1 }}>
-            {!isLastStep ? (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-                {currentStepData.data.map((item: any) => (
-                  <PillCard 
-                    key={item.id} 
-                    item={item} 
-                    // @ts-ignore
-                    isSelected={data[currentStepData.key] === item.id} 
-                    // @ts-ignore
-                    onPress={() => setData({ ...data, [currentStepData.key]: item.id })} 
-                  />
-                ))}
-              </ScrollView>
-            ) : (
-              <View style={{ flex: 1, gap: 8 }}>
-                {FOCUS_WINDOWS.map(item => (
-                  <TouchableOpacity key={item.id} style={[styles.skyCard, { flex: 1, backgroundColor: data.focusWindow === item.id ? item.skyColor : '#F9FAFB' }]} onPress={() => setData({ ...data, focusWindow: item.id })}>
-                    <item.icon size={24} color={data.focusWindow === item.id ? item.textColor : colors.textSecondary} />
-                    <View style={{ flex: 1, marginLeft: 16 }}><Text style={[styles.pillLabel, { color: data.focusWindow === item.id ? item.textColor : colors.text }]}>{item.label}</Text><Text style={[styles.skyTime, { color: data.focusWindow === item.id ? item.textColor : colors.textSecondary }]}>{item.time}</Text></View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-        </View>
-        <View style={styles.footer}>
-          <TouchableOpacity style={[styles.nextBtn, !canProceed && { opacity: 0.5 }]} disabled={!canProceed} onPress={handleNext}>
-            <Text style={styles.nextText}>{isLastStep ? 'Finish' : 'Next'}</Text>
-            <ArrowRight size={20} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </View>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
-  content: { flex: 1, padding: 24 },
-  stepTitle: { fontSize: 28, fontWeight: '800', marginBottom: 24, color: colors.text },
-  pillCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, backgroundColor: '#F9FAFB', borderWidth: 2, borderColor: 'transparent' },
-  selectedCard: { backgroundColor: '#FFFBEB', borderColor: colors.primary },
-  pillIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  pillLabel: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
-  pillDesc: { fontSize: 13, color: colors.textSecondary },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#DDD', justifyContent: 'center', alignItems: 'center' },
-  radioActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  skyCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, borderRadius: 16 },
-  skyTime: { fontSize: 12, fontWeight: '600', opacity: 0.7 },
-  footer: { padding: 24, borderTopWidth: 1, borderTopColor: '#EEE' },
-  nextBtn: { backgroundColor: colors.primary, padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  nextText: { color: '#FFF', fontSize: 16, fontWeight: '800' }
-});
-</file>
-
 <file path="src/components/TaskReactorCircle.tsx">
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
@@ -16627,6 +16294,252 @@ const styles = StyleSheet.create({
 export default TaskReactorCircle;
 </file>
 
+<file path="src/components/TaskStagingModal.tsx">
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Modal, 
+  TouchableOpacity, 
+  ScrollView, 
+  TextInput, 
+  Dimensions, 
+  ActivityIndicator, 
+  KeyboardAvoidingView,
+  Platform 
+} from 'react-native';
+import Animated, { ZoomIn, FadeInRight, FadeOutLeft } from 'react-native-reanimated';
+import { Play, X, ChevronLeft, Minus, Plus, Info, Edit3, Sparkles, Send } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+
+const { height } = Dimensions.get('window');
+
+export interface StagingTask {
+  id: string;
+  title: string;
+  duration: number;
+  description?: string;
+}
+
+interface TaskStagingModalProps {
+  visible: boolean;
+  goalTitle: string;
+  generatedTasks: StagingTask[];
+  onConfirm: (tasks: StagingTask[], title: string) => void;
+  onRefine: (feedback: string) => Promise<void>; // New Prop for AI Regeneration
+  onClose: () => void;
+}
+
+export const TaskStagingModal = ({ visible, goalTitle, generatedTasks, onConfirm, onRefine, onClose }: TaskStagingModalProps) => {
+  const [tasks, setTasks] = useState<StagingTask[]>([]);
+  const [editableTitle, setEditableTitle] = useState(goalTitle);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTask, setEditingTask] = useState<StagingTask | null>(null);
+  
+  // AI Refinement State
+  const [refineFeedback, setRefineFeedback] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setEditableTitle(goalTitle);
+      setTasks(generatedTasks || []);
+      setEditingTask(null);
+      setRefineFeedback('');
+      setIsRefining(false);
+    }
+  }, [visible, goalTitle, generatedTasks]);
+
+  const handleUpdateDuration = (id: string, delta: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, duration: Math.max(5, t.duration + delta) } : t));
+  };
+
+  const handleInitialize = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onConfirm(tasks, editableTitle);
+  };
+
+  const handleAiRefine = async () => {
+    if (!refineFeedback.trim()) return;
+    
+    setIsRefining(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    try {
+      // Send context to parent to regenerate plan
+      await onRefine(`Regarding task "${editingTask?.title}": ${refineFeedback}`);
+      setEditingTask(null); // Go back to list view to show new tasks
+      setRefineFeedback('');
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
+        <Animated.View entering={ZoomIn.duration(400)} style={styles.container}>
+          {editingTask ? (
+            <Animated.View entering={FadeInRight} exiting={FadeOutLeft} style={{ flex: 1 }}>
+              <TouchableOpacity onPress={() => setEditingTask(null)} style={styles.backBtn}>
+                <ChevronLeft size={20} color={colors.primary} />
+                <Text style={styles.backText}>Back to mission</Text>
+              </TouchableOpacity>
+              
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.editTitle}>{editingTask.title}</Text>
+                
+                <View style={styles.descBox}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                    <Info size={14} color={colors.primary} />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>AI STRATEGY</Text>
+                  </View>
+                  <Text style={styles.descText}>{editingTask.description}</Text>
+                </View>
+
+                {/* --- NEW: AI REFINEMENT SECTION --- */}
+                <View style={styles.refineSection}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                    <Sparkles size={14} color={colors.primary} />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>CAN'T DO THIS?</Text>
+                  </View>
+                  <View style={styles.refineInputRow}>
+                    <TextInput
+                      style={styles.refineInput}
+                      placeholder="Tell AI why (e.g., 'I don't have budget')"
+                      placeholderTextColor={colors.textLight}
+                      value={refineFeedback}
+                      onChangeText={setRefineFeedback}
+                      multiline
+                    />
+                    <TouchableOpacity 
+                      style={[styles.refineBtn, !refineFeedback.trim() && styles.refineBtnDisabled]}
+                      onPress={handleAiRefine}
+                      disabled={!refineFeedback.trim() || isRefining}
+                    >
+                      {isRefining ? <ActivityIndicator color="#FFF" size="small" /> : <Send size={16} color="#FFF" />}
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.refineHint}>This will regenerate the entire plan based on your constraint.</Text>
+                </View>
+
+                <View style={styles.editorSection}>
+                  <Text style={styles.sectionLabel}>FOCUS DURATION</Text>
+                  <View style={styles.stepper}>
+                    <TouchableOpacity onPress={() => handleUpdateDuration(editingTask.id, -5)} style={styles.stepBtn}>
+                      <Minus color={colors.text} />
+                    </TouchableOpacity>
+                    <View style={styles.timeValueBox}>
+                      <Text style={styles.durVal}>{tasks.find(t => t.id === editingTask.id)?.duration}</Text>
+                      <Text style={styles.minLab}>MINS</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleUpdateDuration(editingTask.id, 5)} style={styles.stepBtn}>
+                      <Plus color={colors.text} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+              
+              <TouchableOpacity style={styles.saveBtn} onPress={() => setEditingTask(null)}>
+                <Text style={styles.saveText}>Save Parameters</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <View style={styles.header}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.topLab}>MISSION STAGING</Text>
+                  <TouchableOpacity onPress={() => setIsEditingTitle(true)} style={styles.titleRow}>
+                    {isEditingTitle ? (
+                      <TextInput 
+                        value={editableTitle} 
+                        onChangeText={setEditableTitle} 
+                        autoFocus 
+                        onBlur={() => setIsEditingTitle(false)} 
+                        style={styles.titleInput} 
+                      />
+                    ) : (
+                      <>
+                        <Text style={styles.goalTitle} numberOfLines={2}>{editableTitle}</Text>
+                        <Edit3 size={16} color={colors.textLight} style={{ marginLeft: 8 }} />
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={20} color={colors.textSecondary} /></TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                {tasks.map((task, i) => (
+                  <TouchableOpacity key={task.id} style={styles.taskRow} onPress={() => setEditingTask(task)}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowTitle}>{task.title}</Text>
+                      <Text style={styles.tapToEdit}>Tap to edit details</Text>
+                    </View>
+                    <View style={styles.timeBadge}><Text style={styles.timeText}>{task.duration}m</Text></View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleInitialize}>
+                <Text style={styles.btnText}>INITIALIZE SEQUENCE</Text>
+                <Play size={18} color="#FFF" fill="#FFF" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
+  container: { backgroundColor: '#FFF', borderRadius: 32, padding: 24, height: height * 0.8 },
+  header: { flexDirection: 'row', marginBottom: 24, gap: 12 },
+  topLab: { fontSize: 11, fontWeight: '800', color: colors.primary, letterSpacing: 1.5, marginBottom: 4 },
+  titleRow: { flexDirection: 'row', alignItems: 'center' },
+  goalTitle: { fontSize: 22, fontWeight: '700', color: colors.text, maxWidth: '90%' },
+  titleInput: { fontSize: 22, fontWeight: '700', borderBottomWidth: 2, borderBottomColor: colors.primary, color: colors.text, padding: 0 },
+  closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center' },
+  taskRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18, borderBottomWidth: 1, borderColor: '#F3F4F6' },
+  rowTitle: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 2 },
+  tapToEdit: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
+  timeBadge: { backgroundColor: colors.glow, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.primary },
+  timeText: { color: colors.primary, fontWeight: '800' },
+  primaryBtn: { backgroundColor: colors.primary, padding: 20, borderRadius: 20, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 20, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
+  btnText: { color: '#FFF', fontWeight: '800', letterSpacing: 1 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 4 },
+  backText: { color: colors.primary, fontWeight: '700' },
+  editTitle: { fontSize: 22, fontWeight: '700', marginBottom: 16, color: colors.text },
+  descBox: { backgroundColor: '#F9FAFB', padding: 16, borderRadius: 20, marginBottom: 20, borderWidth: 1, borderColor: '#F3F4F6' },
+  descText: { fontSize: 15, color: '#4B5563', lineHeight: 22 },
+  
+  // Refine Styles
+  refineSection: { marginBottom: 30, backgroundColor: '#F9FAFB', padding: 16, borderRadius: 20, borderWidth: 1, borderColor: '#F3F4F6' },
+  refineInputRow: { flexDirection: 'row', gap: 10 },
+  refineInput: { flex: 1, backgroundColor: '#FFF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E5E7EB', minHeight: 45, fontSize: 14 },
+  refineBtn: { width: 45, borderRadius: 12, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
+  refineBtnDisabled: { backgroundColor: '#D1D5DB' },
+  refineHint: { fontSize: 11, color: colors.textSecondary, marginTop: 8, fontStyle: 'italic' },
+
+  editorSection: { alignItems: 'center', marginBottom: 40 },
+  sectionLabel: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, marginBottom: 20 },
+  stepper: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 40 },
+  stepBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#EEE' },
+  timeValueBox: { alignItems: 'center', minWidth: 80 },
+  durVal: { fontSize: 48, fontWeight: '800', color: colors.text },
+  minLab: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginTop: -4 },
+  saveBtn: { backgroundColor: colors.text, padding: 18, borderRadius: 16, alignItems: 'center', marginTop: 'auto' },
+  saveText: { color: '#FFF', fontWeight: '800' }
+});
+</file>
+
 <file path="src/config/api.ts">
 // ⚠️ IMPORTANT:
 // 1. Open your Command Prompt (cmd.exe)
@@ -16706,6 +16619,156 @@ export default function OnboardingScreen() {
 }
 </file>
 
+<file path="src/components/OnboardingWizard.tsx">
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
+import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, BedDouble, MessagesSquare, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon, GraduationCap, Code, PenTool, TrendingUp } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+
+// --- NEW DATA: IDENTITIES ---
+const IDENTITIES = [
+  { id: 'student', label: 'Student', description: 'Assignments, Exams, Studying.', icon: GraduationCap },
+  { id: 'creative', label: 'Creative', description: 'Design, Writing, Art, Media.', icon: PenTool },
+  { id: 'developer', label: 'Developer', description: 'Coding, Engineering, Data.', icon: Code },
+  { id: 'founder', label: 'Founder/Exec', description: 'Strategy, Management, Growth.', icon: TrendingUp },
+  { id: 'professional', label: 'Professional', description: 'Corporate, Admin, Operations.', icon: Briefcase },
+];
+
+const ARCHETYPES = [
+  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Briefcase },
+  { id: 'firefighter', label: 'The Firefighter', description: 'I only work when the deadline is scary.', icon: Flame },
+  { id: 'sprinter', label: 'The Sprinter', description: 'I work in intense bursts, then crash.', icon: Zap },
+  { id: 'deep_worker', label: 'The Deep Worker', description: 'I need long hours of total silence.', icon: Brain },
+];
+
+const VILLAINS = [
+  { id: 'doomscrolling', label: 'The Scroll', description: 'Getting sucked into social media loops.', icon: Smartphone },
+  { id: 'side_quests', label: 'Side Quests', description: 'Cleaning the room to avoid the real task.', icon: Gamepad2 },
+  { id: 'rotting', label: 'Brain Fog', description: 'Feeling paralyzed and low energy.', icon: BedDouble },
+  { id: 'yap_fatigue', label: 'Over-Communication', description: 'Drained by too many messages/calls.', icon: MessagesSquare },
+];
+
+const MENTAL_BLOCKS = [
+  { id: 'perfectionism', label: 'Perfectionism', description: 'If it\'s not perfect, I won\'t start.', icon: Target },
+  { id: 'overwhelm', label: 'Overwhelm', description: 'The project feels too massive.', icon: Activity },
+  { id: 'procrastination', label: 'Resistance', description: 'I just don\'t feel like it yet.', icon: AlertTriangle },
+  { id: 'boredom', label: 'Boredom', description: 'The task is dull and painful.', icon: Anchor },
+];
+
+const FOCUS_WINDOWS = [
+  { id: 'early_morning', label: 'Early Morning', time: '5 AM - 9 AM', icon: Sunrise, skyColor: '#FFE4E1', textColor: '#1A1A1A' },
+  { id: 'late_morning', label: 'Late Morning', time: '9 AM - 12 PM', icon: Sun, skyColor: '#E0F7FA', textColor: '#1A1A1A' },
+  { id: 'afternoon', label: 'Afternoon', time: '1 PM - 5 PM', icon: CloudSun, skyColor: '#FFF8E1', textColor: '#1A1A1A' },
+  { id: 'evening', label: 'Evening', time: '5 PM - 9 PM', icon: Sunset, skyColor: '#F3E5F5', textColor: '#1A1A1A' },
+  { id: 'late_night', label: 'Late Night', time: '9 PM - 2 AM', icon: Moon, skyColor: '#1E293B', textColor: '#FFFFFF' },
+];
+
+export const OnboardingWizard = ({ onComplete }: any) => {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [data, setData] = useState({ 
+    identity: null, // NEW FIELD
+    workArchetype: null, 
+    frictionVillain: null, 
+    mentalBlock: null, 
+    focusWindow: null 
+  });
+  
+  const stepTransition = useSharedValue(0);
+
+  useEffect(() => { stepTransition.value = 0; stepTransition.value = withSpring(1); }, [currentStep]);
+
+  const handleNext = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (currentStep < 4) setCurrentStep(currentStep + 1); // Increased steps to 4
+    else onComplete(data);
+  };
+
+  const steps = [
+    { title: "Who are you?", data: IDENTITIES, key: 'identity' },
+    { title: "How do you work?", data: ARCHETYPES, key: 'workArchetype' },
+    { title: "Your Nemesis?", data: VILLAINS, key: 'frictionVillain' },
+    { title: "The Inner Barrier.", data: MENTAL_BLOCKS, key: 'mentalBlock' },
+    { title: "Peak Energy.", data: FOCUS_WINDOWS, key: 'focusWindow' }
+  ];
+
+  const currentStepData = steps[currentStep];
+  const isLastStep = currentStep === 4;
+  
+  // @ts-ignore
+  const canProceed = data[currentStepData.key] !== null;
+
+  const PillCard = ({ item, isSelected, onPress }: any) => (
+    <TouchableOpacity style={[styles.pillCard, isSelected && styles.selectedCard]} onPress={onPress} activeOpacity={0.8}>
+      <View style={styles.pillIcon}><item.icon size={22} color={isSelected ? colors.primary : colors.textSecondary} /></View>
+      <View style={{ flex: 1 }}><Text style={styles.pillLabel}>{item.label}</Text><Text style={styles.pillDesc}>{item.description}</Text></View>
+      <View style={[styles.radio, isSelected && styles.radioActive]}>{isSelected && <Check size={12} color="#FFF" />}</View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.content}>
+          <Text style={styles.stepTitle}>{currentStepData.title}</Text>
+          <View style={{ flex: 1 }}>
+            {!isLastStep ? (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                {currentStepData.data.map((item: any) => (
+                  <PillCard 
+                    key={item.id} 
+                    item={item} 
+                    // @ts-ignore
+                    isSelected={data[currentStepData.key] === item.id} 
+                    // @ts-ignore
+                    onPress={() => setData({ ...data, [currentStepData.key]: item.id })} 
+                  />
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={{ flex: 1, gap: 8 }}>
+                {FOCUS_WINDOWS.map(item => (
+                  <TouchableOpacity key={item.id} style={[styles.skyCard, { flex: 1, backgroundColor: data.focusWindow === item.id ? item.skyColor : '#F9FAFB' }]} onPress={() => setData({ ...data, focusWindow: item.id })}>
+                    <item.icon size={24} color={data.focusWindow === item.id ? item.textColor : colors.textSecondary} />
+                    <View style={{ flex: 1, marginLeft: 16 }}><Text style={[styles.pillLabel, { color: data.focusWindow === item.id ? item.textColor : colors.text }]}>{item.label}</Text><Text style={[styles.skyTime, { color: data.focusWindow === item.id ? item.textColor : colors.textSecondary }]}>{item.time}</Text></View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+        <View style={styles.footer}>
+          <TouchableOpacity style={[styles.nextBtn, !canProceed && { opacity: 0.5 }]} disabled={!canProceed} onPress={handleNext}>
+            <Text style={styles.nextText}>{isLastStep ? 'Finish' : 'Next'}</Text>
+            <ArrowRight size={20} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FFF' },
+  content: { flex: 1, padding: 24 },
+  stepTitle: { fontSize: 28, fontWeight: '800', marginBottom: 24, color: colors.text },
+  pillCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, backgroundColor: '#F9FAFB', borderWidth: 2, borderColor: 'transparent' },
+  selectedCard: { backgroundColor: '#FFFBEB', borderColor: colors.primary },
+  pillIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  pillLabel: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
+  pillDesc: { fontSize: 13, color: colors.textSecondary },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#DDD', justifyContent: 'center', alignItems: 'center' },
+  radioActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  skyCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, borderRadius: 16 },
+  skyTime: { fontSize: 12, fontWeight: '600', opacity: 0.7 },
+  footer: { padding: 24, borderTopWidth: 1, borderTopColor: '#EEE' },
+  nextBtn: { backgroundColor: colors.primary, padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
+  nextText: { color: '#FFF', fontSize: 16, fontWeight: '800' }
+});
+</file>
+
 <file path="backend/prisma/schema.prisma">
 generator client {
   provider = "prisma-client-js"
@@ -16744,6 +16807,7 @@ model Goal {
   type        String   @default("project") // 'project' or 'journey'
   targetDate  DateTime?
   startDate   DateTime @default(now())
+  dailyMinutes Int     @default(45) // Time commitment per day
   // -----------------------------------
 
   createdAt   DateTime @default(now())
@@ -16945,12 +17009,13 @@ app.post('/ai/clarify', async (req, res) => {
 });
 
 app.post('/ai/generate-plan', async (req, res) => {
-  const { email, goal, clarification } = req.body;
+  const { email, goal, clarification, dailyMinutes } = req.body;
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const result = await generateActionPlan(goal, user, clarification);
+    // Pass dailyMinutes to AI service
+    const result = await generateActionPlan(goal, user, clarification, dailyMinutes);
     res.json({ tasks: result });
   } catch (error) {
     console.error("AI Generate Plan Error:", error);
@@ -17003,24 +17068,27 @@ app.post('/ai/daily-plan', async (req, res) => {
 // ==========================================
 
 app.post('/goals', async (req, res) => {
-  const { title, userEmail, type, targetDate } = req.body;
+  const { title, userEmail, type, targetDate, dailyMinutes } = req.body;
   try {
     const user = await prisma.user.findUnique({ where: { email: userEmail }});
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    console.log(`Creating Goal for ${userEmail}: ${title} [${type}]`);
+    console.log(`Creating Goal for ${userEmail}: ${title} [${type}] with budget: ${dailyMinutes}m`);
 
     const goal = await prisma.goal.create({
       data: { 
         title, 
         userId: user.id,
         type: type || 'project',
-        targetDate: targetDate ? new Date(targetDate) : null
+        targetDate: targetDate ? new Date(targetDate) : null,
+        // Safeguard: Force conversion to Number, default to 45 if 0 or invalid
+        dailyMinutes: Number(dailyMinutes) || 45 
       }
     });
     res.json(goal);
   } catch (error) {
-    console.error("Create Goal DB Error:", error);
+    // Enhanced error logging to see exactly what went wrong
+    console.error("Create Goal DB Error FULL:", error);
     res.status(500).json({ error: 'Goal creation failed', details: String(error) });
   }
 });
@@ -17237,6 +17305,7 @@ export default function GoalInputScreen() {
   const [journeyReason, setJourneyReason] = useState('');
   const [goalType, setGoalType] = useState('project');
   const [targetDate, setTargetDate] = useState<Date | null>(null);
+  const [committedDailyMinutes, setCommittedDailyMinutes] = useState(0);
 
   const router = useRouter();
   const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks, generatePlan, getAiQuestion, analyzeGoal } = useApp();
@@ -17278,56 +17347,69 @@ export default function GoalInputScreen() {
     setStep('processing');
 
     try {
-      // 1. Analyze Goal Type
-      const typeAnalysis = await analyzeGoal(goalText);
-      
-      if (typeAnalysis.type === 'journey') {
-        setGoalType('journey');
-        setJourneyReason(typeAnalysis.reason || "Long-term effort detected.");
-        setIsJourneySetupVisible(true);
-        return; 
-      }
-
-      await proceedToClarification();
-    } catch (e) {
-      await proceedToClarification();
-    }
-  };
-
-  const proceedToClarification = async () => {
-    try {
+      // 1. ALWAYS ask clarifying question first (Scope/Context)
       const question = await getAiQuestion(goalText);
+      
       if (question) {
         setAiQuestion(question);
         setStep('clarification');
+        // Reset button animation for next step
         setTimeout(() => submitButtonOpacity.value = withSpring(0), 100);
       } else {
-        handleFinalSubmit("");
+        // Fallback: If no question generated, analyze type directly
+        await checkGoalTypeAndProceed("");
       }
     } catch (e) {
-      handleFinalSubmit("");
+      await checkGoalTypeAndProceed("");
+    }
+  };
+
+  const handleClarificationSubmit = async () => {
+    if (!answerText.trim()) return;
+    
+    // 2. User answered context -> Now analyze type
+    await checkGoalTypeAndProceed(answerText);
+  };
+
+  const checkGoalTypeAndProceed = async (clarification: string) => {
+    setStep('processing');
+    try {
+      // Analyze if it's a Project or Journey
+      const typeAnalysis = await analyzeGoal(goalText);
+      
+      if (typeAnalysis.type === 'journey') {
+        // It's a journey -> Prompt for Logistics (Time/Date)
+        setGoalType('journey');
+        setJourneyReason(typeAnalysis.reason || "Long-term effort detected.");
+        setIsJourneySetupVisible(true);
+      } else {
+        // It's a project -> Generate plan immediately with the context
+        handleFinalSubmit(clarification, 0);
+      }
+    } catch (error) {
+      // Fallback to project flow
+      handleFinalSubmit(clarification, 0);
     }
   };
 
   const handleJourneyConfirm = async (date: Date, dailyMinutes: number) => {
     setIsJourneySetupVisible(false);
     setTargetDate(date);
+    setCommittedDailyMinutes(dailyMinutes);
     
-    // Inject the time constraint into the context for the AI
-    const context = `TARGET DATE: ${date.toDateString()}. TIME BUDGET: ${dailyMinutes} minutes/day. Focus ONLY on Day 1 tasks.`;
-    handleFinalSubmit(context);
+    // Pass the context (answerText) AND the new logistical constraints
+    handleFinalSubmit(answerText, dailyMinutes);
   };
 
-  const handleClarificationSubmit = () => {
-    if (!answerText.trim()) return;
-    handleFinalSubmit(answerText);
-  };
-
-  const handleFinalSubmit = async (clarification: string) => {
+  const handleFinalSubmit = async (clarification: string, dailyMinutes: number) => {
     setStep('processing');
 
     try {
-      const aiResult = await generatePlan(goalText, clarification);
+      // Generate plan using:
+      // 1. Original Goal
+      // 2. Clarification (Scope/Context)
+      // 3. Daily Minutes (Time Constraint)
+      const aiResult = await generatePlan(goalText, clarification, dailyMinutes);
       
       if (aiResult && aiResult.tasks && aiResult.tasks.length > 0) {
         const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
@@ -17340,8 +17422,9 @@ export default function GoalInputScreen() {
         setAiTasks(formattedTasks);
         setAiTitle(aiResult.shortTitle);
         setIsStagingVisible(true);
-        // If clarification was used (and not reset by journey flow), preserve it
-        if (!targetDate) setAnswerText(''); 
+        
+        // Only clear if project, for journey keep context in case of refinement
+        if (goalType === 'project') setAnswerText(''); 
       } else {
         Alert.alert("Error", "Could not generate plan.");
         setStep('goal');
@@ -17353,11 +17436,12 @@ export default function GoalInputScreen() {
   };
 
   const handleStagingRefinement = async (feedback: string) => {
-    const fullContext = `${answerText ? answerText + ". " : ""}[CONSTRAINT UPDATE: ${feedback}]`;
+    const baseContext = answerText || (goalType === 'journey' ? `Journey Goal: ${goalText}` : "");
+    const fullContext = `${baseContext}. [CONSTRAINT UPDATE: ${feedback}]`;
     setAnswerText(fullContext);
 
     try {
-      const aiResult = await generatePlan(goalText, fullContext);
+      const aiResult = await generatePlan(goalText, fullContext, committedDailyMinutes);
       if (aiResult && aiResult.tasks) {
         const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
           id: `ai-refined-${Date.now()}-${index}`,
@@ -17384,7 +17468,7 @@ export default function GoalInputScreen() {
         overrideTasks(id, finalTasks);
         router.back();
       } else {
-        const newGoal = await addGoal(finalTitle, goalType, targetDate || undefined);
+        const newGoal = await addGoal(finalTitle, goalType, targetDate || undefined, committedDailyMinutes);
         if (newGoal && newGoal.id) {
           await addTasks(newGoal.id, finalTasks);
           setCurrentGoal(newGoal);
@@ -17517,7 +17601,7 @@ export default function GoalInputScreen() {
                   <Sparkles size={40} color={colors.primary} />
                 </MotiView>
                 <Text style={styles.loadingText}>
-                  {goalType === 'journey' ? "Architecting Journey..." : "Constructing Tactical Plan..."}
+                  {goalType === 'journey' ? "Designing Day 1 Protocol..." : "Constructing Tactical Plan..."}
                 </Text>
               </MotiView>
             )}
@@ -17547,7 +17631,7 @@ export default function GoalInputScreen() {
         onCancel={() => {
             setIsJourneySetupVisible(false);
             setGoalType('project');
-            proceedToClarification();
+            handleFinalSubmit(answerText, 0); // Proceed as project with context
         }}
       />
 
@@ -17578,197 +17662,6 @@ const styles = StyleSheet.create({
   loadingContainer: { alignItems: 'center', marginTop: 30 },
   loadingText: { fontSize: 16, marginTop: 20, textAlign: 'center', fontWeight: '600', color: colors.textSecondary },
 });
-</file>
-
-<file path="src/services/api.ts">
-import { API_BASE_URL } from '../config/api';
-
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'User-Agent': 'ProductivityAI-Mobile',
-});
-
-const handleResponse = async (response: Response) => {
-  const text = await response.text();
-  
-  if (text.trim().startsWith('<')) {
-    console.log('🛑 BLOCKED HTML RESPONSE:', text.substring(0, 200));
-    throw new Error('Server Error: Endpoint returned HTML. Check your API URL and Connection.');
-  }
-
-  if (!response.ok) {
-    let errorMessage = `Request failed: ${response.status}`;
-    try {
-      const json = JSON.parse(text);
-      if (json.error) errorMessage = json.error;
-    } catch (e) {
-      errorMessage = text || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
-  return text ? JSON.parse(text) : null;
-};
-
-const fetchWithTimeout = async (url: string, options: any = {}) => {
-  const { timeout = 10000 } = options;
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(id);
-    return response;
-  } catch (error: any) {
-    clearTimeout(id);
-    if (error.name === 'AbortError') {
-      throw new Error(`Timeout: Could not reach server. Check your IP and Firewall.`);
-    }
-    throw error;
-  }
-};
-
-export const apiService = {
-  // 1. AUTHENTICATION & PROFILE
-  async register(userData: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/register`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(userData),
-    });
-    return handleResponse(res);
-  },
-
-  async login(credentials: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/login`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(credentials),
-    });
-    return handleResponse(res);
-  },
-
-  async socialLogin(data: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/auth/social`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return handleResponse(res);
-  },
-
-  async getUserProfile(email: string) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
-      method: 'GET',
-      headers: getHeaders(),
-    });
-    return handleResponse(res);
-  },
-
-  async updateUser(email: string, updates: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
-      method: 'PATCH',
-      headers: getHeaders(),
-      body: JSON.stringify(updates),
-    });
-    return handleResponse(res);
-  },
-
-  // 2. AI STRATEGIST
-  async analyzeGoal(goal: string) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ goal }),
-    });
-    return handleResponse(res);
-  },
-
-  async getClarifyingQuestion(email: string, goal: string) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/clarify`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ email, goal }),
-    });
-    return handleResponse(res);
-  },
-
-  async generateAiPlan(email: string, goal: string, clarification: string = "") {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/generate-plan`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ email, goal, clarification }),
-      timeout: 20000, 
-    });
-    return handleResponse(res);
-  },
-
-  async refineTask(email: string, taskId: string, feedback: string) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/refine-task`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ email, taskId, feedback }),
-    });
-    return handleResponse(res);
-  },
-
-  async generateDailyPlan(email: string, goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/daily-plan`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ email, goalTitle, dayNumber, totalDays, dailyMinutes }),
-    });
-    return handleResponse(res);
-  },
-
-  // 3. GOAL & TASK MANAGEMENT
-  async createGoal(email: string, title: string, type: string = 'project', targetDate?: Date) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/goals`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ title, userEmail: email, type, targetDate }),
-    });
-    return handleResponse(res);
-  },
-
-  async updateGoal(goalId: string, updates: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}`, {
-      method: 'PATCH',
-      headers: getHeaders(),
-      body: JSON.stringify(updates),
-    });
-    return handleResponse(res);
-  },
-
-  async addTasksToGoal(goalId: string, tasks: any[]) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}/tasks`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ tasks }),
-    });
-    return handleResponse(res);
-  },
-
-  async updateTask(taskId: string, updates: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/tasks/${taskId}`, {
-      method: 'PATCH',
-      headers: getHeaders(),
-      body: JSON.stringify(updates),
-    });
-    return handleResponse(res);
-  },
-
-  // 4. METRICS
-  async getLeaderboard() {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/leaderboard`, {
-      method: 'GET',
-      headers: getHeaders(),
-    });
-    return handleResponse(res);
-  }
-};
 </file>
 
 <file path="app/home.tsx">
@@ -17975,6 +17868,206 @@ const styles = StyleSheet.create({
 });
 </file>
 
+<file path="src/services/api.ts">
+import { API_BASE_URL } from '../config/api';
+
+const getHeaders = () => ({
+  'Content-Type': 'application/json',
+  'User-Agent': 'ProductivityAI-Mobile',
+  // 🛡️ Bypasses the Ngrok browser warning page
+  'ngrok-skip-browser-warning': 'true',
+});
+
+const handleResponse = async (response: Response) => {
+  const text = await response.text();
+  
+  if (text.trim().startsWith('<')) {
+    console.error('🛑 BLOCKED HTML RESPONSE:', text.substring(0, 200));
+    throw new Error('Server Error: Endpoint returned HTML. Check your API URL and Connection.');
+  }
+
+  if (!response.ok) {
+    let errorMessage = `Request failed: ${response.status}`;
+    try {
+      const json = JSON.parse(text);
+      if (json.error) {
+        errorMessage = json.error;
+        if (json.details) {
+          errorMessage += ` | Details: ${json.details}`;
+        }
+      }
+    } catch (e) {
+      errorMessage = text || errorMessage;
+    }
+    console.error("❌ API ERROR:", errorMessage);
+    throw new Error(errorMessage);
+  }
+  return text ? JSON.parse(text) : null;
+};
+
+const fetchWithTimeout = async (url: string, options: any = {}) => {
+  const { timeout = 25000 } = options; // Increased timeout for AI operations
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error: any) {
+    clearTimeout(id);
+    if (error.name === 'AbortError') {
+      throw new Error(`Timeout: Could not reach server. Check your internet connection.`);
+    }
+    throw error;
+  }
+};
+
+export const apiService = {
+  // 1. AUTHENTICATION & PROFILE
+  async register(userData: any) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/register`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(userData),
+    });
+    return handleResponse(res);
+  },
+
+  async login(credentials: any) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/login`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(credentials),
+    });
+    return handleResponse(res);
+  },
+
+  async socialLogin(data: any) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/auth/social`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
+  },
+
+  async getUserProfile(email: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async updateUser(email: string, updates: any) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(updates),
+    });
+    return handleResponse(res);
+  },
+
+  // 2. AI STRATEGIST
+  async analyzeGoal(goal: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ goal }),
+    });
+    return handleResponse(res);
+  },
+
+  async getClarifyingQuestion(email: string, goal: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/clarify`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, goal }),
+    });
+    return handleResponse(res);
+  },
+
+  async generateAiPlan(email: string, goal: string, clarification: string = "", dailyMinutes: number = 0) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/generate-plan`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, goal, clarification, dailyMinutes }),
+      timeout: 30000, 
+    });
+    return handleResponse(res);
+  },
+
+  async refineTask(email: string, taskId: string, feedback: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/refine-task`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, taskId, feedback }),
+    });
+    return handleResponse(res);
+  },
+
+  async generateDailyPlan(email: string, goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/ai/daily-plan`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, goalTitle, dayNumber, totalDays, dailyMinutes }),
+    });
+    return handleResponse(res);
+  },
+
+  // 3. GOAL & TASK MANAGEMENT
+  async createGoal(email: string, title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/goals`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ title, userEmail: email, type, targetDate, dailyMinutes }),
+    });
+    return handleResponse(res);
+  },
+
+  async updateGoal(goalId: string, updates: any) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(updates),
+    });
+    return handleResponse(res);
+  },
+
+  async addTasksToGoal(goalId: string, tasks: any[]) {
+    // FIX WAS HERE: changed from goalId/tasks to goalId}/tasks
+    const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}/tasks`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ tasks }),
+    });
+    return handleResponse(res);
+  },
+
+  async updateTask(taskId: string, updates: any) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(updates),
+    });
+    return handleResponse(res);
+  },
+
+  // 4. METRICS
+  async getLeaderboard() {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/leaderboard`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  }
+};
+</file>
+
 <file path="src/context/AppContext.tsx">
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Goal, Task } from '../types';
@@ -17993,7 +18086,7 @@ interface AppContextType {
   goals: Goal[];
   tasks: Task[];
   currentGoal: Goal | null;
-  addGoal: (title: string, type?: string, targetDate?: Date) => Promise<Goal | null>; 
+  addGoal: (title: string, type?: string, targetDate?: Date, dailyMinutes?: number) => Promise<Goal | null>; 
   updateGoal: (goalId: string, updates: Partial<Goal>) => void;
   deleteGoal: (goalId: string) => void;
   archiveGoal: (goalId: string) => void;
@@ -18007,7 +18100,7 @@ interface AppContextType {
   rateProductivity: (taskId: string, rating: number) => void;
   refreshData: () => void;
   saveOnboarding: (data: any) => Promise<void>;
-  generatePlan: (goalText: string, clarification?: string) => Promise<any | null>;
+  generatePlan: (goalText: string, clarification?: string, dailyMinutes?: number) => Promise<any | null>;
   generateDailyPlan: (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => Promise<any>;
   getAiQuestion: (goalText: string) => Promise<string | null>;
   analyzeGoal: (goal: string) => Promise<any>; 
@@ -18057,10 +18150,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
-  const generatePlan = useCallback(async (goalText: string, clarification: string = "") => {
+  const generatePlan = useCallback(async (goalText: string, clarification: string = "", dailyMinutes: number = 0) => {
     if (!user?.email) return null;
     try {
-      const response = await apiService.generateAiPlan(user.email, goalText, clarification);
+      // Pass dailyMinutes to API
+      const response = await apiService.generateAiPlan(user.email, goalText, clarification, dailyMinutes);
       return response.tasks;
     } catch (e) {
       console.error("AI Generation Error:", e);
@@ -18084,10 +18178,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user]);
 
   // GOAL MANAGEMENT
-  const addGoal = useCallback(async (title: string, type: string = 'project', targetDate?: Date) => {
+  const addGoal = useCallback(async (title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) => {
     if (!user?.email) return null;
     try {
-      const newGoal = await apiService.createGoal(user.email, title, type, targetDate);
+      const newGoal = await apiService.createGoal(user.email, title, type, targetDate, dailyMinutes);
       setGoals((prev) => [newGoal, ...prev]);
       setCurrentGoal(newGoal);
       return newGoal;

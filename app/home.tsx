@@ -34,9 +34,12 @@ export default function HomeScreen() {
       
       const totalTime = goalTasks.reduce((sum, t) => sum + (t.duration || 0), 0);
 
+      // FORCE 2-WORD DISPLAY TITLE
+      const displayTitle = (goal.title || 'Untitled Mission').split(' ').slice(0, 2).join(' ');
+
       return {
         id: goal.id,
-        title: goal.title || 'Untitled Mission',
+        title: displayTitle,
         color: '#FF4500', 
         totalTime,
         subTasks: goalTasks.map(t => ({

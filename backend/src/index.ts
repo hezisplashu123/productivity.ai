@@ -150,9 +150,10 @@ app.patch('/users/:email', async (req, res) => {
 // ==========================================
 
 app.post('/ai/analyze-goal', async (req, res) => {
-  const { goal } = req.body;
+  const { goal, clarification } = req.body; // Updated to receive clarification
   try {
-    const analysis = await analyzeGoalType(goal);
+    // Pass clarification to service
+    const analysis = await analyzeGoalType(goal, clarification);
     res.json(analysis);
   } catch (error) {
     console.error("AI Analysis Error:", error);
@@ -180,7 +181,6 @@ app.post('/ai/generate-plan', async (req, res) => {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Pass dailyMinutes to AI service
     const result = await generateActionPlan(goal, user, clarification, dailyMinutes);
     res.json({ tasks: result });
   } catch (error) {
@@ -247,13 +247,11 @@ app.post('/goals', async (req, res) => {
         userId: user.id,
         type: type || 'project',
         targetDate: targetDate ? new Date(targetDate) : null,
-        // Safeguard: Force conversion to Number, default to 45 if 0 or invalid
         dailyMinutes: Number(dailyMinutes) || 45 
       }
     });
     res.json(goal);
   } catch (error) {
-    // Enhanced error logging to see exactly what went wrong
     console.error("Create Goal DB Error FULL:", error);
     res.status(500).json({ error: 'Goal creation failed', details: String(error) });
   }

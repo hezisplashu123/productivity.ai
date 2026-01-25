@@ -32,7 +32,7 @@ interface AppContextType {
   generatePlan: (goalText: string, clarification?: string, dailyMinutes?: number) => Promise<any | null>;
   generateDailyPlan: (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => Promise<any>;
   getAiQuestion: (goalText: string) => Promise<string | null>;
-  analyzeGoal: (goal: string) => Promise<any>; 
+  analyzeGoal: (goal: string, clarification?: string) => Promise<any>; 
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -64,8 +64,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, refreshData]);
 
   // AI METHODS
-  const analyzeGoal = useCallback(async (goal: string) => {
-    return await apiService.analyzeGoal(goal);
+  const analyzeGoal = useCallback(async (goal: string, clarification: string = "") => {
+    return await apiService.analyzeGoal(goal, clarification);
   }, []);
 
   const getAiQuestion = useCallback(async (goalText: string) => {

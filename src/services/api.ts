@@ -35,7 +35,7 @@ const handleResponse = async (response: Response) => {
 };
 
 const fetchWithTimeout = async (url: string, options: any = {}) => {
-  const { timeout = 25000 } = options; // Increased timeout for AI operations
+  const { timeout = 25000 } = options; 
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -102,11 +102,11 @@ export const apiService = {
   },
 
   // 2. AI STRATEGIST
-  async analyzeGoal(goal: string) {
+  async analyzeGoal(goal: string, clarification: string = "") {
     const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ goal }),
+      body: JSON.stringify({ goal, clarification }), // Sending both now
     });
     return handleResponse(res);
   },
@@ -168,7 +168,6 @@ export const apiService = {
   },
 
   async addTasksToGoal(goalId: string, tasks: any[]) {
-    // FIX WAS HERE: changed from goalId/tasks to goalId}/tasks
     const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}/tasks`, {
       method: 'POST',
       headers: getHeaders(),
