@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { Sparkles, ArrowRight } from 'lucide-react-native';
+import { Sparkles, ArrowRight, Lightbulb } from 'lucide-react-native';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
 import { TaskStagingModal, StagingTask } from '../src/components/TaskStagingModal';
@@ -56,13 +56,41 @@ export default function GoalInputScreen() {
   const [goalType, setGoalType] = useState('project');
   const [targetDate, setTargetDate] = useState<Date | null>(null);
   const [committedDailyMinutes, setCommittedDailyMinutes] = useState(0);
+  
+  // AI Suggestions for Journey
+  const [suggestedDays, setSuggestedDays] = useState(30);
+  const [suggestedDailyMinutes, setSuggestedDailyMinutes] = useState(45);
 
   const router = useRouter();
-  const { addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks, generatePlan, getAiQuestion, analyzeGoal } = useApp();
+  const { 
+    user, // Get user for personalization
+    addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks, 
+    generatePlan, getAiQuestion, analyzeGoal 
+  } = useApp();
   
   // Animation Values
   const borderOpacity = useSharedValue(0);
   const submitButtonOpacity = useSharedValue(0);
+
+  // --- PERSONALIZED HELPER TEXT ---
+  const helperText = useMemo(() => {
+    const identity = user?.onboardingData?.identity;
+    
+    switch (identity) {
+      case 'student':
+        return 'Be specific. "Study Chapter 4 for 2 hours" gives a better plan than just "Study".';
+      case 'professional':
+        return 'Be specific. "Draft Q3 report for stakeholders" gives a better plan than just "Work".';
+      case 'entrepreneur':
+        return 'Be specific. "Cold email 20 leads" gives a better plan than just "Sales".';
+      case 'maker':
+        return 'Be specific. "Code the landing page hero section" gives a better plan than just "Build website".';
+      case 'personal':
+        return 'Be specific. "Call bank and pay bills" gives a better plan than just "Chores".';
+      default:
+        return 'Be specific. "Finish the draft by 5 PM" gives a better plan than just "Work".';
+    }
+  }, [user]);
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
@@ -125,12 +153,17 @@ export default function GoalInputScreen() {
     setStep('processing');
     try {
       // Analyze if it's a Project or Journey
-      const typeAnalysis = await analyzeGoal(goalText);
+      const typeAnalysis = await analyzeGoal(goalText, clarification);
       
       if (typeAnalysis.type === 'journey') {
         // It's a journey -> Prompt for Logistics (Time/Date)
         setGoalType('journey');
         setJourneyReason(typeAnalysis.reason || "Long-term effort detected.");
+        
+        // Update suggestions from AI
+        if (typeAnalysis.estimatedDays) setSuggestedDays(typeAnalysis.estimatedDays);
+        if (typeAnalysis.recommendedDailyMinutes) setSuggestedDailyMinutes(typeAnalysis.recommendedDailyMinutes);
+        
         setIsJourneySetupVisible(true);
       } else {
         // It's a project -> Generate plan immediately with the context
@@ -269,6 +302,14 @@ export default function GoalInputScreen() {
                 <Text style={styles.title}>
                   {isEditing ? "Refine Directive" : "What is your main goal?"}
                 </Text>
+
+                {/* Helper Text for Details */}
+                <View style={styles.helperContainer}>
+                  <Lightbulb size={14} color={colors.primary} style={{ marginTop: 2 }} />
+                  <Text style={styles.helperText}>
+                    {helperText}
+                  </Text>
+                </View>
                 
                 <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
                   <TextInput
@@ -377,6 +418,8 @@ export default function GoalInputScreen() {
         visible={isJourneySetupVisible}
         goalTitle={goalText}
         aiReason={journeyReason}
+        initialDays={suggestedDays}
+        initialDailyMinutes={suggestedDailyMinutes}
         onConfirm={handleJourneyConfirm}
         onCancel={() => {
             setIsJourneySetupVisible(false);
@@ -396,8 +439,25 @@ const styles = StyleSheet.create({
   centeredContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, width: '100%', paddingBottom: 100 },
   stepWrapper: { width: '100%', alignItems: 'center' },
   
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 24, color: colors.text },
+  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 12, color: colors.text },
   
+  // New helper styles
+  helperContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-start', 
+    gap: 8, 
+    marginBottom: 24, 
+    paddingHorizontal: 24,
+    opacity: 0.8
+  },
+  helperText: { 
+    fontSize: 14, 
+    color: colors.textSecondary, 
+    textAlign: 'left', 
+    lineHeight: 20,
+    flex: 1
+  },
+
   aiMessageContainer: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 20 },
   aiQuestionText: { fontSize: 22, fontWeight: '600', color: colors.primary, textAlign: 'center', lineHeight: 30 },
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
 import { Calendar, ArrowRight, Clock, Minus, Plus } from 'lucide-react-native';
@@ -10,16 +10,34 @@ interface LongTermSetupModalProps {
   visible: boolean;
   goalTitle: string;
   aiReason: string;
-  onConfirm: (date: Date, dailyMinutes: number) => void; // Updated signature
+  initialDays?: number; // Optional suggested duration
+  initialDailyMinutes?: number; // Optional suggested daily minutes
+  onConfirm: (date: Date, dailyMinutes: number) => void;
   onCancel: () => void;
 }
 
-export const LongTermSetupModal = ({ visible, goalTitle, aiReason, onConfirm, onCancel }: LongTermSetupModalProps) => {
+export const LongTermSetupModal = ({ 
+  visible, 
+  goalTitle, 
+  aiReason, 
+  initialDays = 30,
+  initialDailyMinutes = 45,
+  onConfirm, 
+  onCancel 
+}: LongTermSetupModalProps) => {
   const [date, setDate] = useState(new Date(Date.now() + 86400000 * 30));
-  const [showPicker, setShowPicker] = useState(false);
-  
-  // New State for Daily Time
   const [dailyMinutes, setDailyMinutes] = useState(45); 
+  const [showPicker, setShowPicker] = useState(false);
+
+  // Sync state with AI recommendations when visibility changes
+  useEffect(() => {
+    if (visible) {
+      const target = new Date();
+      target.setDate(target.getDate() + initialDays);
+      setDate(target);
+      setDailyMinutes(initialDailyMinutes);
+    }
+  }, [visible, initialDays, initialDailyMinutes]);
 
   if (!visible) return null;
 
@@ -36,7 +54,7 @@ export const LongTermSetupModal = ({ visible, goalTitle, aiReason, onConfirm, on
     }
   };
 
-  const daysUntil = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  const daysUntil = Math.max(1, Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
   const onDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === 'android') setShowPicker(false);
@@ -54,18 +72,18 @@ export const LongTermSetupModal = ({ visible, goalTitle, aiReason, onConfirm, on
             </View>
             <View style={{flex: 1}}>
               <Text style={styles.title}>Journey Detected</Text>
-              <Text style={styles.subtitle} numberOfLines={2}>"{goalTitle}" is a long-term goal.</Text>
+              <Text style={styles.subtitle} numberOfLines={2}>AI suggests: {initialDays} days @ {initialDailyMinutes}m/day</Text>
             </View>
           </View>
 
           {/* SECTION 1: DEADLINE */}
           <View style={styles.section}>
-            <Text style={styles.label}>WHEN DO YOU WANT TO FINISH?</Text>
+            <Text style={styles.label}>TARGET DEADLINE</Text>
             <TouchableOpacity 
               style={styles.dateButton} 
               onPress={() => setShowPicker(!showPicker)}
             >
-              <Text style={styles.dateText}>{date.toDateString()}</Text>
+              <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{daysUntil} DAYS</Text>
               </View>
@@ -87,7 +105,7 @@ export const LongTermSetupModal = ({ visible, goalTitle, aiReason, onConfirm, on
 
           {/* SECTION 2: DAILY CAPACITY */}
           <View style={styles.section}>
-            <Text style={styles.label}>DAILY TIME COMMITMENT</Text>
+            <Text style={styles.label}>DAILY COMMITMENT</Text>
             <View style={styles.timeControl}>
               <TouchableOpacity style={styles.stepperBtn} onPress={() => handleTimeChange(-15)}>
                 <Minus size={20} color={colors.text} />
@@ -113,7 +131,7 @@ export const LongTermSetupModal = ({ visible, goalTitle, aiReason, onConfirm, on
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.primaryBtn} onPress={handleConfirm}>
-              <Text style={styles.primaryText}>Design Plan</Text>
+              <Text style={styles.primaryText}>Initialize Journey</Text>
               <ArrowRight size={18} color="#FFF" />
             </TouchableOpacity>
           </View>
@@ -130,7 +148,7 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, gap: 16 },
   iconContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 20, fontWeight: '800', color: colors.text },
-  subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
   
   section: { marginBottom: 24 },
   label: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, marginBottom: 12, letterSpacing: 1 },

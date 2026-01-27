@@ -3,7 +3,6 @@ import { API_BASE_URL } from '../config/api';
 const getHeaders = () => ({
   'Content-Type': 'application/json',
   'User-Agent': 'ProductivityAI-Mobile',
-  // 🛡️ Bypasses the Ngrok browser warning page
   'ngrok-skip-browser-warning': 'true',
 });
 
@@ -56,9 +55,10 @@ const fetchWithTimeout = async (url: string, options: any = {}) => {
 };
 
 export const apiService = {
-  // 1. AUTHENTICATION & PROFILE
-  async register(userData: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/register`, {
+  // 1. AUTH SYNC (New: Syncs Firebase User to Backend)
+  async syncUser(userData: any) {
+    // userData contains { email, name, socialId, provider, onboardingData }
+    const res = await fetchWithTimeout(`${API_BASE_URL}/users/sync`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(userData),
@@ -66,24 +66,7 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  async login(credentials: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/login`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(credentials),
-    });
-    return handleResponse(res);
-  },
-
-  async socialLogin(data: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/auth/social`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return handleResponse(res);
-  },
-
+  // 2. USER PROFILE
   async getUserProfile(email: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
       method: 'GET',
@@ -101,12 +84,12 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 2. AI STRATEGIST
+  // 3. AI STRATEGIST
   async analyzeGoal(goal: string, clarification: string = "") {
     const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ goal, clarification }), // Sending both now
+      body: JSON.stringify({ goal, clarification }),
     });
     return handleResponse(res);
   },
@@ -148,7 +131,7 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 3. GOAL & TASK MANAGEMENT
+  // 4. GOAL & TASK MANAGEMENT
   async createGoal(email: string, title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/goals`, {
       method: 'POST',
@@ -163,6 +146,15 @@ export const apiService = {
       method: 'PATCH',
       headers: getHeaders(),
       body: JSON.stringify(updates),
+    });
+    return handleResponse(res);
+  },
+
+  // ADDED: Delete goal
+  async deleteGoal(goalId: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
     });
     return handleResponse(res);
   },
@@ -185,7 +177,7 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 4. METRICS
+  // 5. METRICS
   async getLeaderboard() {
     const res = await fetchWithTimeout(`${API_BASE_URL}/leaderboard`, {
       method: 'GET',

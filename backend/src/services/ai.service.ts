@@ -78,26 +78,34 @@ export const generateClarifyingQuestion = async (goal: string, userProfile: any)
 };
 
 /**
- * 🧠 STEP 1.5: THE CLASSIFIER
+ * 🧠 STEP 1.5: THE CLASSIFIER (Updated Logic)
  */
 export const analyzeGoalType = async (goal: string, clarification: string = "") => {
   const systemPrompt = `
-    Analyze this user's intent.
+    Analyze the user's intent based on TWO inputs:
+    1. INITIAL GOAL: "${goal}"
+    2. CLARIFICATION: "${clarification}"
     
-    INITIAL GOAL: "${goal}"
-    CLARIFICATION ANSWER: "${clarification}"
-    
-    Determine if this is a "PROJECT" (Single Work Session) or a "JOURNEY" (Long-term/Multi-day).
+    TASK: 
+    1. Classify as "PROJECT" (Single Session) or "JOURNEY" (Multi-Day/Long Term).
+    2. If JOURNEY, estimate the typical time in DAYS to achieve a meaningful milestone or the full goal.
+    3. If JOURNEY, recommend a sustainable DAILY TIME COMMITMENT (in minutes).
 
-    CRITICAL RULES:
-    1. If the Initial Goal looks long-term (e.g., "Write a book"), BUT the Clarification limits the scope (e.g., "Just outline Chapter 1 today"), YOU MUST CLASSIFY AS "PROJECT".
-    2. "PROJECT" = Can be done in one sitting (15m - 4 hours).
-    3. "JOURNEY" = Requires a schedule spanning multiple days (e.g., "Study for 2 weeks", "Lose 10lbs").
+    CRITICAL OVERRIDE RULES:
+    1. **CLARIFICATION IS KING:** If the Clarification Answer implies a specific, immediate action (e.g., "today", "just this part", "hit chest", "finish the draft"), YOU MUST CLASSIFY AS "PROJECT", even if the Initial Goal is broad (e.g., "Go to gym", "Write a book").
+    2. **TEMPORAL MARKERS:** If the text contains "today", "tonight", "now", "this morning", "this session" -> It is a PROJECT.
+    3. **SPECIFICITY:** 
+       - "Get fit" -> Journey (Days: 90, Mins: 45).
+       - "Gym: Chest Day" -> Project.
+       - "Learn French" -> Journey (Days: 180, Mins: 30).
+       - "Do Duolingo lesson" -> Project.
     
     OUTPUT JSON:
     { 
       "type": "project" | "journey",
-      "reason": "Explain why based on the clarification."
+      "reason": "Explain why based on the clarification.",
+      "estimatedDays": 30, // Default to 30 if unsure. Only relevant for Journey.
+      "recommendedDailyMinutes": 45 // Default to 45. Only relevant for Journey.
     }
   `;
 
@@ -151,6 +159,12 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     📄 **TYPE E: LIFE ADMIN (Bureaucracy)**
     - *Task 1 [Gather]:* Find docs/passwords.
     - *Task 2 [Blitz]:* Execute forms.
+
+    🏋️ **TYPE F: PHYSICAL/GYM (Workout)**
+    - *Task 1 [Warmup]:* Mobility/Activation. (5-10m)
+    - *Task 2 [Compound]:* Heavy lifts/Main movement.
+    - *Task 3 [Accessory]:* Isolation/Volume work.
+    - *Task 4 [Cooldown]:* Stretch/Cardio.
   `;
 
   // TIME BUDGET LOGIC
@@ -187,7 +201,7 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     1. **APPLY THE DRIVER:** If 'Velocity', skip review steps. If 'Mastery', double the review time.
     2. **COUNTER THE VILLAIN:** Include defense mechanisms in descriptions.
     3. **MICRO-SCRIPTS:** Tell them EXACTLY what to do.
-    4. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Project Alpha', 'Draft Essay').
+    4. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Project Alpha', 'Draft Essay', 'Chest Day').
     ${timeConstraintPrompt}
 
     OUTPUT FORMAT (JSON):

@@ -124,6 +124,7 @@ src/components/StarBackground.tsx
 src/components/SunBackground.tsx
 src/components/SwipableCardStack.tsx
 src/components/SwitchTaxChart.tsx
+src/components/TacticalHUD.tsx
 src/components/TaskBucketBlock.tsx
 src/components/TaskCard.tsx
 src/components/TaskDetailModal.tsx
@@ -146,6 +147,7 @@ src/context/TransitionContext.tsx
 src/data/mockData.ts
 src/hooks/useTaskGenerator.ts
 src/services/api.ts
+src/services/notificationService.ts
 src/types/index.ts
 src/utils/reanimatedWrapper.ts
 src/utils/storage.ts
@@ -154,6 +156,308 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="src/components/TacticalHUD.tsx">
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  withTiming,
+  runOnJS
+} from 'react-native-reanimated';
+import { Zap, X, ChevronRight, AlertTriangle, Target } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+
+const { width } = Dimensions.get('window');
+
+interface TacticalHUDProps {
+  visible: boolean;
+  title: string;
+  message: string;
+  type?: 'warning' | 'info' | 'success';
+  onPress: () => void;
+  onClose: () => void;
+}
+
+export const TacticalHUD: React.FC<TacticalHUDProps> = ({ 
+  visible, title, message, type = 'info', onPress, onClose 
+}) => {
+  // Start hidden ABOVE the screen (-150)
+  const translateY = useSharedValue(-150);
+
+  useEffect(() => {
+    if (visible) {
+      // Slide down to visible position (60px from top)
+      translateY.value = withSpring(60, { damping: 12, stiffness: 90 });
+      
+      // Auto-dismiss after 6 seconds
+      const timer = setTimeout(() => {
+        handleClose();
+      }, 6000);
+      return () => clearTimeout(timer);
+    } else {
+      // Slide back up
+      translateY.value = withTiming(-150, { duration: 300 });
+    }
+  }, [visible]);
+
+  const handleClose = () => {
+    translateY.value = withTiming(-150, { duration: 300 }, (finished) => {
+      if (finished && onClose) {
+        runOnJS(onClose)();
+      }
+    });
+  };
+
+  const handlePress = () => {
+    Haptics.selectionAsync();
+    onPress();
+  };
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }]
+  }));
+
+  const getTheme = () => {
+    switch (type) {
+      case 'warning': return { 
+        bg: '#FFF1F2', border: '#FECDD3', iconColor: '#E11D48', Icon: AlertTriangle 
+      };
+      case 'success': return { 
+        bg: '#F0FDF4', border: '#BBF7D0', iconColor: '#16A34A', Icon: Target 
+      };
+      default: return { 
+        bg: '#F0F9FF', border: '#BAE6FD', iconColor: colors.primary, Icon: Zap 
+      };
+    }
+  };
+
+  const { bg, border, iconColor, Icon } = getTheme();
+
+  return (
+    <Animated.View style={[styles.container, animatedStyle]}>
+      <TouchableOpacity 
+        style={[styles.card, { backgroundColor: bg, borderColor: border }]} 
+        onPress={handlePress}
+        activeOpacity={0.95}
+      >
+        <View style={[styles.iconBox, { backgroundColor: 'rgba(255,255,255,0.8)' }]}>
+          <Icon size={18} color={iconColor} fill={type === 'success' ? iconColor : 'transparent'} />
+        </View>
+        
+        <View style={styles.textContainer}>
+          <Text style={[styles.title, { color: iconColor }]}>{title}</Text>
+          <Text style={styles.message} numberOfLines={2}>{message}</Text>
+        </View>
+        
+        <View style={styles.actionArrow}>
+            <ChevronRight size={20} color={iconColor} style={{ opacity: 0.5 }} />
+        </View>
+
+        <TouchableOpacity 
+          style={styles.closeBtn} 
+          onPress={handleClose} 
+          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+        >
+          <X size={14} color="#94A3B8" />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    top: 0, // Position controlled by animated translateY
+    left: 16,
+    right: 16,
+    zIndex: 9999, // High z-index to hover over everything
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  textContainer: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  title: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  message: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    lineHeight: 18,
+  },
+  actionArrow: {
+    justifyContent: 'center',
+    paddingRight: 8,
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+  }
+});
+</file>
+
+<file path="src/services/notificationService.ts">
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
+import { lightColors as colors } from '../constants/colors';
+
+// 1. Configure how notifications look when the app is OPEN
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true, // We will catch this and show our Custom HUD instead
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+const getCopyForArchetype = (archetype: string | null, type: 'start' | 'streak' | 'gap') => {
+  const messages = {
+    'night-owl': {
+      start: ["🌑 The world is asleep. Your watch begins.", "Protocol: Midnight Oil engaged.", "Silence secured. Time to build."],
+      streak: ["⚠️ Reactor cooling down.", "Don't let the silence go to waste.", "The night is slipping away."],
+      gap: ["⚡ 30m Ghost Gap detected.", "Moonlight is for makers. Fill the gap."]
+    },
+    'early-bird': {
+      start: ["🌅 Win the morning, win the day.", "Protocol: Sunrise Strike initiated.", "While they sleep, we build."],
+      streak: ["⚠️ Momentum detected dropping.", "Keep the early streak alive.", "Don't break the morning chain."],
+      gap: ["⚡ 45m Ghost Gap detected.", "Coffee is hot. Gap is open."]
+    },
+    'default': {
+      start: ["⚡ Mission parameters set.", "Your tactical plan is ready.", "Objective clear. Engage."],
+      streak: ["⚠️ Reactor Core critical.", "Secure the objective to maintain streak.", "System instability detected."],
+      gap: ["⚡ Ghost Time detected.", "Reclaim lost minutes now."]
+    }
+  };
+
+  // @ts-ignore
+  const theme = messages[archetype || 'default'] || messages['default'];
+  const options = theme[type] || theme['start'];
+  return options[Math.floor(Math.random() * options.length)];
+};
+
+export const NotificationService = {
+  async registerForPushNotificationsAsync() {
+    let token;
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: colors.primary,
+      });
+    }
+
+    if (Device.isDevice) {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('Failed to get push token for push notification!');
+        return false;
+      }
+      
+      // We don't strictly need the token if we are just scheduling local notifications
+      return true;
+    } else {
+      console.log('Must use physical device for Push Notifications');
+      return false;
+    }
+  },
+
+  async scheduleFocusReminder(focusWindow: string) {
+    try {
+      // 1. Cancel existing to avoid duplicates
+      await Notifications.cancelAllScheduledNotificationsAsync();
+
+      // 2. Logic for time
+      let triggerHour = 9; 
+      if (focusWindow === 'early-bird') triggerHour = 6; // 6 AM
+      if (focusWindow === 'night-owl') triggerHour = 21; // 9 PM
+      if (focusWindow === 'mid-day') triggerHour = 13;   // 1 PM
+
+      const message = getCopyForArchetype(focusWindow, 'start');
+
+      console.log(`🔔 Scheduling Reminder: "${message}" at ${triggerHour}:00`);
+
+      // 3. Schedule with explicit trigger object
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "⚡ Tactical Alert",
+          body: message,
+          sound: true,
+          data: { type: 'focus_start' },
+          ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
+        },
+        trigger: {
+          hour: triggerHour,
+          minute: 0,
+          repeats: true,
+        },
+      });
+    } catch (error) {
+      // Catch and log error, but DO NOT CRASH THE APP
+      console.warn("⚠️ Notification Schedule Failed (Non-Fatal):", error);
+    }
+  },
+
+  async sendImmediateTest(archetype: string) {
+    try {
+      const message = getCopyForArchetype(archetype, 'gap');
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "⚠️ Anomaly Detected",
+          body: message,
+          data: { type: 'ghost_gap' },
+          sound: true,
+          ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
+        },
+        // Using 1 second delay is more stable on Android than 'null'
+        trigger: { seconds: 1 }, 
+      });
+    } catch (error) {
+      console.warn("⚠️ Test Notification Failed:", error);
+    }
+  }
+};
+</file>
 
 <file path="app/focus-session.tsx">
 import React, { useState, useEffect, useRef } from 'react';
@@ -873,7 +1177,7 @@ module.exports = function(api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // react-native-reanimated/plugin MUST be the last plugin
+      // NOTE: react-native-reanimated/plugin MUST be the LAST item in the array
       'react-native-reanimated/plugin',
     ],
   };
@@ -8606,17 +8910,19 @@ const styles = StyleSheet.create({
 
 <file path="src/config/firebase.ts">
 import { initializeApp, getApp, getApps } from 'firebase/app';
-// Change getAuth to initializeAuth and import persistence helpers
 import { 
   initializeAuth, 
   getReactNativePersistence, 
   GoogleAuthProvider, 
   signInWithCredential,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   getAuth
 } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
-// Your web app's Firebase configuration
+// 1. Your Firebase Config (Keep your existing keys)
 const firebaseConfig = {
   apiKey: "AIzaSyAw7dKdWkr7WBO_BUG8EFqLOYw-wr0n2Z8",
   authDomain: "hesi-ai.firebaseapp.com",
@@ -8626,21 +8932,29 @@ const firebaseConfig = {
   appId: "1:204716304779:web:b9876e929e0a60a717a78e"
 };
 
-// Initialize Firebase
+// 2. Initialize App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Auth with Persistence
-// We check if auth is already initialized to avoid errors during hot reload
+// 3. Initialize Auth with Persistence (CRITICAL for React Native)
 let auth;
 try {
+  // Check if auth is already initialized
   auth = getAuth(app);
 } catch (e) {
+  // If not, initialize with AsyncStorage persistence
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(ReactNativeAsyncStorage)
   });
 }
 
-export { auth, GoogleAuthProvider, signInWithCredential };
+export { 
+  auth, 
+  GoogleAuthProvider, 
+  signInWithCredential, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  updateProfile 
+};
 </file>
 
 <file path="src/constants/timeBlocks.ts">
@@ -9344,316 +9658,6 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
-</file>
-
-<file path="backend/src/services/ai.service.ts">
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-/**
- * 🧠 IDENTITY PROTOCOLS
- */
-const IDENTITY_FRAMEWORK: Record<string, string> = {
-  'student': "CONTEXT: User is a STUDENT. Critical variables: Exam date, specific subject module, existing notes vs. starting from scratch. TONE: Academic Coach.",
-  'developer': "CONTEXT: User is a DEVELOPER. Critical variables: New feature vs. bug fix, local env setup status, specific library/framework constraints. TONE: Senior Tech Lead.",
-  'creative': "CONTEXT: User is a CREATIVE. Critical variables: Ideation phase vs. execution phase, rough draft vs. final polish, specific software tool. TONE: Creative Director.",
-  'founder': "CONTEXT: User is a FOUNDER. Critical variables: Strategic planning vs. urgent execution, delegation potential, ROI of the task. TONE: Board Member.",
-  'professional': "CONTEXT: User is a PROFESSIONAL. Critical variables: Hard deadline, stakeholder requirements, specific document/email format. TONE: Project Manager."
-};
-
-/**
- * 🧠 ACTION PROTOCOLS
- */
-const GRANULARITY_INSTRUCTIONS: Record<string, string> = {
-  'architect': "STRATEGY: 'The Blueprint'. The first task MUST be a detailed bullet-point list. Do not let them start 'working' until the plan is set.",
-  'firefighter': "STRATEGY: 'Triage Mode'. Ignore structure. Point them to the single most painful/urgent sub-task immediately.",
-  'sprinter': "STRATEGY: 'Interval Training'. Tasks must be 20 minutes MAX. High intensity, clear finish line.",
-  'deep_worker': "STRATEGY: 'Monk Mode'. Group all prep work into Task 1. Task 2 is a long, uninterrupted execution block."
-};
-
-// UPDATED: Removed phone/battery references
-const EXTERNAL_DEFENSE: Record<string, string> = {
-  'doomscrolling': "DEFENSE: 'Digital Blinders'. Explicitly forbid opening new tabs or checking social media. Focus purely on the active window.",
-  'side_quests': "DEFENSE: 'Tunnel Vision'. Explicitly forbid specific side-tasks (e.g., 'Do not check email', 'Do not clean the desk').",
-  'rotting': "DEFENSE: 'Micro-Step'. The first task must be an extremely low-effort cognitive action (e.g., 'Read one paragraph').",
-  'yap_fatigue': "DEFENSE: 'Hermit Protocol'. Instruct user to ignore all incoming messages.",
-};
-
-const INTERNAL_DEFENSE: Record<string, string> = {
-  'perfectionism': "MINDSET: 'Trash Draft'. Command them to write a 'bad' version first. Forbid editing.",
-  'overwhelm': "MINDSET: 'One Brick'. The tasks should only reveal the immediate next step, not the whole project.",
-  'procrastination': "MINDSET: 'Activation Energy'. Frame the task as 'Just setting up', not 'Doing the work'.",
-  'boredom': "MINDSET: 'Time Attack'. Assign aggressive time limits to tasks to create artificial urgency."
-};
-
-/** 
- * 🧠 STEP 1: THE CLARIFIER
- */
-export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
-  const onboarding = userProfile.onboardingData || {};
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
-  
-  const systemPrompt = `
-    You are an elite Project Manager and Interrogator.
-    ${identityPrompt}
-    
-    The user has a goal: "${goal}".
-    
-    Your job is to find the "Execution Gap"—the missing piece of information needed to build a specific plan.
-    
-    CRITICAL RULES:
-    1. DO NOT ask about "When", "Deadlines", "Timelines", or "How much time you have". The app handles scheduling automatically.
-    2. DO ask about SCOPE (e.g., "Are you starting from scratch?", "What is the specific topic?").
-    3. DO ask about TOOLS/STATE (e.g., "Do you have the environment set up?", "Is this for a specific client?").
-    4. Keep it short (max 15 words). One question only.
-    
-    OUTPUT JSON:
-    { "question": "..." }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: goal }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature: 0.7, 
-    });
-    const result = JSON.parse(completion.choices[0].message.content || "{}");
-    return result.question || "What is the specific outcome you need to achieve?";
-  } catch (error) {
-    return "What is the immediate next physical step you need to take?";
-  }
-};
-
-/**
- * 🧠 STEP 1.5: THE CLASSIFIER
- */
-export const analyzeGoalType = async (goal: string) => {
-  const systemPrompt = `
-    Analyze this goal: "${goal}".
-    
-    Is this a "PROJECT" (finite set of tasks done in 1-3 sessions, e.g., "Build a website", "Write an essay")
-    OR a "JOURNEY" (repetitive/cumulative effort over days/weeks, e.g., "Lose 10lbs", "Learn Spanish", "Study for SATs", "Gym Routine")?
-    
-    OUTPUT JSON:
-    { 
-      "type": "project" | "journey",
-      "reason": "Short explanation of why",
-      "suggested_duration_days": 30
-    }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-    });
-    return JSON.parse(completion.choices[0].message.content || '{"type": "project"}');
-  } catch (error) {
-    return { type: 'project' };
-  }
-};
-
-/** 
- * 🧠 STEP 2: THE STRATEGIST
- */
-export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "", dailyMinutes: number = 0) => {
-  const onboarding = userProfile.onboardingData || {};
-  
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
-  const breakdownRule = GRANULARITY_INSTRUCTIONS[onboarding.workArchetype] || "Standard breakdown.";
-  const externalRule = EXTERNAL_DEFENSE[onboarding.frictionVillain] || "Minimize noise.";
-  const internalRule = INTERNAL_DEFENSE[onboarding.mentalBlock] || "Just execute.";
-
-  // TIME BUDGET LOGIC
-  let timeConstraintPrompt = "";
-  if (dailyMinutes > 0) {
-    timeConstraintPrompt = `
-    CRITICAL CONSTRAINT: STRICT TIME BUDGET
-    - The user has explicitly committed exactly ${dailyMinutes} minutes for this session.
-    - The sum of all task durations MUST be exactly ${dailyMinutes} minutes.
-    - Start immediately with the first real step of the work.
-    - If ${dailyMinutes} > 45, allow for deep work blocks.
-    `;
-  } else {
-    timeConstraintPrompt = `
-    - FIRST TASK IS MOMENTUM: Duration 2-5 mins (Cognitive Setup, e.g., "Outline the document", "Locate the file").
-    - Subsequent tasks should fill about 45-60 mins total.
-    `;
-  }
-
-  const systemPrompt = `
-    You are the user's specialized Chief of Staff.
-    
-    USER PROFILE:
-    - ${identityPrompt}
-    - Strategy: ${breakdownRule}
-    - Enemy: ${externalRule}
-    - Mindset: ${internalRule}
-    
-    GOAL: "${goal}"
-    CONTEXT/CLARIFICATION: "${clarification}"
-
-    MISSION:
-    Create a "High-Resolution" Execution Plan.
-    
-    RULES:
-    1. THE PHONE IS THE TOOL: The user is holding their phone. It is their timer.
-    2. MICRO-SCRIPTS: Give exact instructions.
-    3. NO VAGUE VERBS: Ban words like "Plan", "Think", "Prepare". Use "Draft", "Compile", "Sketch".
-    4. BANNED TASKS (STRICT):
-       - DO NOT generate tasks for "Check battery", "Turn on DND", "Put phone away", "Drink water", "Open Laptop", or "Sit down".
-       - These are trivial and annoying. Assume the user is ready to work.
-       - Start directly with the actual task (e.g., instead of "Open Word", say "Type the first heading").
-    ${timeConstraintPrompt}
-
-    OUTPUT FORMAT (JSON):
-    {
-      "short_title": "2-Word Mission Name (e.g. 'Project Alpha')",
-      "tasks": [ 
-        { 
-          "title": "Action Verb + Object", 
-          "duration": 25, 
-          "description": "2 sentences. 1: The physical action. 2: A defense against their specific villain." 
-        } 
-      ]
-    }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini", 
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    });
-
-    const content = completion.choices[0].message.content;
-    if (!content) throw new Error("No content received");
-
-    const result = JSON.parse(content);
-    const trimmedTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : "Mission Alpha";
-
-    return { 
-      shortTitle: trimmedTitle, 
-      tasks: result.tasks || [] 
-    };
-
-  } catch (error) {
-    console.error("❌ OpenAI API Error:", error);
-    return null; 
-  }
-};
-
-/**
- * 🧠 STEP 2 (VARIANT): THE COACH (Daily Generator)
- */
-export const generateDailyPlan = async (
-  goal: string, 
-  userProfile: any, 
-  dayNumber: number, 
-  totalDays: number,
-  dailyMinutes: number = 45 // Default if not provided
-) => {
-  const onboarding = userProfile.onboardingData || {};
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || "";
-  
-  const systemPrompt = `
-    You are an expert Coach & Chief of Staff.
-    ${identityPrompt}
-    
-    MAIN GOAL: "${goal}"
-    CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
-    TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
-    
-    MISSION:
-    Generate a tactical plan for TODAY (Day ${dayNumber}) that fits exactly within ${dailyMinutes} minutes.
-    
-    RULES:
-    1. STRICT TIME LIMIT: The sum of all task durations MUST equal exactly ${dailyMinutes} minutes.
-    2. NO TRIVIAL TASKS: Do not include "setup", "put phone away", or "hydration" tasks.
-    3. PROGRESSION:
-       - Day 1: Setup & Foundational Reps.
-       - Middle Days: Deep Work / Heavy Lifting.
-       - Final Days: Review & Final Polish.
-    4. MICRO-SCRIPTS: Instructions must be specific physical actions.
-    
-    OUTPUT JSON:
-    {
-      "short_title": "Day ${dayNumber} Theme",
-      "tasks": [ 
-        { 
-          "title": "Specific Exercise/Task", 
-          "duration": 15, 
-          "description": "Specific instruction for this session." 
-        } 
-      ]
-    }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    });
-    const result = JSON.parse(completion.choices[0].message.content || "{}");
-    return { 
-      shortTitle: result.short_title || `Day ${dayNumber}`, 
-      tasks: result.tasks || [] 
-    };
-  } catch (error) {
-    return null;
-  }
-};
-
-/** 
- * 🧠 STEP 3: THE FIXER
- */
-export const refineSingleTask = async (task: any, feedback: string, userProfile: any) => {
-  const onboarding = userProfile.onboardingData || {};
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
-
-  const systemPrompt = `
-    You are a pragmatic Chief of Staff.
-    ${identityPrompt}
-    
-    ORIGINAL TASK: "${task.title}"
-    USER OBSTACLE: "${feedback}"
-    
-    MISSION:
-    Rewrite this task to bypass the obstacle.
-    - If they lack energy -> Simplify to the absolute bare minimum (e.g., "Just read 1 page").
-    - If they lack time -> Compress to a sprint.
-    - If they lack equipment -> Find a workaround.
-    
-    Keep the tone encouraging but directive.
-
-    OUTPUT JSON:
-    { "title": "New Task Name", "duration": 15, "description": "Specific tactical instructions..." }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-    });
-
-    const content = completion.choices[0].message.content;
-    if (!content) return task;
-
-    return JSON.parse(content);
-  } catch (error) {
-    console.error("❌ Task Refinement Error:", error);
-    return task;
-  }
-};
 </file>
 
 <file path="backend/tsconfig.json">
@@ -12478,7 +12482,6 @@ export const mockTasks: Task[] = [
       },
       "package": "com.hezisplash133.productivityai"
     },
-    // CHANGED THIS LINE BELOW:
     "scheme": "productivity-ai-goat",
     "plugins": [
       "expo-router",
@@ -12915,6 +12918,357 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+</file>
+
+<file path="backend/src/services/ai.service.ts">
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/**
+ * 🧠 IDENTITY PROTOCOLS
+ * Defines how the AI speaks based on user persona.
+ */
+const IDENTITY_FRAMEWORK: Record<string, string> = {
+  'student': "CONTEXT: User is a STUDENT. Focus: Grades, comprehension, deadlines. TONE: Academic Coach.",
+  'professional': "CONTEXT: User is a PROFESSIONAL. Focus: Efficiency, stakeholders, clear deliverables. TONE: Project Manager.",
+  'entrepreneur': "CONTEXT: User is an ENTREPRENEUR. Focus: ROI, speed, sales, delegation. TONE: Business Partner.",
+  'maker': "CONTEXT: User is a MAKER/CREATIVE. Focus: Deep work, flow state, shipping. TONE: Senior Tech Lead / Creative Director.",
+  'personal': "CONTEXT: User is doing LIFE ADMIN. Focus: Reducing friction, sanity, getting it over with. TONE: Supportive but efficient."
+};
+
+/**
+ * 🎯 CORE DRIVER PROTOCOLS (The "North Star")
+ * This determines HOW the AI optimizes the plan.
+ */
+const DRIVER_PROTOCOLS: Record<string, string> = {
+  'velocity': "OPTIMIZATION GOAL: SPEED. Prioritize finishing fast. Cut non-essential steps. Use 'Sprint' logic. Identify shortcuts.",
+  'mastery': "OPTIMIZATION GOAL: QUALITY. Prioritize depth. Add steps for review, refinement, and testing. Ensure the output is excellent, not just done.",
+  'survival': "OPTIMIZATION GOAL: MOMENTUM. The user is burnt out. Break tasks into tiny, non-threatening micro-steps. Lower the bar for 'success' to just getting started.",
+  'impact': "OPTIMIZATION GOAL: LEVERAGE. Focus on the 20% of work that gives 80% of results. Deprioritize admin/setup. Focus on the high-value output."
+};
+
+/**
+ * 🛡️ VILLAIN DEFENSE PROTOCOLS
+ * Specific constraints based on the user's primary productivity killer.
+ */
+const VILLAIN_PROTOCOLS: Record<string, string> = {
+  'doomscrolling': "DEFENSE: 'Digital Blinders'. Explicitly forbid opening new tabs or checking feeds. Focus purely on the active window.",
+  'multitasking': "DEFENSE: 'The Monotask'. The plan must be strictly sequential. Explicitly forbid 'switching' context. One thing at a time.",
+  'side_quests': "DEFENSE: 'Tunnel Vision'. Explicitly forbid cleaning, organizing, or 'pre-work'. Start the ugly work immediately.",
+  'rotting': "DEFENSE: 'Micro-Activation'. The first task must be laughably easy (2 mins) to break the paralysis."
+};
+
+/**
+ * 🧠 STEP 1: THE CLARIFIER
+ */
+export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
+  const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
+  
+  const systemPrompt = `
+    You are an elite Chief of Staff.
+    ${identityPrompt}
+    
+    The user has a goal: "${goal}".
+    
+    Your job: Identify the "Execution Blindspot".
+    
+    RULES:
+    1. **VOLUME CHECK:** If the goal implies a VOLUME of work (e.g., "homework", "emails", "chores"), ask about QUANTITY.
+    2. **AMBIGUITY CHECK:** If the goal is VAGUE (e.g., "Work on project", "Study"), ask for the TARGET/DELIVERABLE.
+
+    3. Keep it under 15 words. Direct and tactical. One question only.
+    
+    OUTPUT JSON:
+    { "question": "..." }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: goal }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      temperature: 0.7, 
+    });
+    const result = JSON.parse(completion.choices[0].message.content || "{}");
+    return result.question || "What is the specific outcome you need to achieve?";
+  } catch (error) {
+    return "What is the immediate next physical step you need to take?";
+  }
+};
+
+/**
+ * 🧠 STEP 1.5: THE CLASSIFIER
+ */
+export const analyzeGoalType = async (goal: string, clarification: string = "") => {
+  const systemPrompt = `
+    Analyze this user's intent.
+    
+    INITIAL GOAL: "${goal}"
+    CLARIFICATION ANSWER: "${clarification}"
+    
+    Determine if this is a "PROJECT" (Single Work Session) or a "JOURNEY" (Long-term/Multi-day).
+
+    CRITICAL RULES:
+    1. If the Initial Goal looks long-term (e.g., "Write a book"), BUT the Clarification limits the scope (e.g., "Just outline Chapter 1 today"), YOU MUST CLASSIFY AS "PROJECT".
+    2. "PROJECT" = Can be done in one sitting (15m - 4 hours).
+    3. "JOURNEY" = Requires a schedule spanning multiple days (e.g., "Study for 2 weeks", "Lose 10lbs").
+    
+    OUTPUT JSON:
+    { 
+      "type": "project" | "journey",
+      "reason": "Explain why based on the clarification."
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+    });
+    return JSON.parse(completion.choices[0].message.content || '{"type": "project"}');
+  } catch (error) {
+    return { type: 'project' };
+  }
+};
+
+/** 
+ * 🧠 STEP 2: THE STRATEGIST (Short Term / Single Session)
+ */
+export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "", dailyMinutes: number = 0) => {
+  const onboarding = userProfile.onboardingData || {};
+  
+  // 1. Get Personalization Variables
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
+  const driverPrompt = DRIVER_PROTOCOLS[onboarding.coreDriver] || DRIVER_PROTOCOLS['velocity'];
+  const villainPrompt = VILLAIN_PROTOCOLS[onboarding.frictionVillain] || "Minimize distractions.";
+
+  const SHORT_TERM_PROTOCOLS = `
+    ANALYZE THE GOAL AND APPLY THE CORRECT PROTOCOL:
+
+    🌊 **TYPE A: THE GRIND (Volume/Repetition)**
+    - *Task 1 [Triage]:* Scan/Flag. (5m)
+    - *Task 2 [Velocity]:* Easy items first.
+    - *Task 3 [The Slog]:* Hard items.
+    - *Task 4 [Polish]:* Review.
+
+    🎨 **TYPE B: THE BLANK PAGE (Creation/Writing/Coding)**
+    - *Task 1 [Structure]:* Outline/Pseudo-code. (10m)
+    - *Task 2 [The Vomit Draft]:* Ugly first pass.
+    - *Task 3 [Refine]:* Edit/Debug.
+
+    ❓ **TYPE C: THE BLACK BOX (Ambiguity/Complex Problems)**
+    - *Task 1 [Research Spike]:* Info gathering.
+    - *Task 2 [The Prototype]:* Smallest working version.
+    - *Task 3 [Expansion]:* Add features.
+
+    🧠 **TYPE D: THE DOWNLOAD (Learning/Study)**
+    - *Task 1 [Scope]:* Define concepts.
+    - *Task 2 [Active Recall]:* Test yourself.
+    - *Task 3 [Gap Fill]:* Read specific sections.
+    
+    📄 **TYPE E: LIFE ADMIN (Bureaucracy)**
+    - *Task 1 [Gather]:* Find docs/passwords.
+    - *Task 2 [Blitz]:* Execute forms.
+  `;
+
+  // TIME BUDGET LOGIC
+  let timeConstraintPrompt = "";
+  if (dailyMinutes > 0) {
+    timeConstraintPrompt = `
+    CRITICAL CONSTRAINT: STRICT TIME BUDGET
+    - The user has committed exactly ${dailyMinutes} minutes.
+    - The sum of task durations MUST equal ${dailyMinutes}.
+    `;
+  } else {
+    timeConstraintPrompt = `
+    - Target total duration: 45-90 minutes.
+    `;
+  }
+
+  const systemPrompt = `
+    You are the user's specialized Chief of Staff.
+    
+    USER PROFILE:
+    - ${identityPrompt}
+    - ${driverPrompt}
+    - ${villainPrompt}
+    
+    GOAL: "${goal}"
+    CONTEXT/CLARIFICATION: "${clarification}"
+
+    MISSION:
+    Create a "High-Resolution" Execution Plan for a SINGLE WORK SESSION.
+    
+    ${SHORT_TERM_PROTOCOLS}
+
+    CRITICAL RULES:
+    1. **APPLY THE DRIVER:** If 'Velocity', skip review steps. If 'Mastery', double the review time.
+    2. **COUNTER THE VILLAIN:** Include defense mechanisms in descriptions.
+    3. **MICRO-SCRIPTS:** Tell them EXACTLY what to do.
+    4. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Project Alpha', 'Draft Essay').
+    ${timeConstraintPrompt}
+
+    OUTPUT FORMAT (JSON):
+    {
+      "short_title": "MAX 2 WORD Mission Name",
+      "tasks": [ 
+        { 
+          "title": "Action Verb + Object", 
+          "duration": 15, 
+          "description": "Tactical instruction aligned with the Optimization Goal." 
+        } 
+      ]
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini", 
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+
+    const content = completion.choices[0].message.content;
+    if (!content) throw new Error("No content received");
+
+    const result = JSON.parse(content);
+    // FORCE 2 WORD LIMIT
+    const trimmedTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : "Mission Alpha";
+
+    return { 
+      shortTitle: trimmedTitle, 
+      tasks: result.tasks || [] 
+    };
+
+  } catch (error) {
+    console.error("❌ OpenAI API Error:", error);
+    return null; 
+  }
+};
+
+/**
+ * 🧠 STEP 2 (VARIANT): THE COACH (Long Term / Journey Mode)
+ */
+export const generateDailyPlan = async (
+  goal: string, 
+  userProfile: any, 
+  dayNumber: number, 
+  totalDays: number,
+  dailyMinutes: number = 45
+) => {
+  const onboarding = userProfile.onboardingData || {};
+  
+  const driverPrompt = DRIVER_PROTOCOLS[onboarding.coreDriver] || DRIVER_PROTOCOLS['velocity'];
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || "";
+  const villainPrompt = VILLAIN_PROTOCOLS[onboarding.frictionVillain] || "";
+  
+  const JOURNEY_PROTOCOLS = `
+    DETERMINE THE JOURNEY TYPE AND PHASE:
+    📈 **TYPE A: THE COMPOUND (Skill)** - Progressive Overload.
+    🏃 **TYPE B: THE MARATHON (Volume)** - Non-Negotiable Minimum.
+    🏗️ **TYPE C: THE BUILD (Project)** - Modular Sprints.
+    📅 **TYPE D: THE EVENT (Deadline)** - Simulation & Taper.
+  `;
+
+  const systemPrompt = `
+    You are an expert Long-Term Performance Coach.
+    ${identityPrompt}
+    ${driverPrompt}
+    ${villainPrompt}
+    
+    MAIN GOAL: "${goal}"
+    CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
+    TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
+    
+    MISSION:
+    Generate a tactical plan for TODAY (Day ${dayNumber}) that fits exactly within ${dailyMinutes} minutes.
+    
+    ${JOURNEY_PROTOCOLS}
+
+    RULES:
+    1. **PHASE AWARENESS:** Day 1 = Setup. Middle = Grind. End = Review.
+    2. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
+    3. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Day 1', 'Leg Day', 'Draft Mode').
+    
+    OUTPUT JSON:
+    {
+      "short_title": "MAX 2 WORD Theme",
+      "tasks": [ 
+        { 
+          "title": "Specific Exercise/Task", 
+          "duration": 15, 
+          "description": "Instruction + Motivational Context." 
+        } 
+      ]
+    }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+    const result = JSON.parse(completion.choices[0].message.content || "{}");
+    
+    // FORCE 2 WORD LIMIT
+    const shortTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : `Day ${dayNumber}`;
+
+    return { 
+      shortTitle: shortTitle, 
+      tasks: result.tasks || [] 
+    };
+  } catch (error) {
+    return null;
+  }
+};
+
+/** 
+ * 🧠 STEP 3: THE FIXER
+ */
+export const refineSingleTask = async (task: any, feedback: string, userProfile: any) => {
+  const onboarding = userProfile.onboardingData || {};
+  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
+  const driverPrompt = DRIVER_PROTOCOLS[onboarding.coreDriver] || DRIVER_PROTOCOLS['velocity'];
+
+  const systemPrompt = `
+    You are a pragmatic Chief of Staff.
+    ${identityPrompt}
+    ${driverPrompt}
+    
+    ORIGINAL TASK: "${task.title}"
+    USER OBSTACLE: "${feedback}"
+    
+    MISSION:
+    Rewrite this task to bypass the obstacle.
+    
+    OUTPUT JSON:
+    { "title": "New Task Name", "duration": 15, "description": "Specific tactical instructions..." }
+  `;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "system", content: systemPrompt }],
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+    });
+
+    const content = completion.choices[0].message.content;
+    if (!content) return task;
+
+    return JSON.parse(content);
+  } catch (error) {
+    console.error("❌ Task Refinement Error:", error);
+    return task;
+  }
+};
 </file>
 
 <file path="src/components/GhostHoursCalculator.tsx">
@@ -14198,14 +14552,18 @@ import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg'; 
 
-// --- AUTH IMPORTS ---
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { makeRedirectUri } from 'expo-auth-session';
-import { auth, GoogleAuthProvider, signInWithCredential } from '../src/config/firebase'; 
+import { 
+  auth, 
+  GoogleAuthProvider, 
+  signInWithCredential, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  updateProfile
+} from '../src/config/firebase';
 
-// Ensure the browser closes on redirect
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
@@ -14222,45 +14580,26 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // --- FIREBASE GOOGLE AUTH SETUP ---
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: "204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com",
-    // This points to the Expo Proxy, which redirects to your unique scheme
     redirectUri: "https://auth.expo.io/@goathezisplash123/productivity-ai",
   });
 
   useEffect(() => {
     if (response?.type === 'success') {
       const { id_token } = response.params;
-      handleFirebaseSignIn(id_token);
-    } else if (response?.type === 'error') {
-      console.error("Google Auth Error:", response.error);
-      Alert.alert("Auth Failed", "Could not connect to Google.");
+      handleGoogleSignIn(id_token);
     }
   }, [response]);
 
-  const handleFirebaseSignIn = async (idToken: string) => {
+  const handleGoogleSignIn = async (idToken: string) => {
     setLoading(true);
     try {
-      // 1. Sign in to Firebase
       const credential = GoogleAuthProvider.credential(idToken);
       const userCredential = await signInWithCredential(auth, credential);
-      const firebaseUser = userCredential.user;
-
-      // 2. Sync with YOUR Backend
-      const backendUser = await apiService.socialLogin({
-        email: firebaseUser.email,
-        name: firebaseUser.displayName,
-        socialId: firebaseUser.uid, 
-        provider: 'google',
-        onboardingData: onboardingData
-      });
-
-      handleAuthSuccess(backendUser);
-
+      await syncUserWithBackend(userCredential.user, 'google');
     } catch (error: any) {
-      console.error("Firebase Login Error:", error);
-      Alert.alert("Login Failed", error.message);
+      Alert.alert("Google Login Error", error.message);
       setLoading(false);
     }
   };
@@ -14276,20 +14615,17 @@ export default function AuthScreen() {
 
       setLoading(true);
       
-      let fullName = null;
-      if (credential.fullName?.givenName) {
-        fullName = `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim();
-      }
+      const displayName = credential.fullName?.givenName 
+        ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim() 
+        : "Apple User";
 
-      const backendUser = await apiService.socialLogin({
-        email: credential.email, 
-        socialId: credential.user, 
-        name: fullName,
-        provider: 'apple',
-        onboardingData: onboardingData
-      });
-
-      handleAuthSuccess(backendUser);
+      const userData = {
+        email: credential.email, // Might be null on repeat logins
+        uid: credential.user,    // This is the stable socialId
+        displayName: displayName
+      };
+      
+      await syncUserWithBackend(userData as any, 'apple');
 
     } catch (e: any) {
       if (e.code !== 'ERR_CANCELED') {
@@ -14299,43 +14635,9 @@ export default function AuthScreen() {
     }
   };
 
-  const handleAuthSuccess = (responseUser: any) => {
-    setUser(responseUser);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    if (responseUser.onboardingData) {
-      router.replace('/home');
-    } else {
-      Alert.alert(
-        "Setup Required",
-        "We need to calibrate your profile before we begin.",
-        [
-          { 
-            text: "Start Assessment", 
-            onPress: () => router.replace('/ghost-hours') 
-          }
-        ]
-      );
-    }
-    setLoading(false);
-  };
-
   const handleSubmit = async () => {
     if (!email || !password || (!isLogin && !name)) {
       Alert.alert('Missing Fields', 'Please fill in all fields.');
-      return;
-    }
-
-    if (!isLogin && !onboardingData) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert(
-        "Assessment Required",
-        "You cannot create an account without a personalized plan.",
-        [
-          { text: "Go to Onboarding", onPress: () => router.replace('/ghost-hours') },
-          { text: "Cancel", style: 'cancel' }
-        ]
-      );
       return;
     }
 
@@ -14343,147 +14645,86 @@ export default function AuthScreen() {
     Haptics.selectionAsync();
 
     try {
-      let responseUser;
+      let userCredential;
       if (isLogin) {
-        responseUser = await apiService.login({ email, password });
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
       } else {
-        responseUser = await apiService.register({
-          email,
-          name,
-          password,
-          onboardingData 
-        });
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (auth.currentUser) {
+          await updateProfile(auth.currentUser, { displayName: name });
+        }
       }
-      handleAuthSuccess(responseUser);
+      await syncUserWithBackend(userCredential.user, 'email');
     } catch (error: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Authentication Failed', error.message);
       setLoading(false);
     }
   };
 
+  const syncUserWithBackend = async (firebaseUser: any, provider: string) => {
+    try {
+      const backendUser = await apiService.syncUser({
+        email: firebaseUser.email,
+        socialId: firebaseUser.uid || firebaseUser.socialId,
+        name: firebaseUser.displayName || name || 'Operative',
+        provider: provider,
+        onboardingData: onboardingData
+      });
+
+      setUser(backendUser);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      if (backendUser.onboardingData || onboardingData) {
+        router.replace('/home');
+      } else {
+        router.replace('/ghost-hours');
+      }
+    } catch (error) {
+      console.error("Backend Sync Error:", error);
+      Alert.alert("Sync Error", "Logged in, but failed to connect to the server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <StatusBar style="dark" />
-      
       <View style={styles.content}>
         <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
-        <Text style={styles.subtitle}>
-          {isLogin 
-            ? 'Sign in to access your dashboard.' 
-            : 'Create an account to save your productivity plan.'}
-        </Text>
-
+        <Text style={styles.subtitle}>{isLogin ? 'Sign in to access your dashboard.' : 'Create an account to save your productivity plan.'}</Text>
         <View style={styles.form}>
           {!isLogin && (
             <View style={styles.inputContainer}>
               <User size={20} color={colors.textSecondary} style={styles.icon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Full Name"
-                value={name}
-                onChangeText={setName}
-                placeholderTextColor={colors.textLight}
-              />
+              <TextInput style={styles.input} placeholder="Full Name" value={name} onChangeText={setName} placeholderTextColor={colors.textLight} />
             </View>
           )}
-
           <View style={styles.inputContainer}>
             <Mail size={20} color={colors.textSecondary} style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Email Address"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              placeholderTextColor={colors.textLight}
-            />
+            <TextInput style={styles.input} placeholder="Email Address" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholderTextColor={colors.textLight} />
           </View>
-
           <View style={styles.inputContainer}>
             <Lock size={20} color={colors.textSecondary} style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor={colors.textLight}
-            />
+            <TextInput style={styles.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor={colors.textLight} />
           </View>
-
-          <TouchableOpacity 
-            style={styles.button} 
-            onPress={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Text style={styles.buttonText}>
-                  {isLogin ? 'Log In' : 'Complete Setup'}
-                </Text>
-                <ArrowRight size={20} color="#FFFFFF" />
-              </>
-            )}
+          <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
+            {loading ? <ActivityIndicator color="#FFFFFF" /> : <><Text style={styles.buttonText}>{isLogin ? 'Log In' : 'Complete Setup'}</Text><ArrowRight size={20} color="#FFFFFF" /></>}
           </TouchableOpacity>
-
-          <View style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
+          <View style={styles.dividerContainer}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or continue with</Text><View style={styles.dividerLine} /></View>
           <View style={styles.socialButtonsContainer}>
             {Platform.OS === 'ios' && (
-              <TouchableOpacity 
-                style={styles.appleCustomButton} 
-                onPress={handleAppleLogin}
-              >
-                <View style={styles.iconContainer}>
-                  <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
-                    <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
-                  </Svg>
-                </View>
+              <TouchableOpacity style={styles.appleCustomButton} onPress={handleAppleLogin}>
+                <View style={styles.iconContainer}><Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF"><Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" /></Svg></View>
                 <Text style={styles.appleButtonText}>Continue with Apple</Text>
               </TouchableOpacity>
             )}
-
-            {/* Google Login with Firebase */}
-            <TouchableOpacity 
-              style={styles.googleButton} 
-              onPress={() => {
-                if (request) promptAsync();
-                else Alert.alert("Setup Required", "Google ID not configured in auth.tsx");
-              }}
-            >
-              <View style={styles.iconContainer}>
-                <Svg width={24} height={24} viewBox="0 0 48 48">
-                  <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                  <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                  <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                  <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                </Svg>
-              </View>
+            <TouchableOpacity style={styles.googleButton} onPress={() => promptAsync()}>
+              <View style={styles.iconContainer}><Svg width={24} height={24} viewBox="0 0 48 48"><Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" /><Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" /><Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" /><Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" /></Svg></View>
               <Text style={styles.googleButtonText}>Continue with Google</Text>
             </TouchableOpacity>
           </View>
-
-          <TouchableOpacity 
-            style={styles.switchButton} 
-            onPress={() => {
-              setIsLogin(!isLogin);
-            }}
-          >
-            <Text style={styles.switchText}>
-              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
-            </Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin(!isLogin)}><Text style={styles.switchText}>{isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}</Text></TouchableOpacity>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -14491,140 +14732,27 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  content: {
-    flex: 1,
-    padding: 30,
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 32,
-  },
-  form: {
-    gap: 16,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.backgroundLight,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    height: 56,
-    paddingHorizontal: 16,
-  },
-  icon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: colors.text,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    height: 56,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  buttonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-    marginRight: 8,
-  },
-  switchButton: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  switchText: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 16,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  dividerText: {
-    marginHorizontal: 12,
-    color: colors.textLight,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  socialButtonsContainer: {
-    gap: 12,
-  },
-  appleCustomButton: {
-    width: '100%',
-    height: 56,
-    backgroundColor: '#000000', 
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  appleButtonText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  googleButton: {
-    width: '100%',
-    height: 56,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  iconContainer: {
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  googleButtonText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  content: { flex: 1, padding: 30, justifyContent: 'center' },
+  title: { fontSize: 32, fontWeight: '700', color: colors.text, marginBottom: 8 },
+  subtitle: { fontSize: 16, color: colors.textSecondary, marginBottom: 32 },
+  form: { gap: 16 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.backgroundLight, borderRadius: 16, borderWidth: 1, borderColor: colors.border, height: 56, paddingHorizontal: 16 },
+  icon: { marginRight: 12 },
+  input: { flex: 1, fontSize: 16, color: colors.text },
+  button: { backgroundColor: colors.primary, height: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  buttonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', marginRight: 8 },
+  switchButton: { alignItems: 'center', marginTop: 16 },
+  switchText: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { marginHorizontal: 12, color: colors.textLight, fontSize: 14, fontWeight: '500' },
+  socialButtonsContainer: { gap: 12 },
+  appleCustomButton: { width: '100%', height: 56, backgroundColor: '#000000', borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+  appleButtonText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
+  googleButton: { width: '100%', height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  iconContainer: { marginRight: 12, justifyContent: 'center', alignItems: 'center' },
+  googleButtonText: { fontSize: 17, fontWeight: '600', color: '#1A1A1A' },
 });
 </file>
 
@@ -16619,156 +16747,6 @@ export default function OnboardingScreen() {
 }
 </file>
 
-<file path="src/components/OnboardingWizard.tsx">
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
-import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, BedDouble, MessagesSquare, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon, GraduationCap, Code, PenTool, TrendingUp } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import * as Haptics from 'expo-haptics';
-
-// --- NEW DATA: IDENTITIES ---
-const IDENTITIES = [
-  { id: 'student', label: 'Student', description: 'Assignments, Exams, Studying.', icon: GraduationCap },
-  { id: 'creative', label: 'Creative', description: 'Design, Writing, Art, Media.', icon: PenTool },
-  { id: 'developer', label: 'Developer', description: 'Coding, Engineering, Data.', icon: Code },
-  { id: 'founder', label: 'Founder/Exec', description: 'Strategy, Management, Growth.', icon: TrendingUp },
-  { id: 'professional', label: 'Professional', description: 'Corporate, Admin, Operations.', icon: Briefcase },
-];
-
-const ARCHETYPES = [
-  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Briefcase },
-  { id: 'firefighter', label: 'The Firefighter', description: 'I only work when the deadline is scary.', icon: Flame },
-  { id: 'sprinter', label: 'The Sprinter', description: 'I work in intense bursts, then crash.', icon: Zap },
-  { id: 'deep_worker', label: 'The Deep Worker', description: 'I need long hours of total silence.', icon: Brain },
-];
-
-const VILLAINS = [
-  { id: 'doomscrolling', label: 'The Scroll', description: 'Getting sucked into social media loops.', icon: Smartphone },
-  { id: 'side_quests', label: 'Side Quests', description: 'Cleaning the room to avoid the real task.', icon: Gamepad2 },
-  { id: 'rotting', label: 'Brain Fog', description: 'Feeling paralyzed and low energy.', icon: BedDouble },
-  { id: 'yap_fatigue', label: 'Over-Communication', description: 'Drained by too many messages/calls.', icon: MessagesSquare },
-];
-
-const MENTAL_BLOCKS = [
-  { id: 'perfectionism', label: 'Perfectionism', description: 'If it\'s not perfect, I won\'t start.', icon: Target },
-  { id: 'overwhelm', label: 'Overwhelm', description: 'The project feels too massive.', icon: Activity },
-  { id: 'procrastination', label: 'Resistance', description: 'I just don\'t feel like it yet.', icon: AlertTriangle },
-  { id: 'boredom', label: 'Boredom', description: 'The task is dull and painful.', icon: Anchor },
-];
-
-const FOCUS_WINDOWS = [
-  { id: 'early_morning', label: 'Early Morning', time: '5 AM - 9 AM', icon: Sunrise, skyColor: '#FFE4E1', textColor: '#1A1A1A' },
-  { id: 'late_morning', label: 'Late Morning', time: '9 AM - 12 PM', icon: Sun, skyColor: '#E0F7FA', textColor: '#1A1A1A' },
-  { id: 'afternoon', label: 'Afternoon', time: '1 PM - 5 PM', icon: CloudSun, skyColor: '#FFF8E1', textColor: '#1A1A1A' },
-  { id: 'evening', label: 'Evening', time: '5 PM - 9 PM', icon: Sunset, skyColor: '#F3E5F5', textColor: '#1A1A1A' },
-  { id: 'late_night', label: 'Late Night', time: '9 PM - 2 AM', icon: Moon, skyColor: '#1E293B', textColor: '#FFFFFF' },
-];
-
-export const OnboardingWizard = ({ onComplete }: any) => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [data, setData] = useState({ 
-    identity: null, // NEW FIELD
-    workArchetype: null, 
-    frictionVillain: null, 
-    mentalBlock: null, 
-    focusWindow: null 
-  });
-  
-  const stepTransition = useSharedValue(0);
-
-  useEffect(() => { stepTransition.value = 0; stepTransition.value = withSpring(1); }, [currentStep]);
-
-  const handleNext = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (currentStep < 4) setCurrentStep(currentStep + 1); // Increased steps to 4
-    else onComplete(data);
-  };
-
-  const steps = [
-    { title: "Who are you?", data: IDENTITIES, key: 'identity' },
-    { title: "How do you work?", data: ARCHETYPES, key: 'workArchetype' },
-    { title: "Your Nemesis?", data: VILLAINS, key: 'frictionVillain' },
-    { title: "The Inner Barrier.", data: MENTAL_BLOCKS, key: 'mentalBlock' },
-    { title: "Peak Energy.", data: FOCUS_WINDOWS, key: 'focusWindow' }
-  ];
-
-  const currentStepData = steps[currentStep];
-  const isLastStep = currentStep === 4;
-  
-  // @ts-ignore
-  const canProceed = data[currentStepData.key] !== null;
-
-  const PillCard = ({ item, isSelected, onPress }: any) => (
-    <TouchableOpacity style={[styles.pillCard, isSelected && styles.selectedCard]} onPress={onPress} activeOpacity={0.8}>
-      <View style={styles.pillIcon}><item.icon size={22} color={isSelected ? colors.primary : colors.textSecondary} /></View>
-      <View style={{ flex: 1 }}><Text style={styles.pillLabel}>{item.label}</Text><Text style={styles.pillDesc}>{item.description}</Text></View>
-      <View style={[styles.radio, isSelected && styles.radioActive]}>{isSelected && <Check size={12} color="#FFF" />}</View>
-    </TouchableOpacity>
-  );
-
-  return (
-    <View style={styles.container}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <View style={styles.content}>
-          <Text style={styles.stepTitle}>{currentStepData.title}</Text>
-          <View style={{ flex: 1 }}>
-            {!isLastStep ? (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-                {currentStepData.data.map((item: any) => (
-                  <PillCard 
-                    key={item.id} 
-                    item={item} 
-                    // @ts-ignore
-                    isSelected={data[currentStepData.key] === item.id} 
-                    // @ts-ignore
-                    onPress={() => setData({ ...data, [currentStepData.key]: item.id })} 
-                  />
-                ))}
-              </ScrollView>
-            ) : (
-              <View style={{ flex: 1, gap: 8 }}>
-                {FOCUS_WINDOWS.map(item => (
-                  <TouchableOpacity key={item.id} style={[styles.skyCard, { flex: 1, backgroundColor: data.focusWindow === item.id ? item.skyColor : '#F9FAFB' }]} onPress={() => setData({ ...data, focusWindow: item.id })}>
-                    <item.icon size={24} color={data.focusWindow === item.id ? item.textColor : colors.textSecondary} />
-                    <View style={{ flex: 1, marginLeft: 16 }}><Text style={[styles.pillLabel, { color: data.focusWindow === item.id ? item.textColor : colors.text }]}>{item.label}</Text><Text style={[styles.skyTime, { color: data.focusWindow === item.id ? item.textColor : colors.textSecondary }]}>{item.time}</Text></View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
-        </View>
-        <View style={styles.footer}>
-          <TouchableOpacity style={[styles.nextBtn, !canProceed && { opacity: 0.5 }]} disabled={!canProceed} onPress={handleNext}>
-            <Text style={styles.nextText}>{isLastStep ? 'Finish' : 'Next'}</Text>
-            <ArrowRight size={20} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </View>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
-  content: { flex: 1, padding: 24 },
-  stepTitle: { fontSize: 28, fontWeight: '800', marginBottom: 24, color: colors.text },
-  pillCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, backgroundColor: '#F9FAFB', borderWidth: 2, borderColor: 'transparent' },
-  selectedCard: { backgroundColor: '#FFFBEB', borderColor: colors.primary },
-  pillIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  pillLabel: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
-  pillDesc: { fontSize: 13, color: colors.textSecondary },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#DDD', justifyContent: 'center', alignItems: 'center' },
-  radioActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  skyCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, borderRadius: 16 },
-  skyTime: { fontSize: 12, fontWeight: '600', opacity: 0.7 },
-  footer: { padding: 24, borderTopWidth: 1, borderTopColor: '#EEE' },
-  nextBtn: { backgroundColor: colors.primary, padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  nextText: { color: '#FFF', fontSize: 16, fontWeight: '800' }
-});
-</file>
-
 <file path="backend/prisma/schema.prisma">
 generator client {
   provider = "prisma-client-js"
@@ -16831,369 +16809,6 @@ model Task {
 }
 </file>
 
-<file path="backend/src/index.ts">
-import express from 'express';
-import cors from 'cors';
-import { PrismaClient } from '@prisma/client';
-import { 
-  generateActionPlan, 
-  generateClarifyingQuestion, 
-  refineSingleTask,
-  analyzeGoalType,
-  generateDailyPlan
-} from './services/ai.service';
-
-const prisma = new PrismaClient();
-const app = express();
-
-const PORT = Number(process.env.PORT) || 3000;
-
-app.use(cors());
-app.use(express.json());
-
-// --- DATE HELPERS FOR STREAKS ---
-const isSameDay = (d1: Date, d2: Date) => {
-  return d1.toISOString().split('T')[0] === d2.toISOString().split('T')[0];
-};
-
-const isYesterday = (today: Date, past: Date) => {
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  return isSameDay(yesterday, past);
-};
-
-app.use((req, res, next) => {
-  console.log(`\n📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
-  next();
-});
-
-// ==========================================
-// 1. AUTH & USER ROUTES
-// ==========================================
-
-app.post('/register', async (req, res) => {
-  const { email, name, password, onboardingData } = req.body;
-  try {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) return res.status(400).json({ error: 'User already exists' });
-
-    const user = await prisma.user.create({
-      data: { 
-        email, 
-        name: name || 'Operative', 
-        password, 
-        provider: 'email',
-        onboardingData 
-      },
-    });
-    res.json(user);
-  } catch (error) {
-    console.error("Register Error:", error);
-    res.status(500).json({ error: 'Failed to register' });
-  }
-});
-
-app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.password !== password) {
-        return res.status(401).json({ error: 'Invalid credentials' });
-    }
-    res.json(user);
-  } catch (error) {
-    console.error("Login Error:", error);
-    res.status(500).json({ error: 'Login failed' });
-  }
-});
-
-app.post('/auth/social', async (req, res) => {
-    const { email, name, provider, socialId, onboardingData } = req.body;
-    try {
-      let user = await prisma.user.findUnique({ where: { email: email || '' } });
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
-            email: email || `${socialId}@social.com`,
-            socialId,
-            name: name || 'Operative',
-            provider,
-            onboardingData
-          }
-        });
-      }
-      res.json(user);
-    } catch (error) {
-      console.error("Social Auth Error:", error);
-      res.status(500).json({ error: 'Social auth failed' });
-    }
-});
-
-app.get('/users/:email', async (req, res) => {
-  const { email } = req.params;
-  try {
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { goals: { include: { tasks: true } } }
-    });
-    
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    let tasksCrushed = 0;
-    let totalMinutes = 0;
-    user.goals.forEach(goal => {
-      goal.tasks.forEach(task => {
-        if (task.status === 'completed') {
-          tasksCrushed++;
-          totalMinutes += task.duration;
-        }
-      });
-    });
-
-    res.json({
-      ...user,
-      stats: {
-        tasksCrushed,
-        hoursFocused: (totalMinutes / 60).toFixed(1),
-        streak: user.currentStreak, 
-        level: Math.floor(tasksCrushed / 5) + 1
-      }
-    });
-  } catch (error) {
-    console.error("Get Profile Error:", error);
-    res.status(500).json({ error: 'Failed to fetch profile' });
-  }
-});
-
-app.patch('/users/:email', async (req, res) => {
-    const { email } = req.params;
-    try {
-      const user = await prisma.user.update({
-        where: { email },
-        data: req.body
-      });
-      res.json(user);
-    } catch (error) {
-      console.error("Update User Error:", error);
-      res.status(500).json({ error: 'Update failed' });
-    }
-});
-
-// ==========================================
-// 2. AI STRATEGIST ROUTES
-// ==========================================
-
-app.post('/ai/analyze-goal', async (req, res) => {
-  const { goal } = req.body;
-  try {
-    const analysis = await analyzeGoalType(goal);
-    res.json(analysis);
-  } catch (error) {
-    console.error("AI Analysis Error:", error);
-    res.status(500).json({ error: 'Analysis failed' });
-  }
-});
-
-app.post('/ai/clarify', async (req, res) => {
-  const { email, goal } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const question = await generateClarifyingQuestion(goal, user);
-    res.json({ question });
-  } catch (error) {
-    console.error("AI Clarify Error:", error);
-    res.status(500).json({ error: 'Clarification failed' });
-  }
-});
-
-app.post('/ai/generate-plan', async (req, res) => {
-  const { email, goal, clarification, dailyMinutes } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    // Pass dailyMinutes to AI service
-    const result = await generateActionPlan(goal, user, clarification, dailyMinutes);
-    res.json({ tasks: result });
-  } catch (error) {
-    console.error("AI Generate Plan Error:", error);
-    res.status(500).json({ error: 'Plan generation failed' });
-  }
-});
-
-app.post('/ai/refine-task', async (req, res) => {
-  const { email, taskId, feedback } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
-    
-    if (!user || !task) return res.status(404).json({ error: 'Not found' });
-
-    const newTaskData = await refineSingleTask(task, feedback, user);
-    
-    const updatedTask = await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        title: newTaskData.title,
-        duration: newTaskData.duration,
-        description: newTaskData.description
-      }
-    });
-
-    res.json(updatedTask);
-  } catch (error) {
-    console.error("AI Refine Task Error:", error);
-    res.status(500).json({ error: 'Refinement failed' });
-  }
-});
-
-app.post('/ai/daily-plan', async (req, res) => {
-  const { email, goalTitle, dayNumber, totalDays, dailyMinutes } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const result = await generateDailyPlan(goalTitle, user, dayNumber, totalDays, dailyMinutes);
-    res.json(result);
-  } catch (error) {
-    console.error("AI Daily Plan Error:", error);
-    res.status(500).json({ error: 'Daily plan failed' });
-  }
-});
-
-// ==========================================
-// 3. GOAL & TASK MANAGEMENT
-// ==========================================
-
-app.post('/goals', async (req, res) => {
-  const { title, userEmail, type, targetDate, dailyMinutes } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email: userEmail }});
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    console.log(`Creating Goal for ${userEmail}: ${title} [${type}] with budget: ${dailyMinutes}m`);
-
-    const goal = await prisma.goal.create({
-      data: { 
-        title, 
-        userId: user.id,
-        type: type || 'project',
-        targetDate: targetDate ? new Date(targetDate) : null,
-        // Safeguard: Force conversion to Number, default to 45 if 0 or invalid
-        dailyMinutes: Number(dailyMinutes) || 45 
-      }
-    });
-    res.json(goal);
-  } catch (error) {
-    // Enhanced error logging to see exactly what went wrong
-    console.error("Create Goal DB Error FULL:", error);
-    res.status(500).json({ error: 'Goal creation failed', details: String(error) });
-  }
-});
-
-app.post('/goals/:goalId/tasks', async (req, res) => {
-  const { goalId } = req.params;
-  const { tasks } = req.body; 
-  try {
-    const createdTasks = await prisma.$transaction(
-      tasks.map((t: any) => prisma.task.create({
-        data: {
-          title: t.title,
-          description: t.description || '',
-          duration: Number(t.duration) || 15,
-          goalId: goalId
-        }
-      }))
-    );
-    res.json(createdTasks);
-  } catch (error) {
-    console.error("Create Tasks Error:", error);
-    res.status(500).json({ error: 'Task creation failed' });
-  }
-});
-
-app.patch('/goals/:goalId', async (req, res) => {
-  const { goalId } = req.params;
-  try {
-    const goal = await prisma.goal.update({
-      where: { id: goalId },
-      data: req.body
-    });
-    res.json(goal);
-  } catch (error) {
-    console.error("Update Goal Error:", error);
-    res.status(500).json({ error: 'Goal update failed' });
-  }
-});
-
-app.patch('/tasks/:taskId', async (req, res) => {
-  const { taskId } = req.params;
-  const updates = req.body; 
-  
-  try {
-    const allowedFields = ['title', 'description', 'duration', 'status', 'order'];
-    const filteredData: any = {};
-    Object.keys(updates).forEach(key => {
-      if (allowedFields.includes(key)) filteredData[key] = updates[key];
-    });
-
-    const task = await prisma.task.update({
-      where: { id: taskId },
-      data: filteredData,
-      include: { goal: { include: { user: true } } }
-    });
-
-    if (filteredData.status === 'completed') {
-      const user = task.goal.user;
-      const today = new Date();
-      const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
-      let newStreak = user.currentStreak;
-
-      if (!lastActive) newStreak = 1;
-      else if (isSameDay(today, lastActive)) newStreak = user.currentStreak;
-      else if (isYesterday(today, lastActive)) newStreak = user.currentStreak + 1;
-      else newStreak = 1;
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { currentStreak: newStreak, lastActiveDate: today }
-      });
-    }
-    res.json(task);
-  } catch (error) {
-    console.error("Update Task Error:", error);
-    res.status(500).json({ error: 'Failed to update task' });
-  }
-});
-
-app.get('/leaderboard', async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      orderBy: { currentStreak: 'desc' },
-      take: 10,
-      select: { id: true, name: true, currentStreak: true }
-    });
-
-    const leaderboard = users.map(u => ({
-      id: u.id,
-      name: u.name || 'Operative',
-      streak: u.currentStreak,
-    }));
-    
-    res.json(leaderboard);
-  } catch (error) {
-    console.error("Leaderboard Error:", error);
-    res.status(500).json({ error: 'Leaderboard fetch failed' });
-  }
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 AI Chief of Staff listening on port ${PORT}`);
-});
-</file>
-
 <file path="package.json">
 {
   "name": "productivity-ai",
@@ -17207,18 +16822,20 @@ app.listen(PORT, '0.0.0.0', () => {
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@react-native-community/datetimepicker": "8.2.0",
+    "@react-native-community/datetimepicker": "8.4.4",
     "@shopify/react-native-skia": "2.2.12",
     "babel-preset-expo": "~54.0.9",
-    "expo": "~54.0.0",
+    "expo": "~54.0.32",
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.10",
     "expo-crypto": "~15.0.8",
+    "expo-device": "~8.0.10",
     "expo-haptics": "^15.0.8",
     "expo-keep-awake": "~15.0.8",
     "expo-linking": "~8.0.11",
     "expo-network": "~8.0.8",
-    "expo-router": "~6.0.21",
+    "expo-notifications": "~0.32.16",
+    "expo-router": "~6.0.22",
     "expo-sensors": "~15.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-web-browser": "~15.0.10",
@@ -17245,6 +16862,231 @@ app.listen(PORT, '0.0.0.0', () => {
   },
   "private": true
 }
+</file>
+
+<file path="src/components/OnboardingWizard.tsx">
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
+import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, BedDouble, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon, GraduationCap, PenTool, TrendingUp, Shield, Globe, Gem, ChevronsRight, Home, Layers } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+
+// --- UPDATED IDENTITIES (Broad & Relatable) ---
+const IDENTITIES = [
+  { 
+    id: 'student', 
+    label: 'Student', 
+    description: 'Assignments, Exams, Studying, Research.', 
+    icon: GraduationCap 
+  },
+  { 
+    id: 'professional', 
+    label: 'Professional', 
+    description: '9-5 Career, Meetings, Admin, Corporate.', 
+    icon: Briefcase 
+  },
+  { 
+    id: 'entrepreneur', 
+    label: 'Entrepreneur', 
+    description: 'Business, Freelancing, Side Hustles.', 
+    icon: TrendingUp 
+  },
+  { 
+    id: 'maker', 
+    label: 'Maker / Creative', 
+    description: 'Building, Coding, Writing, Designing, Art.', 
+    icon: PenTool 
+  },
+  { 
+    id: 'personal', 
+    label: 'Life Admin', 
+    description: 'Chores, Errands, Finances, Home.', 
+    icon: Home 
+  },
+];
+
+const ARCHETYPES = [
+  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Layers }, // Re-using Layers here fits structure
+  { id: 'firefighter', label: 'The Firefighter', description: 'I only work when the deadline is scary.', icon: Flame },
+  { id: 'sprinter', label: 'The Sprinter', description: 'I work in intense bursts, then crash.', icon: Zap },
+  { id: 'deep_worker', label: 'The Deep Worker', description: 'I need long hours of total silence.', icon: Brain },
+];
+
+// --- UPDATED VILLAINS (Replaced Yap Fatigue with Multitasking) ---
+const VILLAINS = [
+  { 
+    id: 'doomscrolling', 
+    label: 'The Scroll', 
+    description: 'Getting sucked into social media loops.', 
+    icon: Smartphone 
+  },
+  { 
+    id: 'multitasking', 
+    label: 'The Juggler', 
+    description: 'Trying to do 3 things at once and finishing nothing.', 
+    icon: Layers 
+  },
+  { 
+    id: 'side_quests', 
+    label: 'Side Quests', 
+    description: 'Cleaning the room to avoid the real task.', 
+    icon: Gamepad2 
+  },
+  { 
+    id: 'rotting', 
+    label: 'Brain Fog', 
+    description: 'Feeling paralyzed and low energy.', 
+    icon: BedDouble 
+  },
+];
+
+const MENTAL_BLOCKS = [
+  { id: 'perfectionism', label: 'Perfectionism', description: 'If it\'s not perfect, I won\'t start.', icon: Target },
+  { id: 'overwhelm', label: 'Overwhelm', description: 'The project feels too massive.', icon: Activity },
+  { id: 'procrastination', label: 'Resistance', description: 'I just don\'t feel like it yet.', icon: AlertTriangle },
+  { id: 'boredom', label: 'Boredom', description: 'The task is dull and painful.', icon: Anchor },
+];
+
+const FOCUS_WINDOWS = [
+  { id: 'early_morning', label: 'Early Morning', time: '5 AM - 9 AM', icon: Sunrise, skyColor: '#FFE4E1', textColor: '#1A1A1A' },
+  { id: 'late_morning', label: 'Late Morning', time: '9 AM - 12 PM', icon: Sun, skyColor: '#E0F7FA', textColor: '#1A1A1A' },
+  { id: 'afternoon', label: 'Afternoon', time: '1 PM - 5 PM', icon: CloudSun, skyColor: '#FFF8E1', textColor: '#1A1A1A' },
+  { id: 'evening', label: 'Evening', time: '5 PM - 9 PM', icon: Sunset, skyColor: '#F3E5F5', textColor: '#1A1A1A' },
+  { id: 'late_night', label: 'Late Night', time: '9 PM - 2 AM', icon: Moon, skyColor: '#1E293B', textColor: '#FFFFFF' },
+];
+
+const CORE_DRIVERS = [
+  { 
+    id: 'velocity', 
+    label: 'Velocity', 
+    description: 'I value Speed. I want to finish early and reclaim my time.', 
+    icon: ChevronsRight 
+  },
+  { 
+    id: 'mastery', 
+    label: 'Mastery', 
+    description: 'I value Quality. I want to do deep, excellent work.', 
+    icon: Gem 
+  },
+  { 
+    id: 'survival', 
+    label: 'Survival', 
+    description: 'I value Sanity. I am burnt out and just need to get by.', 
+    icon: Shield 
+  },
+  { 
+    id: 'impact', 
+    label: 'Impact', 
+    description: 'I value Leverage. I only want to do the high-ROI tasks.', 
+    icon: Globe 
+  },
+];
+
+export const OnboardingWizard = ({ onComplete }: any) => {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [data, setData] = useState({ 
+    identity: null,
+    workArchetype: null, 
+    frictionVillain: null, 
+    mentalBlock: null, 
+    focusWindow: null,
+    coreDriver: null
+  });
+  
+  const stepTransition = useSharedValue(0);
+
+  useEffect(() => { stepTransition.value = 0; stepTransition.value = withSpring(1); }, [currentStep]);
+
+  const handleNext = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (currentStep < 5) setCurrentStep(currentStep + 1);
+    else onComplete(data);
+  };
+
+  const steps = [
+    { title: "Who are you?", data: IDENTITIES, key: 'identity' },
+    { title: "How do you work?", data: ARCHETYPES, key: 'workArchetype' },
+    { title: "Your Nemesis?", data: VILLAINS, key: 'frictionVillain' },
+    { title: "The Inner Barrier.", data: MENTAL_BLOCKS, key: 'mentalBlock' },
+    { title: "Peak Energy.", data: FOCUS_WINDOWS, key: 'focusWindow' },
+    { title: "The North Star.", data: CORE_DRIVERS, key: 'coreDriver' }
+  ];
+
+  const currentStepData = steps[currentStep];
+  const isLastStep = currentStep === 5;
+  
+  // @ts-ignore
+  const canProceed = data[currentStepData.key] !== null;
+
+  const PillCard = ({ item, isSelected, onPress }: any) => (
+    <TouchableOpacity style={[styles.pillCard, isSelected && styles.selectedCard]} onPress={onPress} activeOpacity={0.8}>
+      <View style={styles.pillIcon}><item.icon size={22} color={isSelected ? colors.primary : colors.textSecondary} /></View>
+      <View style={{ flex: 1 }}><Text style={styles.pillLabel}>{item.label}</Text><Text style={styles.pillDesc}>{item.description}</Text></View>
+      <View style={[styles.radio, isSelected && styles.radioActive]}>{isSelected && <Check size={12} color="#FFF" />}</View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.content}>
+          <Text style={styles.stepTitle}>{currentStepData.title}</Text>
+          <View style={{ flex: 1 }}>
+            {currentStepData.key !== 'focusWindow' ? (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                {currentStepData.data.map((item: any) => (
+                  <PillCard 
+                    key={item.id} 
+                    item={item} 
+                    // @ts-ignore
+                    isSelected={data[currentStepData.key] === item.id} 
+                    // @ts-ignore
+                    onPress={() => setData({ ...data, [currentStepData.key]: item.id })} 
+                  />
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={{ flex: 1, gap: 8 }}>
+                {FOCUS_WINDOWS.map(item => (
+                  <TouchableOpacity key={item.id} style={[styles.skyCard, { flex: 1, backgroundColor: data.focusWindow === item.id ? item.skyColor : '#F9FAFB' }]} onPress={() => setData({ ...data, focusWindow: item.id })}>
+                    <item.icon size={24} color={data.focusWindow === item.id ? item.textColor : colors.textSecondary} />
+                    <View style={{ flex: 1, marginLeft: 16 }}><Text style={[styles.pillLabel, { color: data.focusWindow === item.id ? item.textColor : colors.text }]}>{item.label}</Text><Text style={[styles.skyTime, { color: data.focusWindow === item.id ? item.textColor : colors.textSecondary }]}>{item.time}</Text></View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+        <View style={styles.footer}>
+          <TouchableOpacity style={[styles.nextBtn, !canProceed && { opacity: 0.5 }]} disabled={!canProceed} onPress={handleNext}>
+            <Text style={styles.nextText}>{isLastStep ? 'Finish' : 'Next'}</Text>
+            <ArrowRight size={20} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FFF' },
+  content: { flex: 1, padding: 24 },
+  stepTitle: { fontSize: 28, fontWeight: '800', marginBottom: 24, color: colors.text },
+  pillCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, backgroundColor: '#F9FAFB', borderWidth: 2, borderColor: 'transparent' },
+  selectedCard: { backgroundColor: '#FFFBEB', borderColor: colors.primary },
+  pillIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  pillLabel: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
+  pillDesc: { fontSize: 13, color: colors.textSecondary },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#DDD', justifyContent: 'center', alignItems: 'center' },
+  radioActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  skyCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, borderRadius: 16 },
+  skyTime: { fontSize: 12, fontWeight: '600', opacity: 0.7 },
+  footer: { padding: 24, borderTopWidth: 1, borderTopColor: '#EEE' },
+  nextBtn: { backgroundColor: colors.primary, padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
+  nextText: { color: '#FFF', fontSize: 16, fontWeight: '800' }
+});
 </file>
 
 <file path="app/goal-input.tsx">
@@ -17664,12 +17506,389 @@ const styles = StyleSheet.create({
 });
 </file>
 
+<file path="backend/src/index.ts">
+import express from 'express';
+import cors from 'cors';
+import { PrismaClient } from '@prisma/client';
+import { 
+  generateActionPlan, 
+  generateClarifyingQuestion, 
+  refineSingleTask,
+  analyzeGoalType,
+  generateDailyPlan
+} from './services/ai.service';
+
+const prisma = new PrismaClient();
+const app = express();
+
+const PORT = Number(process.env.PORT) || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// --- DATE HELPERS FOR STREAK LOGIC ---
+const normalizeDate = (date: Date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const isSameDay = (d1: Date, d2: Date) => {
+  return normalizeDate(d1).getTime() === normalizeDate(d2).getTime();
+};
+
+const isYesterday = (today: Date, past: Date) => {
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return isSameDay(yesterday, past);
+};
+
+app.use((req, res, next) => {
+  console.log(`\n📡 [${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// ==========================================
+// 1. AUTH SYNC (Fixed for Missing Emails)
+// ==========================================
+
+app.post('/users/sync', async (req, res) => {
+  const { email, name, provider, socialId, onboardingData } = req.body;
+
+  try {
+    let user;
+
+    // 1. Try to find user by socialId first (most reliable for Apple/Google)
+    if (socialId) {
+      user = await prisma.user.findUnique({ where: { socialId } });
+    }
+
+    // 2. If not found by socialId, try finding by email
+    if (!user && email) {
+      user = await prisma.user.findUnique({ where: { email } });
+    }
+
+    if (user) {
+      // UPDATE EXISTING USER
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          name: name || user.name,
+          socialId: socialId || user.socialId,
+          // Only update onboarding if the user is currently completing it
+          onboardingData: onboardingData || user.onboardingData
+        }
+      });
+    } else {
+      // CREATE NEW USER
+      // Fallback email logic: DB requires unique email string. 
+      // If Apple doesn't provide it, we generate one using the socialId.
+      const finalEmail = email || `${socialId}@${provider}.com`;
+
+      user = await prisma.user.create({
+        data: {
+          email: finalEmail,
+          name: name || 'Operative',
+          provider: provider || 'email',
+          socialId: socialId,
+          onboardingData: onboardingData,
+          currentStreak: 0,
+          lastActiveDate: null
+        }
+      });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error("Sync User Error:", error);
+    res.status(500).json({ error: 'Failed to sync user', details: String(error) });
+  }
+});
+
+// ==========================================
+// 2. USER DATA ROUTES
+// ==========================================
+
+app.get('/users/:email', async (req, res) => {
+  const { email } = req.params;
+  try {
+    let user = await prisma.user.findUnique({
+      where: { email },
+      include: { goals: { include: { tasks: true } } }
+    });
+    
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (user.lastActiveDate && user.currentStreak > 0) {
+      const today = new Date();
+      const lastActive = new Date(user.lastActiveDate);
+      const diffTime = normalizeDate(today).getTime() - normalizeDate(lastActive).getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+      if (diffDays > 1) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { currentStreak: 0 },
+          include: { goals: { include: { tasks: true } } }
+        });
+      }
+    }
+
+    let tasksCrushed = 0;
+    let totalMinutes = 0;
+    user.goals.forEach(goal => {
+      goal.tasks.forEach(task => {
+        if (task.status === 'completed') {
+          tasksCrushed++;
+          totalMinutes += task.duration;
+        }
+      });
+    });
+
+    res.json({
+      ...user,
+      stats: {
+        tasksCrushed,
+        hoursFocused: (totalMinutes / 60).toFixed(1),
+        streak: user.currentStreak, 
+        level: Math.floor(tasksCrushed / 5) + 1
+      }
+    });
+  } catch (error) {
+    console.error("Get Profile Error:", error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+app.patch('/users/:email', async (req, res) => {
+    const { email } = req.params;
+    try {
+      const user = await prisma.user.update({
+        where: { email },
+        data: req.body
+      });
+      res.json(user);
+    } catch (error) {
+      console.error("Update User Error:", error);
+      res.status(500).json({ error: 'Update failed' });
+    }
+});
+
+// ==========================================
+// 3. AI STRATEGIST ROUTES
+// ==========================================
+
+app.post('/ai/analyze-goal', async (req, res) => {
+  const { goal, clarification } = req.body;
+  try {
+    const analysis = await analyzeGoalType(goal, clarification);
+    res.json(analysis);
+  } catch (error) {
+    console.error("AI Analysis Error:", error);
+    res.status(500).json({ error: 'Analysis failed' });
+  }
+});
+
+app.post('/ai/clarify', async (req, res) => {
+  const { email, goal } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const question = await generateClarifyingQuestion(goal, user);
+    res.json({ question });
+  } catch (error) {
+    console.error("AI Clarify Error:", error);
+    res.status(500).json({ error: 'Clarification failed' });
+  }
+});
+
+app.post('/ai/generate-plan', async (req, res) => {
+  const { email, goal, clarification, dailyMinutes } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const result = await generateActionPlan(goal, user, clarification, dailyMinutes);
+    res.json({ tasks: result });
+  } catch (error) {
+    console.error("AI Generate Plan Error:", error);
+    res.status(500).json({ error: 'Plan generation failed' });
+  }
+});
+
+app.post('/ai/refine-task', async (req, res) => {
+  const { email, taskId, feedback } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    
+    if (!user || !task) return res.status(404).json({ error: 'Not found' });
+
+    const newTaskData = await refineSingleTask(task, feedback, user);
+    
+    const updatedTask = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        title: newTaskData.title,
+        duration: newTaskData.duration,
+        description: newTaskData.description
+      }
+    });
+
+    res.json(updatedTask);
+  } catch (error) {
+    console.error("AI Refine Task Error:", error);
+    res.status(500).json({ error: 'Refinement failed' });
+  }
+});
+
+app.post('/ai/daily-plan', async (req, res) => {
+  const { email, goalTitle, dayNumber, totalDays, dailyMinutes } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const result = await generateDailyPlan(goalTitle, user, dayNumber, totalDays, dailyMinutes);
+    res.json(result);
+  } catch (error) {
+    console.error("AI Daily Plan Error:", error);
+    res.status(500).json({ error: 'Daily plan failed' });
+  }
+});
+
+// ==========================================
+// 4. GOAL & TASK MANAGEMENT
+// ==========================================
+
+app.post('/goals', async (req, res) => {
+  const { title, userEmail, type, targetDate, dailyMinutes } = req.body;
+  try {
+    const user = await prisma.user.findUnique({ where: { email: userEmail }});
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const goal = await prisma.goal.create({
+      data: { 
+        title, 
+        userId: user.id,
+        type: type || 'project',
+        targetDate: targetDate ? new Date(targetDate) : null,
+        dailyMinutes: Number(dailyMinutes) || 45 
+      }
+    });
+    res.json(goal);
+  } catch (error) {
+    console.error("Create Goal DB Error:", error);
+    res.status(500).json({ error: 'Goal creation failed' });
+  }
+});
+
+app.post('/goals/:goalId/tasks', async (req, res) => {
+  const { goalId } = req.params;
+  const { tasks } = req.body; 
+  try {
+    const createdTasks = await prisma.$transaction(
+      tasks.map((t: any) => prisma.task.create({
+        data: {
+          title: t.title,
+          description: t.description || '',
+          duration: Number(t.duration) || 15,
+          goalId: goalId
+        }
+      }))
+    );
+    res.json(createdTasks);
+  } catch (error) {
+    console.error("Create Tasks Error:", error);
+    res.status(500).json({ error: 'Task creation failed' });
+  }
+});
+
+app.patch('/tasks/:taskId', async (req, res) => {
+  const { taskId } = req.params;
+  const updates = req.body; 
+  
+  try {
+    const allowedFields = ['title', 'description', 'duration', 'status', 'order'];
+    const filteredData: any = {};
+    Object.keys(updates).forEach(key => {
+      if (allowedFields.includes(key)) filteredData[key] = updates[key];
+    });
+
+    const task = await prisma.task.update({
+      where: { id: taskId },
+      data: filteredData,
+      include: { goal: { include: { user: true } } }
+    });
+
+    if (filteredData.status === 'completed') {
+      const user = task.goal.user;
+      const today = new Date();
+      const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
+      
+      let newStreak = user.currentStreak;
+      let shouldUpdateLastActive = false;
+
+      if (!lastActive) {
+        newStreak = 1;
+        shouldUpdateLastActive = true;
+      } else if (isSameDay(today, lastActive)) {
+        shouldUpdateLastActive = true;
+      } else if (isYesterday(today, lastActive)) {
+        newStreak = user.currentStreak + 1;
+        shouldUpdateLastActive = true;
+      } else {
+        newStreak = 1;
+        shouldUpdateLastActive = true;
+      }
+
+      if (shouldUpdateLastActive) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { currentStreak: newStreak, lastActiveDate: today }
+        });
+      }
+    }
+
+    res.json(task);
+  } catch (error) {
+    console.error("Update Task Error:", error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+app.get('/leaderboard', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { currentStreak: 'desc' },
+      take: 10,
+      select: { id: true, name: true, currentStreak: true }
+    });
+
+    const leaderboard = users.map(u => ({
+      id: u.id,
+      name: u.name || 'Operative',
+      streak: u.currentStreak,
+    }));
+    
+    res.json(leaderboard);
+  } catch (error) {
+    console.error("Leaderboard Error:", error);
+    res.status(500).json({ error: 'Leaderboard fetch failed' });
+  }
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
+});
+</file>
+
 <file path="app/home.tsx">
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus } from 'lucide-react-native';
+import { Plus, Bell } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 
 // Components
@@ -17677,7 +17896,7 @@ import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
 import TaskReactorCircle, { TaskGoal } from '../src/components/TaskReactorCircle';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { BottomNav } from '../src/components/BottomNav'; 
-import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal'; // Import New Modal
+import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal';
 
 // Context & Constants
 import { lightColors as colors } from '../src/constants/colors';
@@ -17685,7 +17904,8 @@ import { useApp } from '../src/context/AppContext';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { goals, tasks, archiveGoal } = useApp();
+  // Destructure triggerTestNotification here
+  const { goals, tasks, archiveGoal, triggerTestNotification } = useApp();
   
   // State for celebration modal
   const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
@@ -17701,9 +17921,12 @@ export default function HomeScreen() {
       
       const totalTime = goalTasks.reduce((sum, t) => sum + (t.duration || 0), 0);
 
+      // FORCE 2-WORD DISPLAY TITLE
+      const displayTitle = (goal.title || 'Untitled Mission').split(' ').slice(0, 2).join(' ');
+
       return {
         id: goal.id,
-        title: goal.title || 'Untitled Mission',
+        title: displayTitle,
         color: '#FF4500', 
         totalTime,
         subTasks: goalTasks.map(t => ({
@@ -17753,6 +17976,20 @@ export default function HomeScreen() {
       <StatusBar style="dark" />
       <ErrorBoundary name="HomeScreen">
         <SafeAreaView style={styles.container} edges={['top']}>
+          
+          {/* ================================================= */}
+          {/* 🛠️ DEV BUTTON: TEST NOTIFICATION 🛠️ */}
+          {/* Tap this to trigger the Tactical HUD & System Alert */}
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={() => triggerTestNotification()}
+            activeOpacity={0.7}
+          >
+            <Bell size={14} color="#FFF" style={{ marginRight: 6 }} />
+            <Text style={styles.testButtonText}>TEST SIGNAL</Text>
+          </TouchableOpacity>
+          {/* ================================================= */}
+
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={styles.dateBox}>
@@ -17817,6 +18054,31 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#FFFFFF' },
   container: { flex: 1 },
+  
+  // Dev Button Style
+  testButton: {
+    position: 'absolute',
+    top: 70, // Below header
+    right: 20,
+    zIndex: 999,
+    backgroundColor: '#EF4444', // Red for visibility
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  testButtonText: {
+    color: 'white',
+    fontWeight: '800',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -17874,7 +18136,6 @@ import { API_BASE_URL } from '../config/api';
 const getHeaders = () => ({
   'Content-Type': 'application/json',
   'User-Agent': 'ProductivityAI-Mobile',
-  // 🛡️ Bypasses the Ngrok browser warning page
   'ngrok-skip-browser-warning': 'true',
 });
 
@@ -17906,7 +18167,7 @@ const handleResponse = async (response: Response) => {
 };
 
 const fetchWithTimeout = async (url: string, options: any = {}) => {
-  const { timeout = 25000 } = options; // Increased timeout for AI operations
+  const { timeout = 25000 } = options; 
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -17927,9 +18188,10 @@ const fetchWithTimeout = async (url: string, options: any = {}) => {
 };
 
 export const apiService = {
-  // 1. AUTHENTICATION & PROFILE
-  async register(userData: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/register`, {
+  // 1. AUTH SYNC (New: Syncs Firebase User to Backend)
+  async syncUser(userData: any) {
+    // userData contains { email, name, socialId, provider, onboardingData }
+    const res = await fetchWithTimeout(`${API_BASE_URL}/users/sync`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(userData),
@@ -17937,24 +18199,7 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  async login(credentials: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/login`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(credentials),
-    });
-    return handleResponse(res);
-  },
-
-  async socialLogin(data: any) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/auth/social`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return handleResponse(res);
-  },
-
+  // 2. USER PROFILE
   async getUserProfile(email: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
       method: 'GET',
@@ -17972,12 +18217,12 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 2. AI STRATEGIST
-  async analyzeGoal(goal: string) {
+  // 3. AI STRATEGIST
+  async analyzeGoal(goal: string, clarification: string = "") {
     const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ goal }),
+      body: JSON.stringify({ goal, clarification }),
     });
     return handleResponse(res);
   },
@@ -18019,7 +18264,7 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 3. GOAL & TASK MANAGEMENT
+  // 4. GOAL & TASK MANAGEMENT
   async createGoal(email: string, title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/goals`, {
       method: 'POST',
@@ -18039,7 +18284,6 @@ export const apiService = {
   },
 
   async addTasksToGoal(goalId: string, tasks: any[]) {
-    // FIX WAS HERE: changed from goalId/tasks to goalId}/tasks
     const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}/tasks`, {
       method: 'POST',
       headers: getHeaders(),
@@ -18057,7 +18301,7 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 4. METRICS
+  // 5. METRICS
   async getLeaderboard() {
     const res = await fetchWithTimeout(`${API_BASE_URL}/leaderboard`, {
       method: 'GET',
@@ -18069,9 +18313,14 @@ export const apiService = {
 </file>
 
 <file path="src/context/AppContext.tsx">
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { Goal, Task } from '../types';
 import { apiService } from '../services/api';
+// --- NOTIFICATION IMPORTS ---
+import * as Notifications from 'expo-notifications';
+import { NotificationService } from '../services/notificationService';
+import { TacticalHUD } from '../components/TacticalHUD';
+import * as Haptics from 'expo-haptics';
 
 interface User {
   id: string;
@@ -18103,7 +18352,8 @@ interface AppContextType {
   generatePlan: (goalText: string, clarification?: string, dailyMinutes?: number) => Promise<any | null>;
   generateDailyPlan: (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => Promise<any>;
   getAiQuestion: (goalText: string) => Promise<string | null>;
-  analyzeGoal: (goal: string) => Promise<any>; 
+  analyzeGoal: (goal: string, clarification?: string) => Promise<any>;
+  triggerTestNotification: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -18114,16 +18364,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
 
+  // --- HUD STATE ---
+  const [hudState, setHudState] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info' as 'info' | 'warning' | 'success',
+  });
+
+  const notificationListener = useRef<Notifications.Subscription>();
+  const responseListener = useRef<Notifications.Subscription>();
+
+  // --- NOTIFICATION SETUP ---
+  useEffect(() => {
+    // 1. Register Permissions FIRST
+    const setupNotifications = async () => {
+      const hasPermission = await NotificationService.registerForPushNotificationsAsync();
+      
+      if (hasPermission && user?.onboardingData?.focusWindow) {
+        // Only schedule AFTER permissions are confirmed
+        await NotificationService.scheduleFocusReminder(user.onboardingData.focusWindow);
+      }
+    };
+
+    setupNotifications();
+
+    // 2. Listeners
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      const { title, body, data } = notification.request.content;
+      
+      // Trigger Custom HUD
+      setHudState({
+        visible: true,
+        title: title || 'New Directive',
+        message: body || 'Tap to view',
+        type: data?.type === 'streak_rescue' ? 'warning' : 'info'
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    });
+
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification tapped:', response.notification.request.content.data);
+    });
+
+    return () => {
+      // FIX: Call .remove() directly on the subscription object
+      if (notificationListener.current) {
+        notificationListener.current.remove();
+      }
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
+    };
+  }, [user]);
+
+  // --- STANDARD LOGIC ---
   const refreshData = useCallback(async () => {
     if (!user?.email) return;
     try {
       const profile = await apiService.getUserProfile(user.email);
       setGoals(profile.goals || []);
-      
       const allTasks: Task[] = [];
-      profile.goals.forEach((g: any) => {
-        if (g.tasks) allTasks.push(...g.tasks);
-      });
+      if (profile.goals) {
+        profile.goals.forEach((g: any) => {
+          if (g.tasks) allTasks.push(...g.tasks);
+        });
+      }
       setTasks(allTasks);
     } catch (e) {
       console.error("Data Sync Error:", e);
@@ -18134,9 +18441,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user) refreshData();
   }, [user, refreshData]);
 
-  // AI METHODS
-  const analyzeGoal = useCallback(async (goal: string) => {
-    return await apiService.analyzeGoal(goal);
+  // AI & Goals
+  const analyzeGoal = useCallback(async (goal: string, clarification: string = "") => {
+    return await apiService.analyzeGoal(goal, clarification);
   }, []);
 
   const getAiQuestion = useCallback(async (goalText: string) => {
@@ -18153,7 +18460,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const generatePlan = useCallback(async (goalText: string, clarification: string = "", dailyMinutes: number = 0) => {
     if (!user?.email) return null;
     try {
-      // Pass dailyMinutes to API
       const response = await apiService.generateAiPlan(user.email, goalText, clarification, dailyMinutes);
       return response.tasks;
     } catch (e) {
@@ -18177,7 +18483,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
-  // GOAL MANAGEMENT
   const addGoal = useCallback(async (title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) => {
     if (!user?.email) return null;
     try {
@@ -18193,25 +18498,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateGoal = useCallback(async (goalId: string, updates: Partial<Goal>) => {
     setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g)));
-    if (currentGoal?.id === goalId) {
-      setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
-    }
-    try {
-      await apiService.updateGoal(goalId, updates);
-    } catch (e) {
-      console.error("Update Goal API Error", e);
-    }
+    if (currentGoal?.id === goalId) setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
+    try { await apiService.updateGoal(goalId, updates); } catch (e) { console.error("Update Goal API Error", e); }
   }, [currentGoal]);
 
   const archiveGoal = useCallback(async (goalId: string) => {
     const updates = { status: 'archived' as const };
     setGoals((prev) => prev.map(g => g.id === goalId ? { ...g, ...updates, completedAt: new Date() } : g));
     if (currentGoal?.id === goalId) setCurrentGoal(null);
-    try {
-      await apiService.updateGoal(goalId, updates);
-    } catch (e) {
-      console.error("Archive Goal API Error", e);
-    }
+    try { await apiService.updateGoal(goalId, updates); } catch (e) { console.error("Archive Goal API Error", e); }
   }, [currentGoal]);
 
   const deleteGoal = useCallback((goalId: string) => {
@@ -18232,12 +18527,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateTask = useCallback(async (taskId: string, updates: any) => {
     const { id, goalId, createdAt, updatedAt, completed, goal, ...cleanUpdates } = updates;
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...cleanUpdates } : t)));
-    try {
-      await apiService.updateTask(taskId, cleanUpdates);
-    } catch (e) {
-      console.error("Update Task Error:", e);
-      refreshData();
-    }
+    try { await apiService.updateTask(taskId, cleanUpdates); refreshData(); } catch (e) { console.error("Update Task Error:", e); }
   }, [refreshData]);
 
   const completeTask = useCallback((taskId: string) => {
@@ -18253,6 +18543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const updatedUser = await apiService.updateUser(user.email, { onboardingData: data });
       setUser(updatedUser);
+      // We don't schedule here anymore, useEffect handles it after user state updates
     } catch (e) {
       console.error("Save Onboarding Error", e);
     }
@@ -18260,6 +18551,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const toggleSubTask = useCallback(() => {}, []);
   const rateProductivity = useCallback(() => {}, []);
+
+  const triggerTestNotification = () => {
+    const archetype = user?.onboardingData?.focusWindow || 'default';
+    NotificationService.sendImmediateTest(archetype);
+  };
 
   return (
     <AppContext.Provider
@@ -18271,10 +18567,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleSubTask, updateTask, reportTaskIssue,
         setCurrentGoal, rateProductivity,
         refreshData, saveOnboarding,
-        generatePlan, generateDailyPlan, getAiQuestion, analyzeGoal
+        generatePlan, generateDailyPlan, getAiQuestion, analyzeGoal,
+        triggerTestNotification
       }}
     >
       {children}
+      
+      {/* GLOBAL NOTIFICATION HUD */}
+      <TacticalHUD 
+        visible={hudState.visible}
+        title={hudState.title}
+        message={hudState.message}
+        type={hudState.type}
+        onPress={() => setHudState(prev => ({...prev, visible: false}))}
+        onClose={() => setHudState(prev => ({...prev, visible: false}))}
+      />
     </AppContext.Provider>
   );
 };

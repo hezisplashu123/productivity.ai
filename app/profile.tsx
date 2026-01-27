@@ -30,7 +30,8 @@ import {
   Bell,
   LogOut,
   ChevronRight,
-  X
+  X,
+  Brain // Added Brain for the onboarding icon
 } from 'lucide-react-native';
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
@@ -89,7 +90,7 @@ const StatBox = ({ label, value, icon: Icon, delay }: any) => (
   </Animated.View>
 );
 
-const SettingsModal = ({ visible, onClose, onLogout }: any) => {
+const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding }: any) => {
   const [notifications, setNotifications] = useState(true);
 
   return (
@@ -119,6 +120,17 @@ const SettingsModal = ({ visible, onClose, onLogout }: any) => {
                 trackColor={{ false: colors.border, true: colors.primary }}
               />
             </View>
+
+            {/* Redo Onboarding Option */}
+            <TouchableOpacity style={styles.settingRow} onPress={onRedoOnboarding}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
+                  <Brain size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.settingText}>Update AI Persona</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.settingGroup}>
@@ -145,7 +157,7 @@ const SettingsModal = ({ visible, onClose, onLogout }: any) => {
           </View>
 
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Productivity AI v1.0.2</Text>
+            <Text style={styles.versionText}>Productivity AI v1.0.3</Text>
           </View>
         </ScrollView>
       </View>
@@ -204,11 +216,18 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const handleRedoOnboarding = () => {
+    setSettingsVisible(false);
+    // Navigate to onboarding wizard. 
+    // Since user is logged in, app/onboarding.tsx will update existing profile instead of creating new.
+    router.push('/onboarding');
+  };
+
   // Helper for icons based on archetype
   const getArchetypeIcon = () => {
     const arch = profileData?.onboardingData?.focusWindow;
-    if (arch === 'night-owl') return Moon;
-    if (arch === 'early-bird') return Sunrise;
+    if (arch === 'night-owl' || arch === 'late_night') return Moon;
+    if (arch === 'early-bird' || arch === 'early_morning') return Sunrise;
     return Coffee; // Default
   };
   const ArchetypeIcon = getArchetypeIcon();
@@ -258,7 +277,7 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.archetypeBadge}>
               <Text style={styles.archetypeText}>
-                {profileData?.onboardingData?.workArchetype || "Recruit"}
+                {profileData?.onboardingData?.workArchetype ? profileData.onboardingData.workArchetype.replace('_', ' ') : "Recruit"}
               </Text>
             </View>
           </Animated.View>
@@ -271,23 +290,23 @@ export default function ProfileScreen() {
             <StatBox label="Tasks" value={profileData?.stats?.tasksCrushed || 0} icon={Trophy} delay={400} />
           </View>
 
-          {/* Cognitive DNA - RESTORED */}
+          {/* Cognitive DNA */}
           <Text style={styles.sectionHeader}>Cognitive DNA</Text>
           <View style={styles.dnaContainer}>
             {profileData?.onboardingData?.focusWindow && (
                 <Animated.View entering={FadeInDown.delay(500)} style={styles.dnaTag}>
                     <ArchetypeIcon size={14} color={colors.primary} style={{ marginRight: 6 }} />
                     <Text style={[styles.dnaText, { color: colors.primary }]}>
-                        {profileData.onboardingData.focusWindow.replace('-', ' ').toUpperCase()}
+                        {profileData.onboardingData.focusWindow.replace(/[_-]/g, ' ').toUpperCase()}
                     </Text>
                 </Animated.View>
             )}
             
-            {profileData?.onboardingData?.distraction && (
+            {profileData?.onboardingData?.frictionVillain && (
                 <Animated.View entering={FadeInDown.delay(600)} style={styles.dnaTag}>
                     <Target size={14} color="#10B981" style={{ marginRight: 6 }} />
                     <Text style={[styles.dnaText, { color: "#10B981" }]}>
-                        FIGHTING: {profileData.onboardingData.distraction.toUpperCase()}
+                        FIGHTING: {profileData.onboardingData.frictionVillain.replace(/[_-]/g, ' ').toUpperCase()}
                     </Text>
                 </Animated.View>
             )}
@@ -321,6 +340,7 @@ export default function ProfileScreen() {
           visible={settingsVisible} 
           onClose={() => setSettingsVisible(false)}
           onLogout={handleLogout}
+          onRedoOnboarding={handleRedoOnboarding}
         />
       </SafeAreaView>
     </View>

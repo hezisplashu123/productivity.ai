@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus } from 'lucide-react-native';
+import { Plus, Bell } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 
 // Components
@@ -10,7 +10,7 @@ import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
 import TaskReactorCircle, { TaskGoal } from '../src/components/TaskReactorCircle';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { BottomNav } from '../src/components/BottomNav'; 
-import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal'; // Import New Modal
+import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal';
 
 // Context & Constants
 import { lightColors as colors } from '../src/constants/colors';
@@ -18,7 +18,8 @@ import { useApp } from '../src/context/AppContext';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { goals, tasks, archiveGoal } = useApp();
+  // Destructure triggerTestNotification here
+  const { goals, tasks, archiveGoal, triggerTestNotification } = useApp();
   
   // State for celebration modal
   const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
@@ -89,6 +90,20 @@ export default function HomeScreen() {
       <StatusBar style="dark" />
       <ErrorBoundary name="HomeScreen">
         <SafeAreaView style={styles.container} edges={['top']}>
+          
+          {/* ================================================= */}
+          {/* 🛠️ DEV BUTTON: TEST NOTIFICATION 🛠️ */}
+          {/* Tap this to trigger the Tactical HUD & System Alert */}
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={() => triggerTestNotification()}
+            activeOpacity={0.7}
+          >
+            <Bell size={14} color="#FFF" style={{ marginRight: 6 }} />
+            <Text style={styles.testButtonText}>TEST SIGNAL</Text>
+          </TouchableOpacity>
+          {/* ================================================= */}
+
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={styles.dateBox}>
@@ -153,6 +168,31 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#FFFFFF' },
   container: { flex: 1 },
+  
+  // Dev Button Style
+  testButton: {
+    position: 'absolute',
+    top: 70, // Below header
+    right: 20,
+    zIndex: 999,
+    backgroundColor: '#EF4444', // Red for visibility
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  testButtonText: {
+    color: 'white',
+    fontWeight: '800',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

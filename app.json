@@ -23,7 +23,6 @@
       },
       "package": "com.hezisplash133.productivityai"
     },
-    // CHANGED THIS LINE BELOW:
     "scheme": "productivity-ai-goat",
     "plugins": [
       "expo-router",

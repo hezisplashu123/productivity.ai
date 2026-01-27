@@ -17,9 +17,15 @@ const PORT = Number(process.env.PORT) || 3000;
 app.use(cors());
 app.use(express.json());
 
-// --- DATE HELPERS FOR STREAKS ---
+// --- DATE HELPERS FOR STREAK LOGIC ---
+const normalizeDate = (date: Date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
 const isSameDay = (d1: Date, d2: Date) => {
-  return d1.toISOString().split('T')[0] === d2.toISOString().split('T')[0];
+  return normalizeDate(d1).getTime() === normalizeDate(d2).getTime();
 };
 
 const isYesterday = (today: Date, past: Date) => {
@@ -34,76 +40,90 @@ app.use((req, res, next) => {
 });
 
 // ==========================================
-// 1. AUTH & USER ROUTES
+// 1. AUTH SYNC (Fixed for Missing Emails)
 // ==========================================
 
-app.post('/register', async (req, res) => {
-  const { email, name, password, onboardingData } = req.body;
-  try {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) return res.status(400).json({ error: 'User already exists' });
+app.post('/users/sync', async (req, res) => {
+  const { email, name, provider, socialId, onboardingData } = req.body;
 
-    const user = await prisma.user.create({
-      data: { 
-        email, 
-        name: name || 'Operative', 
-        password, 
-        provider: 'email',
-        onboardingData 
-      },
-    });
+  try {
+    let user;
+
+    // 1. Try to find user by socialId first (most reliable for Apple/Google)
+    if (socialId) {
+      user = await prisma.user.findUnique({ where: { socialId } });
+    }
+
+    // 2. If not found by socialId, try finding by email
+    if (!user && email) {
+      user = await prisma.user.findUnique({ where: { email } });
+    }
+
+    if (user) {
+      // UPDATE EXISTING USER
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          name: name || user.name,
+          socialId: socialId || user.socialId,
+          // Only update onboarding if the user is currently completing it
+          onboardingData: onboardingData || user.onboardingData
+        }
+      });
+    } else {
+      // CREATE NEW USER
+      // Fallback email logic: DB requires unique email string. 
+      // If Apple doesn't provide it, we generate one using the socialId.
+      const finalEmail = email || `${socialId}@${provider}.com`;
+
+      user = await prisma.user.create({
+        data: {
+          email: finalEmail,
+          name: name || 'Operative',
+          provider: provider || 'email',
+          socialId: socialId,
+          onboardingData: onboardingData,
+          currentStreak: 0,
+          lastActiveDate: null
+        }
+      });
+    }
+
     res.json(user);
   } catch (error) {
-    console.error("Register Error:", error);
-    res.status(500).json({ error: 'Failed to register' });
+    console.error("Sync User Error:", error);
+    res.status(500).json({ error: 'Failed to sync user', details: String(error) });
   }
 });
 
-app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.password !== password) {
-        return res.status(401).json({ error: 'Invalid credentials' });
-    }
-    res.json(user);
-  } catch (error) {
-    console.error("Login Error:", error);
-    res.status(500).json({ error: 'Login failed' });
-  }
-});
-
-app.post('/auth/social', async (req, res) => {
-    const { email, name, provider, socialId, onboardingData } = req.body;
-    try {
-      let user = await prisma.user.findUnique({ where: { email: email || '' } });
-      if (!user) {
-        user = await prisma.user.create({
-          data: {
-            email: email || `${socialId}@social.com`,
-            socialId,
-            name: name || 'Operative',
-            provider,
-            onboardingData
-          }
-        });
-      }
-      res.json(user);
-    } catch (error) {
-      console.error("Social Auth Error:", error);
-      res.status(500).json({ error: 'Social auth failed' });
-    }
-});
+// ==========================================
+// 2. USER DATA ROUTES
+// ==========================================
 
 app.get('/users/:email', async (req, res) => {
   const { email } = req.params;
   try {
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email },
       include: { goals: { include: { tasks: true } } }
     });
     
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (user.lastActiveDate && user.currentStreak > 0) {
+      const today = new Date();
+      const lastActive = new Date(user.lastActiveDate);
+      const diffTime = normalizeDate(today).getTime() - normalizeDate(lastActive).getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+      if (diffDays > 1) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { currentStreak: 0 },
+          include: { goals: { include: { tasks: true } } }
+        });
+      }
+    }
 
     let tasksCrushed = 0;
     let totalMinutes = 0;
@@ -146,13 +166,12 @@ app.patch('/users/:email', async (req, res) => {
 });
 
 // ==========================================
-// 2. AI STRATEGIST ROUTES
+// 3. AI STRATEGIST ROUTES
 // ==========================================
 
 app.post('/ai/analyze-goal', async (req, res) => {
-  const { goal, clarification } = req.body; // Updated to receive clarification
+  const { goal, clarification } = req.body;
   try {
-    // Pass clarification to service
     const analysis = await analyzeGoalType(goal, clarification);
     res.json(analysis);
   } catch (error) {
@@ -230,7 +249,7 @@ app.post('/ai/daily-plan', async (req, res) => {
 });
 
 // ==========================================
-// 3. GOAL & TASK MANAGEMENT
+// 4. GOAL & TASK MANAGEMENT
 // ==========================================
 
 app.post('/goals', async (req, res) => {
@@ -238,8 +257,6 @@ app.post('/goals', async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ where: { email: userEmail }});
     if (!user) return res.status(404).json({ error: 'User not found' });
-
-    console.log(`Creating Goal for ${userEmail}: ${title} [${type}] with budget: ${dailyMinutes}m`);
 
     const goal = await prisma.goal.create({
       data: { 
@@ -252,8 +269,37 @@ app.post('/goals', async (req, res) => {
     });
     res.json(goal);
   } catch (error) {
-    console.error("Create Goal DB Error FULL:", error);
-    res.status(500).json({ error: 'Goal creation failed', details: String(error) });
+    console.error("Create Goal DB Error:", error);
+    res.status(500).json({ error: 'Goal creation failed' });
+  }
+});
+
+app.patch('/goals/:goalId', async (req, res) => {
+  const { goalId } = req.params;
+  const updates = req.body;
+  try {
+    const goal = await prisma.goal.update({
+      where: { id: goalId },
+      data: updates
+    });
+    res.json(goal);
+  } catch (error) {
+    console.error("Update Goal Error:", error);
+    res.status(500).json({ error: 'Failed to update goal' });
+  }
+});
+
+// ADDED: Delete Goal Endpoint
+app.delete('/goals/:goalId', async (req, res) => {
+  const { goalId } = req.params;
+  try {
+    await prisma.goal.delete({
+      where: { id: goalId }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Delete Goal Error:", error);
+    res.status(500).json({ error: 'Failed to delete goal' });
   }
 });
 
@@ -278,20 +324,6 @@ app.post('/goals/:goalId/tasks', async (req, res) => {
   }
 });
 
-app.patch('/goals/:goalId', async (req, res) => {
-  const { goalId } = req.params;
-  try {
-    const goal = await prisma.goal.update({
-      where: { id: goalId },
-      data: req.body
-    });
-    res.json(goal);
-  } catch (error) {
-    console.error("Update Goal Error:", error);
-    res.status(500).json({ error: 'Goal update failed' });
-  }
-});
-
 app.patch('/tasks/:taskId', async (req, res) => {
   const { taskId } = req.params;
   const updates = req.body; 
@@ -313,18 +345,31 @@ app.patch('/tasks/:taskId', async (req, res) => {
       const user = task.goal.user;
       const today = new Date();
       const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
+      
       let newStreak = user.currentStreak;
+      let shouldUpdateLastActive = false;
 
-      if (!lastActive) newStreak = 1;
-      else if (isSameDay(today, lastActive)) newStreak = user.currentStreak;
-      else if (isYesterday(today, lastActive)) newStreak = user.currentStreak + 1;
-      else newStreak = 1;
+      if (!lastActive) {
+        newStreak = 1;
+        shouldUpdateLastActive = true;
+      } else if (isSameDay(today, lastActive)) {
+        shouldUpdateLastActive = true;
+      } else if (isYesterday(today, lastActive)) {
+        newStreak = user.currentStreak + 1;
+        shouldUpdateLastActive = true;
+      } else {
+        newStreak = 1;
+        shouldUpdateLastActive = true;
+      }
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { currentStreak: newStreak, lastActiveDate: today }
-      });
+      if (shouldUpdateLastActive) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { currentStreak: newStreak, lastActiveDate: today }
+        });
+      }
     }
+
     res.json(task);
   } catch (error) {
     console.error("Update Task Error:", error);
@@ -354,5 +399,5 @@ app.get('/leaderboard', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 AI Chief of Staff listening on port ${PORT}`);
+  console.log(`🚀 Server listening on port ${PORT}`);
 });

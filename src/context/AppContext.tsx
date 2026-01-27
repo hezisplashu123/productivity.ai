@@ -1,6 +1,11 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { Goal, Task } from '../types';
 import { apiService } from '../services/api';
+// --- NOTIFICATION IMPORTS ---
+import * as Notifications from 'expo-notifications';
+import { NotificationService } from '../services/notificationService';
+import { TacticalHUD } from '../components/TacticalHUD';
+import * as Haptics from 'expo-haptics';
 
 interface User {
   id: string;
@@ -32,7 +37,8 @@ interface AppContextType {
   generatePlan: (goalText: string, clarification?: string, dailyMinutes?: number) => Promise<any | null>;
   generateDailyPlan: (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => Promise<any>;
   getAiQuestion: (goalText: string) => Promise<string | null>;
-  analyzeGoal: (goal: string, clarification?: string) => Promise<any>; 
+  analyzeGoal: (goal: string, clarification?: string) => Promise<any>;
+  triggerTestNotification: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -43,16 +49,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
 
+  // --- HUD STATE ---
+  const [hudState, setHudState] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info' as 'info' | 'warning' | 'success',
+  });
+
+  const notificationListener = useRef<Notifications.Subscription>();
+  const responseListener = useRef<Notifications.Subscription>();
+
+  // --- NOTIFICATION SETUP ---
+  useEffect(() => {
+    // 1. Register Permissions FIRST
+    const setupNotifications = async () => {
+      const hasPermission = await NotificationService.registerForPushNotificationsAsync();
+      
+      if (hasPermission && user?.onboardingData?.focusWindow) {
+        // Only schedule AFTER permissions are confirmed
+        await NotificationService.scheduleFocusReminder(user.onboardingData.focusWindow);
+      }
+    };
+
+    setupNotifications();
+
+    // 2. Listeners
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      const { title, body, data } = notification.request.content;
+      
+      // Trigger Custom HUD
+      setHudState({
+        visible: true,
+        title: title || 'New Directive',
+        message: body || 'Tap to view',
+        type: data?.type === 'streak_rescue' ? 'warning' : 'info'
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    });
+
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification tapped:', response.notification.request.content.data);
+    });
+
+    return () => {
+      // FIX: Call .remove() directly on the subscription object
+      if (notificationListener.current) {
+        notificationListener.current.remove();
+      }
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
+    };
+  }, [user]);
+
+  // --- STANDARD LOGIC ---
   const refreshData = useCallback(async () => {
     if (!user?.email) return;
     try {
       const profile = await apiService.getUserProfile(user.email);
       setGoals(profile.goals || []);
-      
       const allTasks: Task[] = [];
-      profile.goals.forEach((g: any) => {
-        if (g.tasks) allTasks.push(...g.tasks);
-      });
+      if (profile.goals) {
+        profile.goals.forEach((g: any) => {
+          if (g.tasks) allTasks.push(...g.tasks);
+        });
+      }
       setTasks(allTasks);
     } catch (e) {
       console.error("Data Sync Error:", e);
@@ -63,7 +126,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user) refreshData();
   }, [user, refreshData]);
 
-  // AI METHODS
+  // AI & Goals
   const analyzeGoal = useCallback(async (goal: string, clarification: string = "") => {
     return await apiService.analyzeGoal(goal, clarification);
   }, []);
@@ -82,7 +145,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const generatePlan = useCallback(async (goalText: string, clarification: string = "", dailyMinutes: number = 0) => {
     if (!user?.email) return null;
     try {
-      // Pass dailyMinutes to API
       const response = await apiService.generateAiPlan(user.email, goalText, clarification, dailyMinutes);
       return response.tasks;
     } catch (e) {
@@ -106,7 +168,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [user]);
 
-  // GOAL MANAGEMENT
   const addGoal = useCallback(async (title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) => {
     if (!user?.email) return null;
     try {
@@ -122,31 +183,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateGoal = useCallback(async (goalId: string, updates: Partial<Goal>) => {
     setGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, ...updates } : g)));
-    if (currentGoal?.id === goalId) {
-      setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
-    }
-    try {
-      await apiService.updateGoal(goalId, updates);
-    } catch (e) {
-      console.error("Update Goal API Error", e);
-    }
+    if (currentGoal?.id === goalId) setCurrentGoal((prev) => (prev ? { ...prev, ...updates } : null));
+    try { await apiService.updateGoal(goalId, updates); } catch (e) { console.error("Update Goal API Error", e); }
   }, [currentGoal]);
 
   const archiveGoal = useCallback(async (goalId: string) => {
     const updates = { status: 'archived' as const };
     setGoals((prev) => prev.map(g => g.id === goalId ? { ...g, ...updates, completedAt: new Date() } : g));
     if (currentGoal?.id === goalId) setCurrentGoal(null);
-    try {
-      await apiService.updateGoal(goalId, updates);
-    } catch (e) {
-      console.error("Archive Goal API Error", e);
-    }
+    try { await apiService.updateGoal(goalId, updates); } catch (e) { console.error("Archive Goal API Error", e); }
   }, [currentGoal]);
 
-  const deleteGoal = useCallback((goalId: string) => {
+  const deleteGoal = useCallback(async (goalId: string) => {
     setGoals((prev) => prev.filter((g) => g.id !== goalId));
     setTasks((prev) => prev.filter((t) => t.goalId !== goalId));
     if (currentGoal?.id === goalId) setCurrentGoal(null);
+    try { await apiService.deleteGoal(goalId); } catch (e) { console.error("Delete Goal API Error", e); }
   }, [currentGoal]);
 
   const addTasks = useCallback(async (goalId: string, stagedTasks: any[]) => {
@@ -161,12 +213,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateTask = useCallback(async (taskId: string, updates: any) => {
     const { id, goalId, createdAt, updatedAt, completed, goal, ...cleanUpdates } = updates;
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...cleanUpdates } : t)));
-    try {
-      await apiService.updateTask(taskId, cleanUpdates);
-    } catch (e) {
-      console.error("Update Task Error:", e);
-      refreshData();
-    }
+    try { await apiService.updateTask(taskId, cleanUpdates); refreshData(); } catch (e) { console.error("Update Task Error:", e); }
   }, [refreshData]);
 
   const completeTask = useCallback((taskId: string) => {
@@ -182,6 +229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const updatedUser = await apiService.updateUser(user.email, { onboardingData: data });
       setUser(updatedUser);
+      // We don't schedule here anymore, useEffect handles it after user state updates
     } catch (e) {
       console.error("Save Onboarding Error", e);
     }
@@ -189,6 +237,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const toggleSubTask = useCallback(() => {}, []);
   const rateProductivity = useCallback(() => {}, []);
+
+  const triggerTestNotification = () => {
+    const archetype = user?.onboardingData?.focusWindow || 'default';
+    NotificationService.sendImmediateTest(archetype);
+  };
 
   return (
     <AppContext.Provider
@@ -200,10 +253,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleSubTask, updateTask, reportTaskIssue,
         setCurrentGoal, rateProductivity,
         refreshData, saveOnboarding,
-        generatePlan, generateDailyPlan, getAiQuestion, analyzeGoal
+        generatePlan, generateDailyPlan, getAiQuestion, analyzeGoal,
+        triggerTestNotification
       }}
     >
       {children}
+      
+      {/* GLOBAL NOTIFICATION HUD */}
+      <TacticalHUD 
+        visible={hudState.visible}
+        title={hudState.title}
+        message={hudState.message}
+        type={hudState.type}
+        onPress={() => setHudState(prev => ({...prev, visible: false}))}
+        onClose={() => setHudState(prev => ({...prev, visible: false}))}
+      />
     </AppContext.Provider>
   );
 };
