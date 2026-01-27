@@ -1,11 +1,10 @@
 export interface Goal {
   id: string;
   title: string;
-  createdAt: Date | string; // Allow string for API responses
+  createdAt: Date | string; 
   completedAt?: Date | string;
   status: 'active' | 'completed' | 'archived';
   
-  // --- NEW FIELDS (The missing piece) ---
   type?: 'project' | 'journey';
   targetDate?: Date | string;
   startDate?: Date | string;
@@ -22,11 +21,11 @@ export interface Task {
   duration: number; // in minutes
   status: TaskStatus;
   order?: number; 
+  dayNumber?: number; // <--- NEW: Tracks which day of the journey this task belongs to
   dueDate?: Date | string;
   completedAt?: Date | string;
   productivityRating?: number;
   subTasks?: SubTask[];
-  // Legacy support
   completed?: boolean;
   timeBudget?: number;
 }

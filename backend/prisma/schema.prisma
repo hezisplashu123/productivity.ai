@@ -31,12 +31,11 @@ model Goal {
   title       String
   status      String   @default("active")
   
-  // --- NEW FIELDS FOR JOURNEY MODE ---
+  // Journey Fields
   type        String   @default("project") // 'project' or 'journey'
   targetDate  DateTime?
   startDate   DateTime @default(now())
-  dailyMinutes Int     @default(45) // Time commitment per day
-  // -----------------------------------
+  dailyMinutes Int     @default(45)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -52,6 +51,10 @@ model Task {
   duration    Int
   status      String   @default("queued")
   order       Int      @default(0)
+  
+  // Track which day this task belongs to (Default 1 for normal projects)
+  dayNumber   Int      @default(1) 
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   goalId      String

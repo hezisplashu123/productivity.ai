@@ -6,7 +6,7 @@ import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, 
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
 
-// --- UPDATED IDENTITIES (Broad & Relatable) ---
+// --- IDENTITIES ---
 const IDENTITIES = [
   { 
     id: 'student', 
@@ -41,13 +41,13 @@ const IDENTITIES = [
 ];
 
 const ARCHETYPES = [
-  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Layers }, // Re-using Layers here fits structure
+  { id: 'architect', label: 'The Architect', description: 'I need a perfect plan before starting.', icon: Layers }, 
   { id: 'firefighter', label: 'The Firefighter', description: 'I only work when the deadline is scary.', icon: Flame },
   { id: 'sprinter', label: 'The Sprinter', description: 'I work in intense bursts, then crash.', icon: Zap },
   { id: 'deep_worker', label: 'The Deep Worker', description: 'I need long hours of total silence.', icon: Brain },
 ];
 
-// --- UPDATED VILLAINS (Replaced Yap Fatigue with Multitasking) ---
+// --- VILLAINS ---
 const VILLAINS = [
   { 
     id: 'doomscrolling', 
@@ -138,13 +138,14 @@ export const OnboardingWizard = ({ onComplete }: any) => {
     else onComplete(data);
   };
 
+  // --- UPDATED TITLES FOR CLARITY ---
   const steps = [
-    { title: "Who are you?", data: IDENTITIES, key: 'identity' },
-    { title: "How do you work?", data: ARCHETYPES, key: 'workArchetype' },
-    { title: "Your Nemesis?", data: VILLAINS, key: 'frictionVillain' },
-    { title: "The Inner Barrier.", data: MENTAL_BLOCKS, key: 'mentalBlock' },
-    { title: "Peak Energy.", data: FOCUS_WINDOWS, key: 'focusWindow' },
-    { title: "The North Star.", data: CORE_DRIVERS, key: 'coreDriver' }
+    { title: "Which profile best fits you?", data: IDENTITIES, key: 'identity' },
+    { title: "What is your natural work style?", data: ARCHETYPES, key: 'workArchetype' },
+    { title: "What is your biggest distraction?", data: VILLAINS, key: 'frictionVillain' },
+    { title: "What holds you back the most?", data: MENTAL_BLOCKS, key: 'mentalBlock' },
+    { title: "When are you most productive?", data: FOCUS_WINDOWS, key: 'focusWindow' },
+    { title: "How should AI optimize your tasks?", data: CORE_DRIVERS, key: 'coreDriver' }
   ];
 
   const currentStepData = steps[currentStep];

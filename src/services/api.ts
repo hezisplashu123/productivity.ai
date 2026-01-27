@@ -55,9 +55,7 @@ const fetchWithTimeout = async (url: string, options: any = {}) => {
 };
 
 export const apiService = {
-  // 1. AUTH SYNC (New: Syncs Firebase User to Backend)
   async syncUser(userData: any) {
-    // userData contains { email, name, socialId, provider, onboardingData }
     const res = await fetchWithTimeout(`${API_BASE_URL}/users/sync`, {
       method: 'POST',
       headers: getHeaders(),
@@ -66,7 +64,6 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 2. USER PROFILE
   async getUserProfile(email: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
       method: 'GET',
@@ -84,12 +81,12 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 3. AI STRATEGIST
-  async analyzeGoal(goal: string, clarification: string = "") {
+  // --- UPDATED FOR CONTEXT ---
+  async analyzeGoal(goal: string, clarification: string = "", question: string = "") {
     const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ goal, clarification }),
+      body: JSON.stringify({ goal, clarification, question }), // Send question
     });
     return handleResponse(res);
   },
@@ -131,7 +128,6 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 4. GOAL & TASK MANAGEMENT
   async createGoal(email: string, title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/goals`, {
       method: 'POST',
@@ -150,7 +146,6 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // ADDED: Delete goal
   async deleteGoal(goalId: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/goals/${goalId}`, {
       method: 'DELETE',
@@ -177,7 +172,6 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // 5. METRICS
   async getLeaderboard() {
     const res = await fetchWithTimeout(`${API_BASE_URL}/leaderboard`, {
       method: 'GET',

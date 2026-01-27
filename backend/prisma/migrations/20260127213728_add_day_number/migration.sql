@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Task" ADD COLUMN     "dayNumber" INTEGER NOT NULL DEFAULT 1;

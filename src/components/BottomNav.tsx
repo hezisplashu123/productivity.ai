@@ -1,9 +1,17 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Home as HomeIcon, Brain, User } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withTiming, 
+  Easing, 
+  interpolate 
+} from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
@@ -15,6 +23,37 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab }) => {
   const router = useRouter();
+  
+  // Animation value: 0 to 1
+  const breathing = useSharedValue(0);
+
+  useEffect(() => {
+    // Continuous breathing loop
+    breathing.value = withRepeat(
+      withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+      -1, // Infinite
+      true // Reverse (0->1->0)
+    );
+  }, []);
+
+  const animatedGlowStyle = useAnimatedStyle(() => {
+    // Subtle scale pulsing (1.0 -> 1.1)
+    const scale = interpolate(breathing.value, [0, 1], [1, 1.1]);
+    
+    // Glow pulsing (shadow opacity and radius)
+    const shadowOpacity = interpolate(breathing.value, [0, 1], [0.3, 0.7]);
+    const shadowRadius = interpolate(breathing.value, [0, 1], [8, 16]);
+    
+    // For Android elevation
+    const elevation = interpolate(breathing.value, [0, 1], [5, 12]);
+
+    return {
+      transform: [{ scale }],
+      shadowOpacity,
+      shadowRadius,
+      elevation,
+    };
+  });
 
   const handleNav = (route: string, tab: TabType) => {
     if (activeTab === tab) return;
@@ -22,14 +61,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab }) => {
     Haptics.selectionAsync();
     
     if (route === '/home') {
-      // If we are deep in the stack, we want to pop back to root (Home)
       if (router.canGoBack()) {
-        router.dismissAll(); // This pops to the very first screen (Home)
+        router.dismissAll();
       } else {
         router.replace('/home');
       }
     } else {
-      // Push new screen onto stack (slides in from right)
       // @ts-ignore
       router.push(route);
     }
@@ -51,13 +88,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab }) => {
           />
         </TouchableOpacity>
 
-        {/* CENTER BUTTON - Goal Input */}
+        {/* CENTER BUTTON - Goal Input (Breathing Brain) */}
         <TouchableOpacity 
-          style={styles.pillCenter} 
           onPress={() => handleNav('/goal-input', 'GoalInput')}
           activeOpacity={0.9}
+          style={styles.centerContainer}
         >
-          <Brain size={24} color="#FFFFFF" />
+          <Animated.View style={[styles.pillCenter, animatedGlowStyle]}>
+            <Brain size={24} color="#FFFFFF" />
+          </Animated.View>
         </TouchableOpacity>
 
         {/* PROFILE BUTTON */}
@@ -108,6 +147,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: '100%' 
   },
+  centerContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Ensure touch target doesn't get clipped if it scales up
+    zIndex: 10,
+  },
   pillCenter: {
     width: 52,
     height: 52,
@@ -115,10 +160,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowColor: colors.primary, // Orange glow
+    shadowOffset: { width: 0, height: 0 }, // Center glow
+    // Shadow properties handled by Animated Style
   },
 });

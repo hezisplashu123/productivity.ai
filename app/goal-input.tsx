@@ -9,7 +9,7 @@ import {
   Platform,
   Keyboard,
   Dimensions,
-  Alert
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -53,7 +53,7 @@ export default function GoalInputScreen() {
   // Journey State
   const [isJourneySetupVisible, setIsJourneySetupVisible] = useState(false);
   const [journeyReason, setJourneyReason] = useState('');
-  const [goalType, setGoalType] = useState('project');
+  const [goalType, setGoalType] = useState<'project' | 'journey'>('project');
   const [targetDate, setTargetDate] = useState<Date | null>(null);
   const [committedDailyMinutes, setCommittedDailyMinutes] = useState(0);
   
@@ -63,32 +63,23 @@ export default function GoalInputScreen() {
 
   const router = useRouter();
   const { 
-    user, // Get user for personalization
+    user, 
     addGoal, addTasks, setCurrentGoal, updateGoal, overrideTasks, 
     generatePlan, getAiQuestion, analyzeGoal 
   } = useApp();
   
-  // Animation Values
   const borderOpacity = useSharedValue(0);
   const submitButtonOpacity = useSharedValue(0);
 
-  // --- PERSONALIZED HELPER TEXT ---
   const helperText = useMemo(() => {
     const identity = user?.onboardingData?.identity;
-    
     switch (identity) {
-      case 'student':
-        return 'Be specific. "Study Chapter 4 for 2 hours" gives a better plan than just "Study".';
-      case 'professional':
-        return 'Be specific. "Draft Q3 report for stakeholders" gives a better plan than just "Work".';
-      case 'entrepreneur':
-        return 'Be specific. "Cold email 20 leads" gives a better plan than just "Sales".';
-      case 'maker':
-        return 'Be specific. "Code the landing page hero section" gives a better plan than just "Build website".';
-      case 'personal':
-        return 'Be specific. "Call bank and pay bills" gives a better plan than just "Chores".';
-      default:
-        return 'Be specific. "Finish the draft by 5 PM" gives a better plan than just "Work".';
+      case 'student': return 'Be specific. "Study Chapter 4 for 2 hours" gives a better plan than just "Study".';
+      case 'professional': return 'Be specific. "Draft Q3 report for stakeholders" gives a better plan than just "Work".';
+      case 'entrepreneur': return 'Be specific. "Cold email 20 leads" gives a better plan than just "Sales".';
+      case 'maker': return 'Be specific. "Code the landing page hero section" gives a better plan than just "Build website".';
+      case 'personal': return 'Be specific. "Call bank and pay bills" gives a better plan than just "Chores".';
+      default: return 'Be specific. "Finish the draft by 5 PM" gives a better plan than just "Work".';
     }
   }, [user]);
 
@@ -105,7 +96,6 @@ export default function GoalInputScreen() {
     }
   }, [initialText]);
 
-  // --- ANIMATED STYLES ---
   const borderAnimatedStyle = useAnimatedStyle(() => ({
     shadowOpacity: 0.1 + borderOpacity.value * 0.4,
     shadowRadius: 12 + borderOpacity.value * 8,
@@ -125,16 +115,13 @@ export default function GoalInputScreen() {
     setStep('processing');
 
     try {
-      // 1. ALWAYS ask clarifying question first (Scope/Context)
       const question = await getAiQuestion(goalText);
       
       if (question) {
         setAiQuestion(question);
         setStep('clarification');
-        // Reset button animation for next step
         setTimeout(() => submitButtonOpacity.value = withSpring(0), 100);
       } else {
-        // Fallback: If no question generated, analyze type directly
         await checkGoalTypeAndProceed("");
       }
     } catch (e) {
@@ -144,33 +131,27 @@ export default function GoalInputScreen() {
 
   const handleClarificationSubmit = async () => {
     if (!answerText.trim()) return;
-    
-    // 2. User answered context -> Now analyze type
     await checkGoalTypeAndProceed(answerText);
   };
 
   const checkGoalTypeAndProceed = async (clarification: string) => {
     setStep('processing');
     try {
-      // Analyze if it's a Project or Journey
-      const typeAnalysis = await analyzeGoal(goalText, clarification);
+      const typeAnalysis = await analyzeGoal(goalText, clarification, aiQuestion);
       
       if (typeAnalysis.type === 'journey') {
-        // It's a journey -> Prompt for Logistics (Time/Date)
         setGoalType('journey');
         setJourneyReason(typeAnalysis.reason || "Long-term effort detected.");
-        
-        // Update suggestions from AI
         if (typeAnalysis.estimatedDays) setSuggestedDays(typeAnalysis.estimatedDays);
         if (typeAnalysis.recommendedDailyMinutes) setSuggestedDailyMinutes(typeAnalysis.recommendedDailyMinutes);
         
         setIsJourneySetupVisible(true);
       } else {
-        // It's a project -> Generate plan immediately with the context
+        setGoalType('project'); 
         handleFinalSubmit(clarification, 0);
       }
     } catch (error) {
-      // Fallback to project flow
+      setGoalType('project');
       handleFinalSubmit(clarification, 0);
     }
   };
@@ -179,8 +160,6 @@ export default function GoalInputScreen() {
     setIsJourneySetupVisible(false);
     setTargetDate(date);
     setCommittedDailyMinutes(dailyMinutes);
-    
-    // Pass the context (answerText) AND the new logistical constraints
     handleFinalSubmit(answerText, dailyMinutes);
   };
 
@@ -188,10 +167,6 @@ export default function GoalInputScreen() {
     setStep('processing');
 
     try {
-      // Generate plan using:
-      // 1. Original Goal
-      // 2. Clarification (Scope/Context)
-      // 3. Daily Minutes (Time Constraint)
       const aiResult = await generatePlan(goalText, clarification, dailyMinutes);
       
       if (aiResult && aiResult.tasks && aiResult.tasks.length > 0) {
@@ -206,7 +181,6 @@ export default function GoalInputScreen() {
         setAiTitle(aiResult.shortTitle);
         setIsStagingVisible(true);
         
-        // Only clear if project, for journey keep context in case of refinement
         if (goalType === 'project') setAnswerText(''); 
       } else {
         Alert.alert("Error", "Could not generate plan.");
@@ -237,6 +211,23 @@ export default function GoalInputScreen() {
       }
     } catch (error) {
       Alert.alert("Error", "Failed to regenerate plan.");
+    }
+  };
+
+  const handleToggleMode = () => {
+    setIsStagingVisible(false); // Close staging
+    
+    if (goalType === 'project') {
+        // Switch TO Journey
+        setGoalType('journey');
+        setJourneyReason("Switched from Project");
+        setSuggestedDays(30);
+        setSuggestedDailyMinutes(45);
+        setIsJourneySetupVisible(true);
+    } else {
+        // Switch TO Project
+        setGoalType('project');
+        handleFinalSubmit(answerText, 0);
     }
   };
 
@@ -303,7 +294,6 @@ export default function GoalInputScreen() {
                   {isEditing ? "Refine Directive" : "What is your main goal?"}
                 </Text>
 
-                {/* Helper Text for Details */}
                 <View style={styles.helperContainer}>
                   <Lightbulb size={14} color={colors.primary} style={{ marginTop: 2 }} />
                   <Text style={styles.helperText}>
@@ -405,8 +395,10 @@ export default function GoalInputScreen() {
         visible={isStagingVisible}
         goalTitle={aiTitle || goalText}
         generatedTasks={aiTasks}
+        goalType={goalType}
         onConfirm={handleFinalConfirm}
         onRefine={handleStagingRefinement}
+        onToggleMode={handleToggleMode}
         onClose={() => {
             setIsStagingVisible(false);
             setStep('goal');
@@ -424,7 +416,7 @@ export default function GoalInputScreen() {
         onCancel={() => {
             setIsJourneySetupVisible(false);
             setGoalType('project');
-            handleFinalSubmit(answerText, 0); // Proceed as project with context
+            handleFinalSubmit(answerText, 0); 
         }}
       />
 
@@ -441,7 +433,6 @@ const styles = StyleSheet.create({
   
   title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 12, color: colors.text },
   
-  // New helper styles
   helperContainer: { 
     flexDirection: 'row', 
     alignItems: 'flex-start', 
@@ -459,7 +450,8 @@ const styles = StyleSheet.create({
   },
 
   aiMessageContainer: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 20 },
-  aiQuestionText: { fontSize: 22, fontWeight: '600', color: colors.primary, textAlign: 'center', lineHeight: 30 },
+  // UPDATED: Smaller font, normal weight for better readability of detailed questions
+  aiQuestionText: { fontSize: 20, fontWeight: '500', color: colors.primary, textAlign: 'center', lineHeight: 28 },
 
   inputCard: { width: INPUT_CARD_WIDTH, borderRadius: 24, borderWidth: 2, borderColor: 'rgba(245, 158, 11, 0.1)', backgroundColor: '#F9F9F9', position: 'relative', minHeight: 140, overflow: 'hidden' },
   focusedCard: { borderColor: colors.primary, shadowColor: colors.primary },

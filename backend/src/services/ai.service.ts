@@ -6,7 +6,6 @@ const openai = new OpenAI({
 
 /**
  * 🧠 IDENTITY PROTOCOLS
- * Defines how the AI speaks based on user persona.
  */
 const IDENTITY_FRAMEWORK: Record<string, string> = {
   'student': "CONTEXT: User is a STUDENT. Focus: Grades, comprehension, deadlines. TONE: Academic Coach.",
@@ -17,8 +16,7 @@ const IDENTITY_FRAMEWORK: Record<string, string> = {
 };
 
 /**
- * 🎯 CORE DRIVER PROTOCOLS (The "North Star")
- * This determines HOW the AI optimizes the plan.
+ * 🎯 CORE DRIVER PROTOCOLS
  */
 const DRIVER_PROTOCOLS: Record<string, string> = {
   'velocity': "OPTIMIZATION GOAL: SPEED. Prioritize finishing fast. Cut non-essential steps. Use 'Sprint' logic. Identify shortcuts.",
@@ -29,7 +27,6 @@ const DRIVER_PROTOCOLS: Record<string, string> = {
 
 /**
  * 🛡️ VILLAIN DEFENSE PROTOCOLS
- * Specific constraints based on the user's primary productivity killer.
  */
 const VILLAIN_PROTOCOLS: Record<string, string> = {
   'doomscrolling': "DEFENSE: 'Digital Blinders'. Explicitly forbid opening new tabs or checking feeds. Focus purely on the active window.",
@@ -39,7 +36,7 @@ const VILLAIN_PROTOCOLS: Record<string, string> = {
 };
 
 /**
- * 🧠 STEP 1: THE CLARIFIER
+ * 🧠 STEP 1: THE CLARIFIER (Balanced Depth)
  */
 export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
   const onboarding = userProfile.onboardingData || {};
@@ -51,13 +48,27 @@ export const generateClarifyingQuestion = async (goal: string, userProfile: any)
     
     The user has a goal: "${goal}".
     
-    Your job: Identify the "Execution Blindspot".
+    Your job: Dig deeper. The goal is vague, and I need you to identify the specific variables required to build a tactical plan.
     
-    RULES:
-    1. **VOLUME CHECK:** If the goal implies a VOLUME of work (e.g., "homework", "emails", "chores"), ask about QUANTITY.
-    2. **AMBIGUITY CHECK:** If the goal is VAGUE (e.g., "Work on project", "Study"), ask for the TARGET/DELIVERABLE.
+    STRATEGY:
+    1. **Identify Missing Variables:** Does the goal lack a specific Topic, a Deliverable, a Constraint, or a Method?
+    2. **Ask up to 2 Distinct Points:** You can combine two questions to triangulate their intent (e.g., "What is the topic AND what is the format?").
+    3. **Be Conversational but Tactical:** Don't sound like a robot. Speak like a coach.
 
-    3. Keep it under 15 words. Direct and tactical. One question only.
+    EXAMPLES:
+    - Input: "Study"
+    - Output: "What specific subject or exam are we prepping for? Also, are we reviewing notes or doing active practice problems?"
+    
+    - Input: "Work on project"
+    - Output: "What is the single most important feature you need to ship today? Is this a solo coding session or does it involve writing/planning?"
+    
+    - Input: "Clean house"
+    - Output: "Let's focus. Which room is the biggest disaster right now? Do we need to do a deep clean or just a rapid visual tidy-up?"
+
+    CONSTRAINTS: 
+    - Aim for exactly 2 sentences. 
+    - Use 3 sentences ONLY if the input is extremely ambiguous and needs context.
+    - Focus on "What" and "How".
     
     OUTPUT JSON:
     { "question": "..." }
@@ -71,41 +82,46 @@ export const generateClarifyingQuestion = async (goal: string, userProfile: any)
       temperature: 0.7, 
     });
     const result = JSON.parse(completion.choices[0].message.content || "{}");
-    return result.question || "What is the specific outcome you need to achieve?";
+    return result.question || "What is the specific outcome you need to achieve today, and what is the first step?";
   } catch (error) {
-    return "What is the immediate next physical step you need to take?";
+    return "To build the perfect plan, what is the specific immediate outcome you are aiming for?";
   }
 };
 
 /**
- * 🧠 STEP 1.5: THE CLASSIFIER (Updated Logic)
+ * 🧠 STEP 1.5: THE CLASSIFIER
  */
-export const analyzeGoalType = async (goal: string, clarification: string = "") => {
+export const analyzeGoalType = async (goal: string, previousQuestion: string, userAnswer: string) => {
   const systemPrompt = `
-    Analyze the user's intent based on TWO inputs:
+    Analyze the user's intent based on the FULL CONVERSATION CONTEXT:
+    
     1. INITIAL GOAL: "${goal}"
-    2. CLARIFICATION: "${clarification}"
+    2. AI QUESTION ASKED: "${previousQuestion}"
+    3. USER ANSWER: "${userAnswer}"
     
     TASK: 
     1. Classify as "PROJECT" (Single Session) or "JOURNEY" (Multi-Day/Long Term).
-    2. If JOURNEY, estimate the typical time in DAYS to achieve a meaningful milestone or the full goal.
+    2. If JOURNEY, estimate the typical time in DAYS.
     3. If JOURNEY, recommend a sustainable DAILY TIME COMMITMENT (in minutes).
 
+    LOGIC ENGINE:
+    - Look at the relationship between Question and Answer.
+    - If Question was "When is this due?" and Answer is "Tomorrow" -> PROJECT.
+    - If Question was "How many chapters?" and Answer is "50 chapters" -> JOURNEY.
+    - If Question was "What is the outcome?" and Answer is "Learn Python" -> JOURNEY.
+    - If Question was "What specific task?" and Answer is "Write the intro" -> PROJECT.
+
     CRITICAL OVERRIDE RULES:
-    1. **CLARIFICATION IS KING:** If the Clarification Answer implies a specific, immediate action (e.g., "today", "just this part", "hit chest", "finish the draft"), YOU MUST CLASSIFY AS "PROJECT", even if the Initial Goal is broad (e.g., "Go to gym", "Write a book").
-    2. **TEMPORAL MARKERS:** If the text contains "today", "tonight", "now", "this morning", "this session" -> It is a PROJECT.
-    3. **SPECIFICITY:** 
-       - "Get fit" -> Journey (Days: 90, Mins: 45).
-       - "Gym: Chest Day" -> Project.
-       - "Learn French" -> Journey (Days: 180, Mins: 30).
-       - "Do Duolingo lesson" -> Project.
+    1. **TEMPORAL MARKERS:** "Today", "tonight", "now", "this morning" -> PROJECT.
+    2. **SCALE MARKERS:** "Learn a language", "Build an app", "Get fit", "Write a book" -> JOURNEY.
+    3. **SPECIFICITY:** "Do lesson 1" -> PROJECT. "Finish the course" -> JOURNEY.
     
     OUTPUT JSON:
     { 
       "type": "project" | "journey",
-      "reason": "Explain why based on the clarification.",
-      "estimatedDays": 30, // Default to 30 if unsure. Only relevant for Journey.
-      "recommendedDailyMinutes": 45 // Default to 45. Only relevant for Journey.
+      "reason": "Explain why based on the Q&A context.",
+      "estimatedDays": 30, // Default 30. Only for Journey.
+      "recommendedDailyMinutes": 45 // Default 45. Only for Journey.
     }
   `;
 
@@ -122,52 +138,25 @@ export const analyzeGoalType = async (goal: string, clarification: string = "") 
 };
 
 /** 
- * 🧠 STEP 2: THE STRATEGIST (Short Term / Single Session)
+ * 🧠 STEP 2: THE STRATEGIST
  */
 export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "", dailyMinutes: number = 0) => {
   const onboarding = userProfile.onboardingData || {};
   
-  // 1. Get Personalization Variables
   const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
   const driverPrompt = DRIVER_PROTOCOLS[onboarding.coreDriver] || DRIVER_PROTOCOLS['velocity'];
   const villainPrompt = VILLAIN_PROTOCOLS[onboarding.frictionVillain] || "Minimize distractions.";
 
   const SHORT_TERM_PROTOCOLS = `
     ANALYZE THE GOAL AND APPLY THE CORRECT PROTOCOL:
-
-    🌊 **TYPE A: THE GRIND (Volume/Repetition)**
-    - *Task 1 [Triage]:* Scan/Flag. (5m)
-    - *Task 2 [Velocity]:* Easy items first.
-    - *Task 3 [The Slog]:* Hard items.
-    - *Task 4 [Polish]:* Review.
-
-    🎨 **TYPE B: THE BLANK PAGE (Creation/Writing/Coding)**
-    - *Task 1 [Structure]:* Outline/Pseudo-code. (10m)
-    - *Task 2 [The Vomit Draft]:* Ugly first pass.
-    - *Task 3 [Refine]:* Edit/Debug.
-
-    ❓ **TYPE C: THE BLACK BOX (Ambiguity/Complex Problems)**
-    - *Task 1 [Research Spike]:* Info gathering.
-    - *Task 2 [The Prototype]:* Smallest working version.
-    - *Task 3 [Expansion]:* Add features.
-
-    🧠 **TYPE D: THE DOWNLOAD (Learning/Study)**
-    - *Task 1 [Scope]:* Define concepts.
-    - *Task 2 [Active Recall]:* Test yourself.
-    - *Task 3 [Gap Fill]:* Read specific sections.
-    
-    📄 **TYPE E: LIFE ADMIN (Bureaucracy)**
-    - *Task 1 [Gather]:* Find docs/passwords.
-    - *Task 2 [Blitz]:* Execute forms.
-
-    🏋️ **TYPE F: PHYSICAL/GYM (Workout)**
-    - *Task 1 [Warmup]:* Mobility/Activation. (5-10m)
-    - *Task 2 [Compound]:* Heavy lifts/Main movement.
-    - *Task 3 [Accessory]:* Isolation/Volume work.
-    - *Task 4 [Cooldown]:* Stretch/Cardio.
+    🌊 **TYPE A: THE GRIND (Volume)** - Triage -> Velocity -> Slog -> Polish.
+    🎨 **TYPE B: THE BLANK PAGE (Creation)** - Structure -> Vomit Draft -> Refine.
+    ❓ **TYPE C: THE BLACK BOX (Ambiguity)** - Research Spike -> Prototype -> Expand.
+    🧠 **TYPE D: THE DOWNLOAD (Study)** - Scope -> Active Recall -> Gap Fill.
+    📄 **TYPE E: LIFE ADMIN** - Gather -> Blitz.
+    🏋️ **TYPE F: PHYSICAL** - Warmup -> Compound -> Accessory -> Cooldown.
   `;
 
-  // TIME BUDGET LOGIC
   let timeConstraintPrompt = "";
   if (dailyMinutes > 0) {
     timeConstraintPrompt = `
@@ -229,7 +218,6 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     if (!content) throw new Error("No content received");
 
     const result = JSON.parse(content);
-    // FORCE 2 WORD LIMIT
     const trimmedTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : "Mission Alpha";
 
     return { 
@@ -244,13 +232,13 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
 };
 
 /**
- * 🧠 STEP 2 (VARIANT): THE COACH (Long Term / Journey Mode)
+ * 🧠 STEP 2 (VARIANT): THE COACH
  */
 export const generateDailyPlan = async (
   goal: string, 
   userProfile: any, 
   dayNumber: number, 
-  totalDays: number,
+  totalDays: number, 
   dailyMinutes: number = 45
 ) => {
   const onboarding = userProfile.onboardingData || {};
@@ -283,9 +271,10 @@ export const generateDailyPlan = async (
     ${JOURNEY_PROTOCOLS}
 
     RULES:
-    1. **PHASE AWARENESS:** Day 1 = Setup. Middle = Grind. End = Review.
-    2. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
-    3. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Day 1', 'Leg Day', 'Draft Mode').
+    1. **STRICT CONTEXT:** All tasks MUST contribute directly to the MAIN GOAL: "${goal}". Do NOT generate generic tasks or tasks for unrelated goals.
+    2. **PHASE AWARENESS:** Day 1 = Setup. Middle = Grind. End = Review.
+    3. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
+    4. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Day ${dayNumber}', 'Leg Day', 'Draft Mode').
     
     OUTPUT JSON:
     {
@@ -294,7 +283,7 @@ export const generateDailyPlan = async (
         { 
           "title": "Specific Exercise/Task", 
           "duration": 15, 
-          "description": "Instruction + Motivational Context." 
+          "description": "Instruction + Motivational Context relating to ${goal}." 
         } 
       ]
     }
@@ -309,7 +298,6 @@ export const generateDailyPlan = async (
     });
     const result = JSON.parse(completion.choices[0].message.content || "{}");
     
-    // FORCE 2 WORD LIMIT
     const shortTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : `Day ${dayNumber}`;
 
     return { 

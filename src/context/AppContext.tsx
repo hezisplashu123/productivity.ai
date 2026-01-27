@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { Goal, Task } from '../types';
 import { apiService } from '../services/api';
-// --- NOTIFICATION IMPORTS ---
 import * as Notifications from 'expo-notifications';
 import { NotificationService } from '../services/notificationService';
 import { TacticalHUD } from '../components/TacticalHUD';
@@ -37,7 +36,7 @@ interface AppContextType {
   generatePlan: (goalText: string, clarification?: string, dailyMinutes?: number) => Promise<any | null>;
   generateDailyPlan: (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => Promise<any>;
   getAiQuestion: (goalText: string) => Promise<string | null>;
-  analyzeGoal: (goal: string, clarification?: string) => Promise<any>;
+  analyzeGoal: (goal: string, clarification?: string, question?: string) => Promise<any>; // UPDATED SIGNATURE
   triggerTestNotification: () => void;
 }
 
@@ -49,7 +48,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
 
-  // --- HUD STATE ---
   const [hudState, setHudState] = useState({
     visible: false,
     title: '',
@@ -60,32 +58,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
 
-  // --- NOTIFICATION SETUP ---
   useEffect(() => {
-    // 1. Register Permissions FIRST
     const setupNotifications = async () => {
       const hasPermission = await NotificationService.registerForPushNotificationsAsync();
-      
       if (hasPermission && user?.onboardingData?.focusWindow) {
-        // Only schedule AFTER permissions are confirmed
         await NotificationService.scheduleFocusReminder(user.onboardingData.focusWindow);
       }
     };
-
     setupNotifications();
 
-    // 2. Listeners
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       const { title, body, data } = notification.request.content;
-      
-      // Trigger Custom HUD
       setHudState({
         visible: true,
         title: title || 'New Directive',
         message: body || 'Tap to view',
         type: data?.type === 'streak_rescue' ? 'warning' : 'info'
       });
-
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     });
 
@@ -94,17 +83,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return () => {
-      // FIX: Call .remove() directly on the subscription object
-      if (notificationListener.current) {
-        notificationListener.current.remove();
-      }
-      if (responseListener.current) {
-        responseListener.current.remove();
-      }
+      if (notificationListener.current) notificationListener.current.remove();
+      if (responseListener.current) responseListener.current.remove();
     };
   }, [user]);
 
-  // --- STANDARD LOGIC ---
   const refreshData = useCallback(async () => {
     if (!user?.email) return;
     try {
@@ -127,8 +110,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [user, refreshData]);
 
   // AI & Goals
-  const analyzeGoal = useCallback(async (goal: string, clarification: string = "") => {
-    return await apiService.analyzeGoal(goal, clarification);
+  const analyzeGoal = useCallback(async (goal: string, clarification: string = "", question: string = "") => {
+    return await apiService.analyzeGoal(goal, clarification, question);
   }, []);
 
   const getAiQuestion = useCallback(async (goalText: string) => {
@@ -229,7 +212,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const updatedUser = await apiService.updateUser(user.email, { onboardingData: data });
       setUser(updatedUser);
-      // We don't schedule here anymore, useEffect handles it after user state updates
     } catch (e) {
       console.error("Save Onboarding Error", e);
     }
@@ -258,8 +240,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }}
     >
       {children}
-      
-      {/* GLOBAL NOTIFICATION HUD */}
       <TacticalHUD 
         visible={hudState.visible}
         title={hudState.title}
