@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert 
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView 
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -11,6 +11,7 @@ import { lightColors as colors } from '../src/constants/colors';
 import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg'; 
+import { useSafeAreaInsets } from 'react-native-safe-area-context'; // Import this
 
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
@@ -30,6 +31,7 @@ export default function AuthScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { setUser } = useApp();
+  const insets = useSafeAreaInsets(); // Get safe area dimensions
   
   const onboardingDataString = params.onboardingData as string;
   const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
@@ -80,8 +82,8 @@ export default function AuthScreen() {
         : "Apple User";
 
       const userData = {
-        email: credential.email, // Might be null on repeat logins
-        uid: credential.user,    // This is the stable socialId
+        email: credential.email, 
+        uid: credential.user,    
         displayName: displayName
       };
       
@@ -148,60 +150,169 @@ export default function AuthScreen() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <StatusBar style="dark" />
-      <View style={styles.content}>
-        <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
-        <Text style={styles.subtitle}>{isLogin ? 'Sign in to access your dashboard.' : 'Create an account to save your productivity plan.'}</Text>
-        <View style={styles.form}>
-          {!isLogin && (
-            <View style={styles.inputContainer}>
-              <User size={20} color={colors.textSecondary} style={styles.icon} />
-              <TextInput style={styles.input} placeholder="Full Name" value={name} onChangeText={setName} placeholderTextColor={colors.textLight} />
-            </View>
-          )}
-          <View style={styles.inputContainer}>
-            <Mail size={20} color={colors.textSecondary} style={styles.icon} />
-            <TextInput style={styles.input} placeholder="Email Address" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholderTextColor={colors.textLight} />
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={styles.container}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          contentContainerStyle={[
+            styles.scrollContent, 
+            { 
+              // DYNAMIC PADDING: Ensures title is always visible below notch/island
+              paddingTop: Math.max(insets.top + 40, 80),
+              paddingBottom: Math.max(insets.bottom + 20, 40)
+            }
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header Section - Will stay at top */}
+          <View style={styles.headerSection}>
+            <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
+            <Text style={styles.subtitle}>
+              {isLogin ? 'Sign in to access your dashboard.' : 'Create an account to save your productivity plan.'}
+            </Text>
           </View>
-          <View style={styles.inputContainer}>
-            <Lock size={20} color={colors.textSecondary} style={styles.icon} />
-            <TextInput style={styles.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor={colors.textLight} />
-          </View>
-          <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
-            {loading ? <ActivityIndicator color="#FFFFFF" /> : <><Text style={styles.buttonText}>{isLogin ? 'Log In' : 'Complete Setup'}</Text><ArrowRight size={20} color="#FFFFFF" /></>}
-          </TouchableOpacity>
-          <View style={styles.dividerContainer}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or continue with</Text><View style={styles.dividerLine} /></View>
-          <View style={styles.socialButtonsContainer}>
-            {Platform.OS === 'ios' && (
-              <TouchableOpacity style={styles.appleCustomButton} onPress={handleAppleLogin}>
-                <View style={styles.iconContainer}><Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF"><Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" /></Svg></View>
-                <Text style={styles.appleButtonText}>Continue with Apple</Text>
-              </TouchableOpacity>
+
+          {/* Form Section */}
+          <View style={styles.form}>
+            {!isLogin && (
+              <View style={styles.inputContainer}>
+                <User size={20} color={colors.textSecondary} style={styles.icon} />
+                <TextInput 
+                  style={styles.input} 
+                  placeholder="Full Name" 
+                  value={name} 
+                  onChangeText={setName} 
+                  placeholderTextColor={colors.textLight} 
+                />
+              </View>
             )}
-            <TouchableOpacity style={styles.googleButton} onPress={() => promptAsync()}>
-              <View style={styles.iconContainer}><Svg width={24} height={24} viewBox="0 0 48 48"><Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" /><Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" /><Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" /><Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" /></Svg></View>
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            <View style={styles.inputContainer}>
+              <Mail size={20} color={colors.textSecondary} style={styles.icon} />
+              <TextInput 
+                style={styles.input} 
+                placeholder="Email Address" 
+                value={email} 
+                onChangeText={setEmail} 
+                autoCapitalize="none" 
+                keyboardType="email-address" 
+                placeholderTextColor={colors.textLight} 
+              />
+            </View>
+            <View style={styles.inputContainer}>
+              <Lock size={20} color={colors.textSecondary} style={styles.icon} />
+              <TextInput 
+                style={styles.input} 
+                placeholder="Password" 
+                value={password} 
+                onChangeText={setPassword} 
+                secureTextEntry 
+                placeholderTextColor={colors.textLight} 
+              />
+            </View>
+            
+            <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.buttonText}>{isLogin ? 'Log In' : 'Complete Setup'}</Text>
+                  <ArrowRight size={20} color="#FFFFFF" />
+                </>
+              )}
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin(!isLogin)}><Text style={styles.switchText}>{isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}</Text></TouchableOpacity>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+
+          {/* Footer Section - Can be hidden by keyboard */}
+          <View style={styles.footer}>
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or continue with</Text>
+              <View style={styles.dividerLine} />
+            </View>
+            
+            <View style={styles.socialButtonsContainer}>
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity style={styles.appleCustomButton} onPress={handleAppleLogin}>
+                  <View style={styles.iconContainer}>
+                    <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
+                      <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
+                    </Svg>
+                  </View>
+                  <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity style={styles.googleButton} onPress={() => promptAsync()}>
+                <View style={styles.iconContainer}>
+                  <Svg width={24} height={24} viewBox="0 0 48 48">
+                    <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                    <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                    <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                    <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                  </Svg>
+                </View>
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin(!isLogin)}>
+              <Text style={styles.switchText}>
+                {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  content: { flex: 1, padding: 30, justifyContent: 'center' },
+  container: { flex: 1 },
+  scrollContent: { 
+    flexGrow: 1, 
+    justifyContent: 'center', // Keeps content centered when keyboard is closed
+    paddingHorizontal: 30,
+    // paddingTop and paddingBottom are set dynamically in the component
+  },
+  headerSection: { marginBottom: 32 },
   title: { fontSize: 32, fontWeight: '700', color: colors.text, marginBottom: 8 },
-  subtitle: { fontSize: 16, color: colors.textSecondary, marginBottom: 32 },
+  subtitle: { fontSize: 16, color: colors.textSecondary },
   form: { gap: 16 },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.backgroundLight, borderRadius: 16, borderWidth: 1, borderColor: colors.border, height: 56, paddingHorizontal: 16 },
+  inputContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: colors.backgroundLight, 
+    borderRadius: 16, 
+    borderWidth: 1, 
+    borderColor: colors.border, 
+    height: 56, 
+    paddingHorizontal: 16 
+  },
   icon: { marginRight: 12 },
   input: { flex: 1, fontSize: 16, color: colors.text },
-  button: { backgroundColor: colors.primary, height: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  button: { 
+    backgroundColor: colors.primary, 
+    height: 56, 
+    borderRadius: 16, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginTop: 8, 
+    shadowColor: colors.primary, 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.3, 
+    shadowRadius: 8, 
+    elevation: 5 
+  },
   buttonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', marginRight: 8 },
+  
+  footer: { marginTop: 16 },
   switchButton: { alignItems: 'center', marginTop: 16 },
   switchText: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
   dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },

@@ -11,7 +11,7 @@ import {
   Alert,
   ActivityIndicator
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
   ChevronLeft, 
@@ -21,12 +21,13 @@ import {
   Target, 
   MoreHorizontal, 
   Trash2, 
-  Edit3,
-  Calendar as CalendarIcon,
-  RefreshCw,
-  FastForward,
-  Sparkles,
-  Award // Added for the Complete Early icon
+  Edit3, 
+  Calendar as CalendarIcon, 
+  RefreshCw, 
+  FastForward, 
+  Sparkles, 
+  Award,
+  ArrowRight
 } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown, FadeIn, FadeInRight, FadeOutLeft } from 'react-native-reanimated';
@@ -35,35 +36,36 @@ import * as Haptics from 'expo-haptics';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
 import { TaskEditModal } from '../src/components/TaskEditModal';
-import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal'; // Import Celebration Modal
+import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal';
+import { NotificationService } from '../src/services/notificationService'; 
 
 const { width } = Dimensions.get('window');
 
 export default function GoalDetailScreen() {
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const goalId = typeof params.goalId === 'string' ? params.goalId : '';
 
   const router = useRouter();
-  const { goals, tasks, updateTask, deleteGoal, archiveGoal, generateDailyPlan, addTasks } = useApp();
+  const { user, goals, tasks, updateTask, deleteGoal, archiveGoal, generateDailyPlan, addTasks } = useApp();
   
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false); // State for celebration
+  const [showCelebration, setShowCelebration] = useState(false);
   
   // --- STATE ---
-  const [devDayOffset, setDevDayOffset] = useState(0); // Dev: Force move forward
-  const [viewingDay, setViewingDay] = useState<number>(1); // Currently selected day in UI
+  const [devDayOffset, setDevDayOffset] = useState(0); 
+  const [viewingDay, setViewingDay] = useState<number>(1);
   const [isGenerating, setIsGenerating] = useState(false);
   
   const goal = useMemo(() => goals.find(g => g.id === goalId), [goals, goalId]);
 
-  // 1. Calculate "Current Progress Day" (Time + Dev Offset)
+  // 1. Calculate "Current Progress Day"
   const currentProgressDay = useMemo(() => {
     if (!goal || !goal.startDate) return 1;
     const start = new Date(goal.startDate).getTime();
     const now = Date.now();
     const diffTime = Math.max(0, now - start);
-    // Add 1 because if 0ms passed, we are on Day 1
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; 
     return Math.max(1, diffDays) + devDayOffset; 
   }, [goal, devDayOffset]);
@@ -76,21 +78,18 @@ export default function GoalDetailScreen() {
     return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   }, [goal]);
 
-  // Sync viewingDay to currentProgressDay on load (or when day advances)
   useEffect(() => {
     setViewingDay(currentProgressDay);
   }, [currentProgressDay]);
 
-  // 2. Filter tasks for the VIEWING DAY
+  // 2. Filter tasks
   const tasksForViewingDay = useMemo(() => {
     return tasks
       .filter(t => t.goalId === goalId)
-      // For Journey: strict match. For Project: show all (default day 1)
       .filter(t => goal?.type === 'journey' ? (t.dayNumber || 1) === viewingDay : true)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [tasks, goalId, viewingDay, goal?.type]);
 
-  // Total stats for the ENTIRE goal (used for celebration modal)
   const allGoalTasks = useMemo(() => {
     return tasks.filter(t => t.goalId === goalId);
   }, [tasks, goalId]);
@@ -104,28 +103,40 @@ export default function GoalDetailScreen() {
     return tasksForViewingDay.length > 0 ? (completed / tasksForViewingDay.length) * 100 : 0;
   }, [tasksForViewingDay]);
 
-  // Check if today is the last day AND all tasks are done
-  const isJourneyComplete = useMemo(() => {
+  // --- LOGIC UPDATES ---
+  
+  // 1. Is the current day's list finished?
+  const isDayComplete = useMemo(() => {
+    return tasksForViewingDay.length > 0 && tasksForViewingDay.every(t => t.status === 'completed');
+  }, [tasksForViewingDay]);
+
+  // 2. Is the ENTIRE journey finished (Last Day + All Tasks Done)?
+  const isJourneyFullyComplete = useMemo(() => {
     if (!goal) return false;
-    if (goal.type !== 'journey') return false; // Projects handle completion differently (usually implicit)
+    if (goal.type !== 'journey') return false; 
     
     const isLastDay = currentProgressDay >= totalDays;
-    const tasksDone = tasksForViewingDay.length > 0 && tasksForViewingDay.every(t => t.status === 'completed');
-    
-    return isLastDay && tasksDone;
-  }, [goal, currentProgressDay, totalDays, tasksForViewingDay]);
+    return isLastDay && isDayComplete;
+  }, [goal, currentProgressDay, totalDays, isDayComplete]);
 
-  // 3. AUTO-GENERATE EFFECT (Only for Current Day)
+  // Check if today's tasks are done to trigger notification
+  useEffect(() => {
+    if (goal?.type === 'journey' && viewingDay === currentProgressDay && isDayComplete) {
+        // Schedule notification for the NEXT day
+        const archetype = user?.onboardingData?.focusWindow || 'default';
+        NotificationService.scheduleNextDayDirective(currentProgressDay + 1, archetype);
+    }
+  }, [isDayComplete, goal, viewingDay, currentProgressDay, user]);
+
+  // 3. AUTO-GENERATE EFFECT
   useEffect(() => {
     const checkAndGenerate = async () => {
-      // Logic guards
       if (!goal) return;
       if (goal.type !== 'journey') return;
       if (isGenerating) return;
-      if (viewingDay !== currentProgressDay) return; // Only generate if looking at today
-      if (tasksForViewingDay.length > 0) return; // Don't regen if tasks exist
+      if (viewingDay !== currentProgressDay) return;
+      if (tasksForViewingDay.length > 0) return;
 
-      // START GENERATION
       setIsGenerating(true);
       try {
         const result = await generateDailyPlan(
@@ -179,13 +190,11 @@ export default function GoalDetailScreen() {
     }
   };
 
-  // Triggered via "Complete Early" menu option OR Bottom button on last day
   const initiateCompletion = () => {
     setMenuVisible(false);
     setShowCelebration(true);
   };
 
-  // Called when confetti finishes in the modal
   const handleFinalizeArchive = () => {
     archiveGoal(goal.id);
     setShowCelebration(false);
@@ -196,7 +205,7 @@ export default function GoalDetailScreen() {
     setMenuVisible(false);
     Alert.alert(
       "Complete Journey Early?",
-      "This will mark all remaining days as skipped and archive this journey to your profile.",
+      "This will mark the entire mission as successful and archive it to your profile.",
       [
         { text: "Cancel", style: "cancel" },
         { 
@@ -244,16 +253,24 @@ export default function GoalDetailScreen() {
   const renderJourneyHeader = () => {
     const daysToShow = Array.from({ length: currentProgressDay }).map((_, i) => i + 1);
 
+    // Determine Status Text
+    let statusText = "";
+    if (isGenerating) {
+        statusText = "Analyzing trajectory...";
+    } else if (viewingDay !== currentProgressDay) {
+        statusText = `Viewing history: Day ${viewingDay}`;
+    } else if (isDayComplete) {
+        statusText = "Come back tomorrow for a new directive.";
+    } else {
+        statusText = "Your daily directive is ready.";
+    }
+
     return (
       <View style={styles.journeyHeader}>
-        <View style={styles.refreshNote}>
-          <RefreshCw size={12} color="#059669" />
-          <Text style={styles.refreshNoteText}>
-            {isGenerating 
-              ? "Analyzing trajectory..." 
-              : viewingDay === currentProgressDay 
-                ? "Your daily directive is ready." 
-                : `Viewing history: Day ${viewingDay}`}
+        <View style={[styles.refreshNote, isDayComplete && styles.refreshNoteComplete]}>
+          <RefreshCw size={12} color={isDayComplete ? "#059669" : "#059669"} />
+          <Text style={[styles.refreshNoteText, isDayComplete && styles.refreshNoteTextComplete]}>
+            {statusText}
           </Text>
         </View>
 
@@ -333,10 +350,23 @@ export default function GoalDetailScreen() {
             <Text style={styles.pageTitle}>{goal.title}</Text>
           </View>
 
-          {/* Type Specific Header */}
+          {/* NEW: FINISHED EARLY PROMPT */}
+          {goal.type === 'journey' && isDayComplete && !isJourneyFullyComplete && (
+            <Animated.View entering={FadeInDown} style={styles.finishedEarlyContainer}>
+              <TouchableOpacity 
+                style={styles.finishedEarlyButton}
+                onPress={handleCompleteEarly}
+                activeOpacity={0.8}
+              >
+                <Award size={20} color="#059669" />
+                <Text style={styles.finishedEarlyText}>Finished the whole mission early?</Text>
+                <ArrowRight size={16} color="#059669" style={{ opacity: 0.6 }} />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
           {goal.type === 'journey' && renderJourneyHeader()}
 
-          {/* Progress (For projects) */}
           {goal.type !== 'journey' && (
             <View style={styles.progressCard}>
                 <View style={styles.progressInfo}>
@@ -410,7 +440,6 @@ export default function GoalDetailScreen() {
                 </Animated.View>
             ))}
 
-            {/* DEV BUTTON: Skip Day (Only shown if viewing current day) */}
             {goal.type === 'journey' && !isGenerating && viewingDay === currentProgressDay && (
                 <TouchableOpacity 
                     style={styles.devSkipButton} 
@@ -424,16 +453,28 @@ export default function GoalDetailScreen() {
           </Animated.View>
         </ScrollView>
 
-        <View style={styles.footer}>
-          {isJourneyComplete ? (
+        {/* --- STICKY FOOTER with SAFE AREA --- */}
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+          {isJourneyFullyComplete ? (
+            // GOLD BUTTON: Only if Journey is truly complete (Last Day + All Tasks)
             <TouchableOpacity 
-              style={[styles.primaryBtn, { backgroundColor: '#10B981', shadowColor: '#10B981' }]} 
+              style={[styles.primaryBtn, { backgroundColor: '#F59E0B', shadowColor: '#F59E0B' }]} 
               onPress={initiateCompletion}
             >
-              <CheckCircle2 size={20} color="#FFF" style={{ marginRight: 8 }} />
-              <Text style={styles.primaryBtnText}>MISSION COMPLETE</Text>
+              <Award size={20} color="#FFF" style={{ marginRight: 8 }} />
+              <Text style={styles.primaryBtnText}>MISSION ACCOMPLISHED</Text>
+            </TouchableOpacity>
+          ) : isDayComplete && goal.type === 'journey' ? (
+            // GREY BUTTON: Daily tasks done, but not final day
+            <TouchableOpacity 
+              style={[styles.primaryBtn, { backgroundColor: '#F3F4F6', shadowOpacity: 0 }]} 
+              activeOpacity={1}
+            >
+              <CheckCircle2 size={20} color="#9CA3AF" style={{ marginRight: 8 }} />
+              <Text style={[styles.primaryBtnText, { color: '#9CA3AF' }]}>DAY COMPLETE</Text>
             </TouchableOpacity>
           ) : (
+            // STANDARD BUTTON
             <TouchableOpacity style={styles.primaryBtn} onPress={handleStartSession}>
               <Text style={styles.primaryBtnText}>START SESSION</Text>
             </TouchableOpacity>
@@ -441,7 +482,6 @@ export default function GoalDetailScreen() {
         </View>
 
         {/* --- MODALS --- */}
-
         <TaskEditModal 
           visible={!!selectedTask}
           task={selectedTask}
@@ -465,8 +505,6 @@ export default function GoalDetailScreen() {
           <TouchableWithoutFeedback onPress={() => setMenuVisible(false)}>
             <View style={styles.menuOverlay}>
               <View style={styles.menuContainer}>
-                
-                {/* Journey Only Options */}
                 {goal.type === 'journey' && (
                   <>
                     <TouchableOpacity style={styles.menuItem} onPress={handleCompleteEarly}>
@@ -476,7 +514,6 @@ export default function GoalDetailScreen() {
                     <View style={styles.menuDivider} />
                   </>
                 )}
-
                 <TouchableOpacity style={styles.menuItem} onPress={handleRefine}>
                   <Edit3 size={18} color={colors.text} />
                   <Text style={styles.menuText}>Refine Goal</Text>
@@ -503,7 +540,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
   backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
   iconButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 22, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6' },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 120 },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 140 }, 
   
   titleSection: { marginVertical: 20 },
   tagContainer: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, backgroundColor: 'rgba(245, 158, 11, 0.1)', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
@@ -526,58 +563,39 @@ const styles = StyleSheet.create({
   taskTextDone: { textDecorationLine: 'line-through', color: '#9CA3AF' },
   taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   taskDuration: { fontSize: 12, fontWeight: '500', color: colors.textSecondary },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 24, backgroundColor: 'rgba(255,255,255,0.9)', borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  
+  footer: { 
+    position: 'absolute', 
+    bottom: 0, 
+    left: 0, 
+    right: 0, 
+    padding: 24, 
+    backgroundColor: 'rgba(255,255,255,0.95)', 
+    borderTopWidth: 1, 
+    borderTopColor: '#F3F4F6' 
+  },
   primaryBtn: { backgroundColor: '#1A1A1A', paddingVertical: 18, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 },
   primaryBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', letterSpacing: 1 },
   
   // Journey Styles
   journeyHeader: { marginBottom: 24 },
   calendarStrip: { flexDirection: 'row', gap: 10, paddingBottom: 16 },
-  dayPill: { 
-    width: 50, 
-    height: 60, 
-    borderRadius: 12, 
-    backgroundColor: '#F9FAFB', 
-    borderWidth: 1, 
-    borderColor: '#F3F4F6', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  dayPillActive: { 
-    backgroundColor: '#1A1A1A', 
-    borderColor: '#1A1A1A' 
-  },
-  dayPillToday: {
-    borderColor: colors.primary,
-    borderWidth: 2,
-  },
-  dayPillBlur: { 
-    width: 50, 
-    height: 60, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    opacity: 0.5 
-  },
-  dayLabel: { 
-    fontSize: 10, 
-    fontWeight: '700', 
-    color: '#9CA3AF', 
-    marginBottom: 2 
-  },
-  dayNumber: { 
-    fontSize: 18, 
-    fontWeight: '800', 
-    color: '#1A1A1A' 
-  },
-  dayLabelActive: { 
-    color: '#FFFFFF' 
-  },
+  dayPill: { width: 50, height: 60, borderRadius: 12, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  dayPillActive: { backgroundColor: '#1A1A1A', borderColor: '#1A1A1A' },
+  dayPillToday: { borderColor: colors.primary, borderWidth: 2 },
+  dayPillBlur: { width: 50, height: 60, justifyContent: 'center', alignItems: 'center', opacity: 0.5 },
+  dayLabel: { fontSize: 10, fontWeight: '700', color: '#9CA3AF', marginBottom: 2 },
+  dayNumber: { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
+  dayLabelActive: { color: '#FFFFFF' },
   journeyProgress: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   journeyProgressText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, width: 80 },
   journeyProgressBarBg: { flex: 1, height: 6, backgroundColor: '#F3F4F6', borderRadius: 3 },
   journeyProgressBarFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 3 },
+  
   refreshNote: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: '#ECFDF5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', gap: 6 },
+  refreshNoteComplete: { backgroundColor: '#F0FDF4' }, 
   refreshNoteText: { fontSize: 11, color: '#059669', fontWeight: '600' },
+  refreshNoteTextComplete: { color: '#15803D' }, 
   
   menuOverlay: { flex: 1, backgroundColor: 'transparent' },
   menuContainer: { position: 'absolute', top: 110, right: 24, backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 8, width: 220, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 10, borderWidth: 1, borderColor: '#F3F4F6' },
@@ -585,12 +603,15 @@ const styles = StyleSheet.create({
   menuText: { fontSize: 15, fontWeight: '600', color: colors.text },
   menuDivider: { height: 1, backgroundColor: '#F3F4F6', marginHorizontal: 16 },
   
-  // States
   generatingState: { padding: 40, alignItems: 'center', justifyContent: 'center' },
   generatingText: { marginTop: 16, color: colors.textSecondary, fontWeight: '600' },
   emptyState: { padding: 40, alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 16 },
   emptyText: { marginTop: 8, color: colors.textSecondary },
-  
   devSkipButton: { marginTop: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, backgroundColor: '#EF4444', borderRadius: 12 },
-  devSkipText: { color: '#FFF', fontWeight: '800', fontSize: 12 }
+  devSkipText: { color: '#FFF', fontWeight: '800', fontSize: 12 },
+
+  // New Style for "Finished Early" Prompt
+  finishedEarlyContainer: { marginBottom: 16 },
+  finishedEarlyButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', padding: 12, borderRadius: 12, gap: 10, borderWidth: 1, borderColor: '#D1FAE5' },
+  finishedEarlyText: { color: '#059669', fontSize: 13, fontWeight: '700', flex: 1 }
 });

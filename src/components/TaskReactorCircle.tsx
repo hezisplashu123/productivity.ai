@@ -19,13 +19,14 @@ export interface TaskGoal {
   title: string;
   color: string;
   totalTime: number;
+  type?: 'project' | 'journey'; // Added type
+  isFullyComplete?: boolean;    // Added explicit completion flag
   subTasks: {
     id: string;
     title: string;
     duration: number;
     isCompleted: boolean;
   }[];
-  isFullyComplete?: boolean;
 }
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -44,14 +45,19 @@ const ROTATION = 135;
 const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress: (g: TaskGoal) => void }) => {
   const animatedProgress = useSharedValue(0);
   const scale = useSharedValue(1);
-  
-  // Single master value for the breathing glow animation (0 to 1)
   const glowPhase = useSharedValue(0);
 
   const completedCount = taskGoal.subTasks ? taskGoal.subTasks.filter((st) => st.isCompleted).length : 0;
   const totalCount = taskGoal.subTasks ? taskGoal.subTasks.length : 1;
   const percentage = totalCount > 0 ? completedCount / totalCount : 0;
-  const isComplete = percentage === 1;
+
+  // --- LOGIC UPDATE ---
+  // A goal is visually "Gold/Complete" ONLY if:
+  // 1. It is a Journey AND explicitly marked fully complete (last day reached or early completion)
+  // 2. OR It is a Project AND progress is 100%
+  const isComplete = taskGoal.type === 'journey' 
+    ? !!taskGoal.isFullyComplete 
+    : percentage === 1;
 
   useEffect(() => {
     animatedProgress.value = withTiming(percentage, {
@@ -60,11 +66,10 @@ const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress:
     });
 
     if (isComplete) {
-      // Continuous smooth breathing animation
       glowPhase.value = withRepeat(
         withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
         -1,
-        true // Reverse direction to make it breathe in and out
+        true 
       );
     } else {
         glowPhase.value = 0;
@@ -92,19 +97,16 @@ const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress:
     borderColor: isComplete ? '#F59E0B' : '#F1F5F9',
   }));
 
-  // Layer 1: Wide expanding ring (Radiates outward)
   const glowLayer1Style = useAnimatedStyle(() => ({
-    opacity: interpolate(glowPhase.value, [0, 1], [0.4, 0.0]), // Fades out as it expands
-    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [1.0, 1.15]) }], // Expands outward
+    opacity: interpolate(glowPhase.value, [0, 1], [0.4, 0.0]),
+    transform: [{ scale: interpolate(glowPhase.value, [0, 1], [1.0, 1.15]) }],
   }));
 
-  // Layer 2: Intense backing glow (Pulses intensity)
   const glowLayer2Style = useAnimatedStyle(() => ({
     opacity: interpolate(glowPhase.value, [0, 1], [0.2, 0.5]),
     transform: [{ scale: interpolate(glowPhase.value, [0, 1], [0.98, 1.02]) }],
   }));
 
-  // Text Pulse: Makes the "TAP TO CLAIM" text breathe
   const textPulseStyle = useAnimatedStyle(() => ({
     opacity: interpolate(glowPhase.value, [0, 1], [0.7, 1]),
     transform: [{ scale: interpolate(glowPhase.value, [0, 1], [0.95, 1.05]) }],
@@ -116,9 +118,7 @@ const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress:
     <Animated.View style={[styles.container, cardStyle]}>
       {isComplete && (
         <>
-          {/* Layer 1: Wide expanding ring */}
           <AnimatedView style={[styles.glowRing, glowLayer1Style]} />
-          {/* Layer 2: Intense backing glow */}
           <AnimatedView style={[styles.glowBackground, glowLayer2Style]} />
         </>
       )}
@@ -138,7 +138,6 @@ const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress:
               </LinearGradient>
             </Defs>
 
-            {/* Track */}
             <Circle
               cx={CIRCLE_SIZE / 2}
               cy={CIRCLE_SIZE / 2}
@@ -152,7 +151,6 @@ const TaskReactorCircle = ({ taskGoal, onPress }: { taskGoal: TaskGoal, onPress:
               origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
             />
 
-            {/* Progress Fill */}
             <AnimatedCircle
               cx={CIRCLE_SIZE / 2}
               cy={CIRCLE_SIZE / 2}
@@ -231,7 +229,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   completedCard: {
-    backgroundColor: '#FFFBEB', // Light gold bg
+    backgroundColor: '#FFFBEB',
     borderColor: '#FCD34D',
   },
   gaugeContainer: {
@@ -269,7 +267,7 @@ const styles = StyleSheet.create({
   tapToClaimLabel: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#B45309', // Darker gold/brown for contrast
+    color: '#B45309',
     marginTop: 4,
     letterSpacing: 0.5,
     backgroundColor: 'rgba(245, 158, 11, 0.15)',

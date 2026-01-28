@@ -127,7 +127,7 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding }: any) =>
                 <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
                   <Brain size={20} color={colors.primary} />
                 </View>
-                <Text style={styles.settingText}>Update AI Persona</Text>
+                <Text style={styles.settingText}>Update Operative Profile</Text>
               </View>
               <ChevronRight size={20} color={colors.textLight} />
             </TouchableOpacity>
@@ -157,7 +157,7 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding }: any) =>
           </View>
 
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Productivity AI v1.0.3</Text>
+            <Text style={styles.versionText}>Productivity Ops v1.0.3</Text>
           </View>
         </ScrollView>
       </View>

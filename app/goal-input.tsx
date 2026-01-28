@@ -10,6 +10,7 @@ import {
   Keyboard,
   Dimensions,
   Alert,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -26,6 +27,7 @@ import { lightColors as colors } from '../src/constants/colors';
 import { TaskStagingModal, StagingTask } from '../src/components/TaskStagingModal';
 import { LongTermSetupModal } from '../src/components/LongTermSetupModal';
 import { BottomNav } from '../src/components/BottomNav'; 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
@@ -35,6 +37,7 @@ type InputStep = 'goal' | 'clarification' | 'processing';
 export default function GoalInputScreen() {
   const { initialText, editingGoalId } = useLocalSearchParams();
   const isEditing = !!editingGoalId;
+  const insets = useSafeAreaInsets();
 
   // --- STATE ---
   const [step, setStep] = useState<InputStep>('goal');
@@ -218,14 +221,12 @@ export default function GoalInputScreen() {
     setIsStagingVisible(false); // Close staging
     
     if (goalType === 'project') {
-        // Switch TO Journey
         setGoalType('journey');
         setJourneyReason("Switched from Project");
         setSuggestedDays(30);
         setSuggestedDailyMinutes(45);
         setIsJourneySetupVisible(true);
     } else {
-        // Switch TO Project
         setGoalType('project');
         handleFinalSubmit(answerText, 0);
     }
@@ -273,123 +274,129 @@ export default function GoalInputScreen() {
 
   return (
     <View style={styles.root}>
-      <KeyboardAvoidingView
-        style={[styles.container, { backgroundColor: '#FFFFFF' }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <StatusBar style="dark" />
+      {/* Used TouchableWithoutFeedback to dismiss keyboard when tapping outside */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardAvoidingView
+          style={[styles.container, { backgroundColor: '#FFFFFF' }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <StatusBar style="dark" />
 
-        <View style={styles.centeredContainer}>
-          <AnimatePresence mode="wait">
-            
-            {step === 'goal' && (
-              <MotiView
-                key="step1"
-                from={{ opacity: 0, translateX: -20 }}
-                animate={{ opacity: 1, translateX: 0 }}
-                exit={{ opacity: 0, translateX: -20 }}
-                style={styles.stepWrapper}
-              >
-                <Text style={styles.title}>
-                  {isEditing ? "Refine Directive" : "What is your main goal?"}
-                </Text>
-
-                <View style={styles.helperContainer}>
-                  <Lightbulb size={14} color={colors.primary} style={{ marginTop: 2 }} />
-                  <Text style={styles.helperText}>
-                    {helperText}
-                  </Text>
-                </View>
-                
-                <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., Launch my dropshipping store"
-                    placeholderTextColor={colors.textLight}
-                    value={goalText}
-                    onChangeText={setGoalText}
-                    onFocus={handleFocus}
-                    onBlur={handleBlur}
-                    multiline
-                    autoFocus
-                  />
-                  <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
-                    <TouchableOpacity
-                      style={styles.submitButton}
-                      onPress={handleGoalSubmit}
-                      disabled={!goalText.trim()}
-                    >
-                      <ArrowRight size={20} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </Animated.View>
-                </Animated.View>
-              </MotiView>
-            )}
-
-            {step === 'clarification' && (
-              <MotiView
-                key="step2"
-                from={{ opacity: 0, translateX: 20 }}
-                animate={{ opacity: 1, translateX: 0 }}
-                exit={{ opacity: 0, translateX: -20 }}
-                style={styles.stepWrapper}
-              >
-                <View style={styles.aiMessageContainer}>
-                  <Sparkles size={20} color={colors.primary} style={{marginBottom:8}} />
-                  <Text style={styles.aiQuestionText}>{aiQuestion}</Text>
-                </View>
-
-                <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Type your answer..."
-                    placeholderTextColor={colors.textLight}
-                    value={answerText}
-                    onChangeText={(t) => {
-                        setAnswerText(t);
-                        if (t.length > 0) submitButtonOpacity.value = withSpring(1);
-                    }}
-                    onFocus={handleFocus}
-                    onBlur={handleBlur}
-                    multiline
-                    autoFocus
-                  />
-                  <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
-                    <TouchableOpacity
-                      style={styles.submitButton}
-                      onPress={handleClarificationSubmit}
-                      disabled={!answerText.trim()}
-                    >
-                      <ArrowRight size={20} color="#FFFFFF" />
-                    </TouchableOpacity>
-                  </Animated.View>
-                </Animated.View>
-              </MotiView>
-            )}
-
-            {step === 'processing' && (
-              <MotiView
-                key="loading"
-                from={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                style={styles.loadingContainer}
-              >
+          <View style={styles.centeredContainer}>
+            <AnimatePresence mode="wait">
+              
+              {step === 'goal' && (
                 <MotiView
-                  from={{ rotate: '0deg' }}
-                  animate={{ rotate: '360deg' }}
-                  transition={{ type: 'timing', duration: 2000, loop: true }}
+                  key="step1"
+                  from={{ opacity: 0, translateX: -20 }}
+                  animate={{ opacity: 1, translateX: 0 }}
+                  exit={{ opacity: 0, translateX: -20 }}
+                  style={styles.stepWrapper}
                 >
-                  <Sparkles size={40} color={colors.primary} />
-                </MotiView>
-                <Text style={styles.loadingText}>
-                  {goalType === 'journey' ? "Designing Day 1 Protocol..." : "Constructing Tactical Plan..."}
-                </Text>
-              </MotiView>
-            )}
+                  <Text style={styles.title}>
+                    {isEditing ? "Refine Directive" : "What is your main goal?"}
+                  </Text>
 
-          </AnimatePresence>
-        </View>
-      </KeyboardAvoidingView>
+                  <View style={styles.helperContainer}>
+                    <Lightbulb size={14} color={colors.primary} style={{ marginTop: 2 }} />
+                    <Text style={styles.helperText}>
+                      {helperText}
+                    </Text>
+                  </View>
+                  
+                  <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g., Launch my dropshipping store"
+                      placeholderTextColor={colors.textLight}
+                      value={goalText}
+                      onChangeText={setGoalText}
+                      onFocus={handleFocus}
+                      onBlur={handleBlur}
+                      multiline
+                      autoFocus
+                      textAlignVertical="top" 
+                    />
+                    <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                      <TouchableOpacity
+                        style={styles.submitButton}
+                        onPress={handleGoalSubmit}
+                        disabled={!goalText.trim()}
+                      >
+                        <ArrowRight size={20} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </Animated.View>
+                  </Animated.View>
+                </MotiView>
+              )}
+
+              {step === 'clarification' && (
+                <MotiView
+                  key="step2"
+                  from={{ opacity: 0, translateX: 20 }}
+                  animate={{ opacity: 1, translateX: 0 }}
+                  exit={{ opacity: 0, translateX: -20 }}
+                  style={styles.stepWrapper}
+                >
+                  <View style={styles.aiMessageContainer}>
+                    <Sparkles size={20} color={colors.primary} style={{marginBottom:8}} />
+                    <Text style={styles.aiQuestionText}>{aiQuestion}</Text>
+                  </View>
+
+                  <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Type your answer..."
+                      placeholderTextColor={colors.textLight}
+                      value={answerText}
+                      onChangeText={(t) => {
+                          setAnswerText(t);
+                          if (t.length > 0) submitButtonOpacity.value = withSpring(1);
+                      }}
+                      onFocus={handleFocus}
+                      onBlur={handleBlur}
+                      multiline
+                      autoFocus
+                      textAlignVertical="top"
+                    />
+                    <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                      <TouchableOpacity
+                        style={styles.submitButton}
+                        onPress={handleClarificationSubmit}
+                        disabled={!answerText.trim()}
+                      >
+                        <ArrowRight size={20} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </Animated.View>
+                  </Animated.View>
+                </MotiView>
+              )}
+
+              {step === 'processing' && (
+                <MotiView
+                  key="loading"
+                  from={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  style={styles.loadingContainer}
+                >
+                  <MotiView
+                    from={{ rotate: '0deg' }}
+                    animate={{ rotate: '360deg' }}
+                    transition={{ type: 'timing', duration: 2000, loop: true }}
+                  >
+                    <Sparkles size={40} color={colors.primary} />
+                  </MotiView>
+                  <Text style={styles.loadingText}>
+                    {goalType === 'journey' ? "Designing Day 1 Protocol..." : "Constructing Tactical Plan..."}
+                  </Text>
+                </MotiView>
+              )}
+
+            </AnimatePresence>
+          </View>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
 
       <TaskStagingModal
         visible={isStagingVisible}
@@ -428,7 +435,14 @@ export default function GoalInputScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#FFFFFF' },
   container: { flex: 1 },
-  centeredContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, width: '100%', paddingBottom: 100 },
+  centeredContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    padding: 20, 
+    width: '100%', 
+    paddingBottom: 100 
+  },
   stepWrapper: { width: '100%', alignItems: 'center' },
   
   title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 12, color: colors.text },
@@ -450,16 +464,48 @@ const styles = StyleSheet.create({
   },
 
   aiMessageContainer: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 20 },
-  // UPDATED: Smaller font, normal weight for better readability of detailed questions
   aiQuestionText: { fontSize: 20, fontWeight: '500', color: colors.primary, textAlign: 'center', lineHeight: 28 },
 
-  inputCard: { width: INPUT_CARD_WIDTH, borderRadius: 24, borderWidth: 2, borderColor: 'rgba(245, 158, 11, 0.1)', backgroundColor: '#F9F9F9', position: 'relative', minHeight: 140, overflow: 'hidden' },
+  inputCard: { 
+    width: INPUT_CARD_WIDTH, 
+    borderRadius: 24, 
+    borderWidth: 2, 
+    borderColor: 'rgba(245, 158, 11, 0.1)', 
+    backgroundColor: '#F9F9F9', 
+    position: 'relative', 
+    minHeight: 140, 
+    overflow: 'hidden',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4
+  },
   focusedCard: { borderColor: colors.primary, shadowColor: colors.primary },
   
-  input: { width: '100%', padding: 20, paddingBottom: 60, fontSize: 18, minHeight: 120, color: colors.text },
+  input: { 
+    width: '100%', 
+    padding: 20, 
+    paddingBottom: 60, 
+    fontSize: 18, 
+    minHeight: 120, 
+    color: colors.text 
+  },
   
   submitButtonContainer: { position: 'absolute', bottom: 16, right: 16 },
-  submitButton: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary, elevation: 4, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+  submitButton: { 
+    width: 48, 
+    height: 48, 
+    borderRadius: 24, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: colors.primary, 
+    elevation: 4, 
+    shadowColor: colors.primary, 
+    shadowOpacity: 0.3, 
+    shadowRadius: 8, 
+    shadowOffset: { width: 0, height: 4 } 
+  },
   
   loadingContainer: { alignItems: 'center', marginTop: 30 },
   loadingText: { fontSize: 16, marginTop: 20, textAlign: 'center', fontWeight: '600', color: colors.textSecondary },

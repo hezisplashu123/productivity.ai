@@ -14,6 +14,7 @@ import Animated, {
   interpolateColor,
   runOnJS,
   Easing,
+  FadeIn,
 } from 'react-native-reanimated';
 import { MotiView } from 'moti';
 import * as Haptics from 'expo-haptics';
@@ -71,13 +72,12 @@ const SwitchTaxInteractive: React.FC<{ onChaosReached: () => void }> = ({ onChao
   const rippleScale = useSharedValue(0);
   const rippleOpacity = useSharedValue(0);
 
-  // Constants - REDUCED THRESHOLD FOR FASTER INTERACTION
+  // Constants
   const CORE_SIZE = 160;
-  const CHAOS_THRESHOLD = 6; // Reduced from 10 to 6
+  const CHAOS_THRESHOLD = 6; 
 
   // Continuous Pulse Animation
   useEffect(() => {
-    // Pulse gets faster at tap 3 instead of 5
     const duration = tapCount >= 3 ? 400 : 2000; 
     pulse.value = withRepeat(
       withSequence(
@@ -411,7 +411,7 @@ const Screen3Input: React.FC<{
   );
 };
 
-// --- SCREEN 4: THE VERDICT (EXIT ANIMATION UPDATED) ---
+// --- SCREEN 4: THE VERDICT ---
 const Screen4Verdict: React.FC<{
   ghostHours: number;
   workHours: number;
@@ -423,8 +423,8 @@ const Screen4Verdict: React.FC<{
   
   const contentOpacity = useSharedValue(1);
   const numberTranslateY = useSharedValue(0);
-  const numberColor = useSharedValue(0); // 0=Orange, 1=Dark
-  const backgroundColorProgress = useSharedValue(0); // 0=Black, 1=White
+  const numberColor = useSharedValue(0); 
+  const backgroundColorProgress = useSharedValue(0);
   const counterValue = useSharedValue(0);
   const ghostTimePulseOpacity = useSharedValue(0.8);
 
@@ -461,20 +461,14 @@ const Screen4Verdict: React.FC<{
     setStep('transition');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    // 1. Fade out the entire UI (except the number, which is rendered separately in transition mode)
     contentOpacity.value = withTiming(0, { duration: 300 });
 
-    // 2. Start the EXIT Sequence (Move + Color Change)
     const ANIMATION_DURATION = 1000;
     const START_DELAY = 200;
 
-    // Background Black -> White
     backgroundColorProgress.value = withDelay(START_DELAY, withTiming(1, { duration: ANIMATION_DURATION }));
-
-    // Number Orange -> Dark Grey
     numberColor.value = withDelay(START_DELAY, withTiming(1, { duration: ANIMATION_DURATION }));
 
-    // Move Number UP and OFF the screen (Accelerating)
     numberTranslateY.value = withDelay(START_DELAY, withTiming(-SCREEN_HEIGHT, {
       duration: ANIMATION_DURATION,
       easing: Easing.in(Easing.cubic), 
@@ -590,10 +584,35 @@ const styles = StyleSheet.create({
   hintContainer: { width: '100%', alignItems: 'center', paddingVertical: 20 },
   hintText: { fontSize: 16, color: darkTheme.textSecondary, opacity: 0.6, textAlign: 'center' },
 
-  inputContainer: { flex: 1, paddingTop: 40, alignItems: 'center' },
-  inputTitle: { fontSize: 22, fontWeight: '600', color: darkTheme.text, textAlign: 'center', marginVertical: 20 },
-  hoursDisplay: { fontSize: 42, fontWeight: '700', color: darkTheme.primary, marginBottom: 32 },
-  inputSubtitle: { fontSize: 18, fontWeight: '600', color: darkTheme.text, marginTop: 8, marginBottom: 6 },
+  // Updated Input Screen Styles
+  inputContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    paddingBottom: 50, // Reduced gap to button
+    paddingTop: 60, // Shifts content lower
+  },
+  inputTitle: { 
+    fontSize: 22, 
+    fontWeight: '600', 
+    color: darkTheme.text, 
+    textAlign: 'center', 
+    marginBottom: 8,
+    marginTop: 20 
+  },
+  hoursDisplay: { 
+    fontSize: 42, 
+    fontWeight: '700', 
+    color: darkTheme.primary, 
+    marginBottom: 20 // Spacing between number and slider
+  },
+  inputSubtitle: { 
+    fontSize: 18, 
+    fontWeight: '600', 
+    color: darkTheme.text, 
+    marginTop: 10, // Tighter gap between sections
+    marginBottom: 0
+  },
 
   resultContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   verdictTitle: { fontSize: 28, fontWeight: '700', color: darkTheme.text, marginBottom: 20 },

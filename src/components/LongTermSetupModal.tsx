@@ -29,7 +29,7 @@ export const LongTermSetupModal = ({
   const [dailyMinutes, setDailyMinutes] = useState(45); 
   const [showPicker, setShowPicker] = useState(false);
 
-  // Sync state with AI recommendations when visibility changes
+  // Sync state with recommendations when visibility changes
   useEffect(() => {
     if (visible) {
       const target = new Date();
@@ -72,7 +72,7 @@ export const LongTermSetupModal = ({
             </View>
             <View style={{flex: 1}}>
               <Text style={styles.title}>Journey Detected</Text>
-              <Text style={styles.subtitle} numberOfLines={2}>AI suggests: {initialDays} days @ {initialDailyMinutes}m/day</Text>
+              <Text style={styles.subtitle} numberOfLines={2}>Analyst suggests: {initialDays} days @ {initialDailyMinutes}m/day</Text>
             </View>
           </View>
 

@@ -71,7 +71,7 @@ export const GapIntervention: React.FC<GapInterventionProps> = ({
             onPress={onPress}
             activeOpacity={0.8}
           >
-            <Text style={styles.aiButtonText}>Fill with AI Suggestion</Text>
+            <Text style={styles.aiButtonText}>Fill with Recommendation</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -122,12 +122,3 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
-
-
-
-
-
-
-
-
-

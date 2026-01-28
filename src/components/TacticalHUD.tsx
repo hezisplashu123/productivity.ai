@@ -10,6 +10,7 @@ import Animated, {
 import { Zap, X, ChevronRight, AlertTriangle, Target } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -25,13 +26,16 @@ interface TacticalHUDProps {
 export const TacticalHUD: React.FC<TacticalHUDProps> = ({ 
   visible, title, message, type = 'info', onPress, onClose 
 }) => {
-  // Start hidden ABOVE the screen (-150)
-  const translateY = useSharedValue(-150);
+  const insets = useSafeAreaInsets();
+  
+  // Start hidden ABOVE the screen
+  const translateY = useSharedValue(-200);
 
   useEffect(() => {
     if (visible) {
-      // Slide down to visible position (60px from top)
-      translateY.value = withSpring(60, { damping: 12, stiffness: 90 });
+      // Slide down to visible position (safe area + padding)
+      const targetY = insets.top + 10;
+      translateY.value = withSpring(targetY, { damping: 12, stiffness: 90 });
       
       // Auto-dismiss after 6 seconds
       const timer = setTimeout(() => {
@@ -40,12 +44,12 @@ export const TacticalHUD: React.FC<TacticalHUDProps> = ({
       return () => clearTimeout(timer);
     } else {
       // Slide back up
-      translateY.value = withTiming(-150, { duration: 300 });
+      translateY.value = withTiming(-200, { duration: 300 });
     }
   }, [visible]);
 
   const handleClose = () => {
-    translateY.value = withTiming(-150, { duration: 300 }, (finished) => {
+    translateY.value = withTiming(-200, { duration: 300 }, (finished) => {
       if (finished && onClose) {
         runOnJS(onClose)();
       }

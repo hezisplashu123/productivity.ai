@@ -15,7 +15,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SLIDER_WIDTH = SCREEN_WIDTH - 80;
 const THUMB_SIZE = 28;
 const TRACK_HEIGHT = 8;
-const AVERAGE_MARKER_POSITION = 0.8; // 80%
+const AVERAGE_MARKER_POSITION = 0.8; 
 
 // Dynamic feedback text based on value
 const getFeedbackText = (value: number): { text: string; label: string; color: string } => {
@@ -25,25 +25,25 @@ const getFeedbackText = (value: number): { text: string; label: string; color: s
     return { 
       label: 'Deep Work Haven',
       text: 'I work in total silence. Zero interruptions.',
-      color: '#10B981' // Green
+      color: '#10B981' 
     };
   } else if (percentage <= 50) {
     return { 
       label: 'Flow Friendly',
       text: 'I get a few emails/slacks, but mostly focus.',
-      color: '#34D399' // Light Green
+      color: '#34D399' 
     };
   } else if (percentage <= 80) {
     return { 
       label: 'The Modern Worker', 
       text: 'Constant pings. It\'s hard to find a rhythm.',
-      color: '#F59E0B' // Orange
+      color: '#F59E0B' 
     };
   } else {
     return { 
       label: 'Survival Mode', 
       text: 'It\'s chaos. I\'m fighting for every minute.',
-      color: '#EF4444' // Red
+      color: '#EF4444' 
     };
   }
 };
@@ -63,7 +63,6 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
   const lastHapticValue = useRef(value);
   const lastHapticTime = useRef(Date.now());
 
-  // Initialize position
   useEffect(() => {
     translateX.value = value * (SLIDER_WIDTH - THUMB_SIZE);
   }, [value]);
@@ -72,7 +71,6 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
     onValueChange(newValue);
   };
 
-  // Get haptic intensity based on position
   const getHapticIntensity = (normalizedValue: number): Haptics.ImpactFeedbackStyle => {
     if (normalizedValue < 0.3) {
       return Haptics.ImpactFeedbackStyle.Light;
@@ -83,7 +81,6 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
     }
   };
 
-  // Trigger haptic with crescendo effect
   const triggerHaptic = (normalizedValue: number, isRapid: boolean = false) => {
     const intensity = getHapticIntensity(normalizedValue);
     const now = Date.now();
@@ -103,7 +100,6 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
     }
   };
 
-  // Pan gesture
   const panGesture = Gesture.Pan()
     .onStart(() => {
       isDragging.value = true;
@@ -126,7 +122,6 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
       runOnJS(updateValue)(normalizedValue);
     });
 
-  // Handle track press
   const handleTrackPress = (e: { nativeEvent: { locationX: number } }) => {
     const { locationX } = e.nativeEvent;
     const newPosition = Math.max(0, Math.min(SLIDER_WIDTH - THUMB_SIZE, locationX - THUMB_SIZE / 2));
@@ -136,7 +131,6 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
     triggerHaptic(normalizedValue, false);
   };
 
-  // Animated styles
   const thumbStyle = useAnimatedStyle(() => {
     return {
       transform: [{ translateX: translateX.value }],
@@ -148,7 +142,7 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
     const color = interpolateColor(
       normalizedValue,
       [0, 0.5, 1],
-      ['#10B981', '#FBBF24', '#EF4444'] // Green -> Yellow -> Red
+      ['#10B981', '#FBBF24', '#EF4444']
     );
     return { backgroundColor: color };
   });
@@ -168,15 +162,11 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
     return { width: fillWidth };
   });
 
-  // Get feedback text
   const feedback = useMemo(() => getFeedbackText(value), [value]);
-
-  // Average marker position
   const averageMarkerPosition = AVERAGE_MARKER_POSITION * (SLIDER_WIDTH - THUMB_SIZE) + (THUMB_SIZE / 2);
 
   return (
     <View style={styles.container}>
-      {/* Icons and Labels */}
       <View style={styles.iconsContainer}>
         <View style={styles.iconWrapper}>
           <VolumeX size={20} color="rgba(255, 255, 255, 0.6)" />
@@ -188,27 +178,20 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
         </View>
       </View>
 
-      {/* Slider Track */}
       <View style={styles.sliderContainer}>
         <TouchableOpacity
           style={styles.trackPressable}
           onPress={handleTrackPress}
           activeOpacity={1}
         >
-          {/* Background Track */}
           <View style={styles.trackBackground} />
-          
-          {/* Filled Track (Color Interpolated) */}
           <Animated.View style={[styles.trackFill, fillStyle, fillColorStyle]} />
-
-          {/* Average Marker (Now more visible) */}
           <View style={[styles.averageMarker, { left: averageMarkerPosition }]}>
             <View style={styles.averageTick} />
             <Text style={styles.averageLabel}>Average</Text>
           </View>
         </TouchableOpacity>
 
-        {/* Draggable Thumb */}
         <GestureDetector gesture={panGesture}>
           <Animated.View style={[styles.sliderThumb, thumbStyle]}>
             <Animated.View style={[styles.sliderThumbInner, thumbInnerColorStyle]} />
@@ -216,7 +199,6 @@ export const NoiseLevelSlider: React.FC<NoiseLevelSliderProps> = ({
         </GestureDetector>
       </View>
 
-      {/* Dynamic Feedback Text */}
       <View style={styles.feedbackContainer}>
         <Text style={[styles.feedbackLabel, { color: feedback.color }]}>
           {feedback.label}
@@ -258,7 +240,7 @@ const styles = StyleSheet.create({
   },
   trackPressable: {
     width: '100%',
-    height: TRACK_HEIGHT * 3, // Larger touch target
+    height: TRACK_HEIGHT * 3, 
     justifyContent: 'center',
     position: 'relative',
   },
@@ -275,18 +257,16 @@ const styles = StyleSheet.create({
     height: TRACK_HEIGHT,
     borderRadius: TRACK_HEIGHT / 2,
   },
-  
-  // Updated Average Marker Styles
   averageMarker: {
     position: 'absolute',
-    top: -12, // Moved up to clear the track
+    top: -12,
     alignItems: 'center',
     transform: [{ translateX: -1 }], 
-    zIndex: 0, // Behind thumb
+    zIndex: 0,
   },
   averageTick: {
     width: 2,
-    height: 36, // Longer line cutting through
+    height: 36,
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 4,
     borderRadius: 1,
@@ -299,7 +279,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: 2,
   },
-
   sliderThumb: {
     position: 'absolute',
     width: THUMB_SIZE,
@@ -322,7 +301,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   feedbackContainer: {
-    marginTop: 16,
+    marginTop: 8, // Reduced from 16 to bring text closer to slider
     alignItems: 'center',
     minHeight: 50,
   },

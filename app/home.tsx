@@ -18,31 +18,61 @@ import { useApp } from '../src/context/AppContext';
 
 export default function HomeScreen() {
   const router = useRouter();
-  // Destructure triggerTestNotification here
   const { goals, tasks, archiveGoal, triggerTestNotification } = useApp();
   
-  // State for celebration modal
   const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
 
   const reactorGoals = useMemo(() => {
     if (!Array.isArray(goals)) return [];
     
-    // Filter out archived goals, show active and completed
+    // Filter out archived goals
     const visibleGoals = goals.filter(g => g.status !== 'archived');
 
     return visibleGoals.map(goal => {
       const goalTasks = Array.isArray(tasks) ? tasks.filter(t => t.goalId === goal.id) : [];
-      
       const totalTime = goalTasks.reduce((sum, t) => sum + (t.duration || 0), 0);
-
-      // FORCE 2-WORD DISPLAY TITLE
       const displayTitle = (goal.title || 'Untitled Mission').split(' ').slice(0, 2).join(' ');
+
+      // --- LOGIC UPDATE: Determine if goal is TRULY complete (Gold Status) ---
+      let isFullyComplete = false;
+      const tasksCompletedCount = goalTasks.filter(t => t.status === 'completed').length;
+      const totalTasksCount = goalTasks.length;
+      const allTasksDone = totalTasksCount > 0 && tasksCompletedCount === totalTasksCount;
+
+      if (goal.type === 'journey') {
+        // For Journey: Must be Last Day AND Tasks Done (OR status manually set to completed)
+        if (goal.status === 'completed') {
+            isFullyComplete = true; // Manually marked early
+        } else if (goal.startDate && goal.targetDate) {
+            const start = new Date(goal.startDate).getTime();
+            const target = new Date(goal.targetDate).getTime();
+            const now = Date.now();
+            
+            // Calculate Current Day (1-based)
+            const diffTime = Math.max(0, now - start);
+            const currentDay = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            
+            // Calculate Total Days
+            const totalDuration = Math.abs(target - start);
+            const totalDays = Math.ceil(totalDuration / (1000 * 60 * 60 * 24));
+
+            // Is it the last day (or past it)?
+            const isLastDay = currentDay >= totalDays;
+            
+            isFullyComplete = isLastDay && allTasksDone;
+        }
+      } else {
+        // For Project: 100% Tasks = Complete
+        isFullyComplete = allTasksDone;
+      }
 
       return {
         id: goal.id,
         title: displayTitle,
         color: '#FF4500', 
         totalTime,
+        type: goal.type as 'project' | 'journey', // Pass type to component
+        isFullyComplete: isFullyComplete, // Pass calculated complete status
         subTasks: goalTasks.map(t => ({
           id: t.id,
           title: t.title || 'Untitled Task',
@@ -67,13 +97,10 @@ export default function HomeScreen() {
   const { dayName, dateNum } = formatDate();
 
   const handleGoalPress = (goal: TaskGoal) => {
-    const isFullyComplete = goal.subTasks.length > 0 && goal.subTasks.every(t => t.isCompleted);
-    
-    if (isFullyComplete) {
-      // Show celebration modal logic
+    // Check the calculated flag instead of just checking tasks
+    if (goal.isFullyComplete) {
       setCelebrationGoal(goal);
     } else {
-      // Normal navigation logic
       router.push({ pathname: '/goal-detail', params: { goalId: goal.id }});
     }
   };
@@ -91,9 +118,6 @@ export default function HomeScreen() {
       <ErrorBoundary name="HomeScreen">
         <SafeAreaView style={styles.container} edges={['top']}>
           
-          {/* ================================================= */}
-          {/* 🛠️ DEV BUTTON: TEST NOTIFICATION 🛠️ */}
-          {/* Tap this to trigger the Tactical HUD & System Alert */}
           <TouchableOpacity
             style={styles.testButton}
             onPress={() => triggerTestNotification()}
@@ -102,7 +126,6 @@ export default function HomeScreen() {
             <Bell size={14} color="#FFF" style={{ marginRight: 6 }} />
             <Text style={styles.testButtonText}>TEST SIGNAL</Text>
           </TouchableOpacity>
-          {/* ================================================= */}
 
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -147,7 +170,6 @@ export default function HomeScreen() {
 
           <BottomNav activeTab="Home" />
           
-          {/* Celebration Modal */}
           {celebrationGoal && (
             <MissionAccomplishedModal
               visible={!!celebrationGoal}
@@ -169,13 +191,12 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#FFFFFF' },
   container: { flex: 1 },
   
-  // Dev Button Style
   testButton: {
     position: 'absolute',
-    top: 70, // Below header
+    top: 70, 
     right: 20,
     zIndex: 999,
-    backgroundColor: '#EF4444', // Red for visibility
+    backgroundColor: '#EF4444', 
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Home as HomeIcon, Brain, User } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
@@ -12,6 +12,7 @@ import Animated, {
   Easing, 
   interpolate 
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +24,7 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab }) => {
   const router = useRouter();
+  const insets = useSafeAreaInsets(); // Get safe area values
   
   // Animation value: 0 to 1
   const breathing = useSharedValue(0);
@@ -73,7 +75,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab }) => {
   };
 
   return (
-    <View style={styles.navContainer}>
+    <View style={[styles.navContainer, { bottom: Math.max(20, insets.bottom + 10) }]}>
       <View style={styles.pill}>
         {/* HOME BUTTON */}
         <TouchableOpacity 
@@ -119,10 +121,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab }) => {
 const styles = StyleSheet.create({
   navContainer: {
     position: 'absolute',
-    bottom: 40,
     width: '100%',
     alignItems: 'center',
     zIndex: 100,
+    // bottom value is now handled inline
   },
   pill: {
     width: width * 0.6,
@@ -144,7 +146,7 @@ const styles = StyleSheet.create({
   pillItem: { 
     flex: 1, 
     alignItems: 'center', 
-    justifyContent: 'center',
+    justifyContent: 'center', 
     height: '100%' 
   },
   centerContainer: {

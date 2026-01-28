@@ -40,7 +40,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
   const [feedback, setFeedback] = useState('');
   const [isRefining, setIsRefining] = useState(false);
 
-  // --- FIX: Hooks must be called before conditional returns ---
   const animatedContainerStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
@@ -60,7 +59,6 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
     }
   }, [visible]);
 
-  // --- FIX: Conditional return moved after all hooks ---
   if (!task) return null;
 
   const handleTimeChange = (diff: number) => {
@@ -75,14 +73,14 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
     });
   };
 
-  const handleReportToAI = async () => {
+  const handleReportToHQ = async () => {
     if (!feedback.trim()) return;
     
     setIsRefining(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     try {
-      // Calls the AI refinement logic in AppContext
+      // Calls the refinement logic in AppContext
       await reportTaskIssue(task.id, feedback);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onClose(); // Close to show the updated task
@@ -126,11 +124,11 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
 
             <Text style={styles.title}>{task.title}</Text>
 
-            {/* AI Context Card */}
+            {/* Context Card */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                   <Info size={12} color={colors.primary} />
-                  <Text style={styles.sectionLabel}>AI TACTICAL CONTEXT</Text>
+                  <Text style={styles.sectionLabel}>TACTICAL BRIEF</Text>
               </View>
               <View style={styles.descriptionCard}>
                 <Text style={styles.descriptionText}>
@@ -139,16 +137,16 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
               </View>
             </View>
 
-            {/* AI Refinement / Report Section */}
+            {/* Refinement / Report Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                   <Sparkles size={12} color={colors.primary} />
-                  <Text style={styles.sectionLabel}>REPORT ISSUE TO AI</Text>
+                  <Text style={styles.sectionLabel}>REPORT OBSTACLE</Text>
               </View>
               <View style={styles.reportRow}>
                 <TextInput
                   style={styles.reportInput}
-                  placeholder="Tell the AI why you can't do this..."
+                  placeholder="Explain why this isn't feasible..."
                   placeholderTextColor={colors.textLight}
                   value={feedback}
                   onChangeText={setFeedback}
@@ -156,7 +154,7 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
                 />
                 <TouchableOpacity 
                   style={[styles.sendBtn, !feedback.trim() && styles.sendBtnDisabled]}
-                  onPress={handleReportToAI}
+                  onPress={handleReportToHQ}
                   disabled={!feedback.trim() || isRefining}
                 >
                   {isRefining ? (

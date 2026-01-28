@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
 import { 
   ArrowRight, 
-  ArrowLeft, // Added ArrowLeft
+  ArrowLeft, 
   Check, 
   Briefcase, 
   Flame, 
@@ -178,7 +178,7 @@ export const OnboardingWizard = ({ onComplete }: any) => {
     { title: "What is your biggest distraction?", data: VILLAINS, key: 'frictionVillain' },
     { title: "What holds you back the most?", data: MENTAL_BLOCKS, key: 'mentalBlock' },
     { title: "When are you most productive?", data: FOCUS_WINDOWS, key: 'focusWindow' },
-    { title: "How should AI optimize your tasks?", data: CORE_DRIVERS, key: 'coreDriver' }
+    { title: "How should we optimize your tasks?", data: CORE_DRIVERS, key: 'coreDriver' } // CHANGED
   ];
 
   const currentStepData = steps[currentStep];

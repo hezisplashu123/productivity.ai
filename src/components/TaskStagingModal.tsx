@@ -107,7 +107,7 @@ export const TaskStagingModal = ({
         subtitle: "Multi-Day Commitment",
         bestFor: "Goals that take days or weeks to achieve.",
         features: [
-          "AI adapts the plan every morning.",
+          "Plan adapts dynamically every morning.",
           "Tracks long-term progress & streaks.",
           "Manages daily time limits."
         ],
@@ -224,7 +224,7 @@ export const TaskStagingModal = ({
           )}
 
           {editingTask ? (
-            // --- EDIT TASK VIEW (Unchanged) ---
+            // --- EDIT TASK VIEW ---
             <Animated.View entering={FadeInRight} exiting={FadeOutLeft} style={{ flex: 1 }}>
               <TouchableOpacity onPress={() => setEditingTask(null)} style={styles.backBtn}>
                 <ChevronLeft size={20} color={colors.primary} />
@@ -235,7 +235,7 @@ export const TaskStagingModal = ({
                 <View style={styles.descBox}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                     <Info size={14} color={colors.primary} />
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>AI STRATEGY</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>STRATEGY BRIEF</Text>
                   </View>
                   <Text style={styles.descText}>{editingTask.description}</Text>
                 </View>
@@ -247,7 +247,7 @@ export const TaskStagingModal = ({
                   <View style={styles.refineInputRow}>
                     <TextInput
                       style={styles.refineInput}
-                      placeholder="Tell AI why (e.g., 'I don't have budget')"
+                      placeholder="Explain the constraint (e.g., 'No budget')"
                       placeholderTextColor={colors.textLight}
                       value={refineFeedback}
                       onChangeText={setRefineFeedback}
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
   // Detailed Popup Styles
   popupOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.98)', // Opaque to hide content behind
+    backgroundColor: 'rgba(255,255,255,0.98)', 
     zIndex: 20,
     justifyContent: 'center',
     alignItems: 'center',
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
   },
   confirmSwitchText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 
-  // Header & List Styles (Unchanged mostly)
+  // Header & List Styles
   header: { flexDirection: 'row', marginBottom: 24, gap: 12 },
   topLab: { fontSize: 11, fontWeight: '800', color: colors.primary, letterSpacing: 1.5, marginBottom: 4 },
   titleRow: { flexDirection: 'row', alignItems: 'center' },

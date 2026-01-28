@@ -6,88 +6,68 @@ import Animated, {
   useAnimatedProps,
   interpolate,
   Extrapolate,
-  useDerivedValue,
 } from 'react-native-reanimated';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const WAVE_WIDTH = SCREEN_WIDTH - 80; // Account for padding
+const WAVE_WIDTH = SCREEN_WIDTH - 80; 
 const WAVE_HEIGHT = 200;
 const CENTER_Y = WAVE_HEIGHT / 2;
-const AMPLITUDE_BASE = 60; // Base amplitude for smooth wave
-const POINTS = 150; // Number of points for the wave
+const AMPLITUDE_BASE = 60; 
+const POINTS = 150; 
 
 interface FocusWaveProps {
-  distractionLevel: number; // 0-100 (reacts to prop changes)
+  distractionLevel: number; 
 }
 
 export const FocusWave: React.FC<FocusWaveProps> = ({ distractionLevel }) => {
-  // Continuous time value that never stops - loops infinitely
   const continuousTime = useSharedValue(0);
-  
-  // Breathing animation for subtle undulation
   const breathingPhase = useSharedValue(0);
-  
-  // Distraction level as shared value (updated from prop, morphs smoothly)
   const distraction = useSharedValue(distractionLevel);
 
-  // Update distraction value when prop changes (morphs smoothly with spring)
   useEffect(() => {
     distraction.value = distractionLevel;
   }, [distractionLevel]);
 
-  // Start continuous time animation - loops forever, never resets
   useEffect(() => {
-    // Use a large duration to create smooth continuous motion
-    // The time value increments continuously and wraps using modulo in the calculation
     continuousTime.value = withRepeat(
-      withTiming(100000, { duration: 20000 }), // 20 seconds to reach 100000, then repeat
-      -1, // Infinite repeat
-      false // Don't reverse
+      withTiming(100000, { duration: 20000 }), 
+      -1, 
+      false 
     );
     
-    // Breathing animation - subtle undulation even when not touching
     breathingPhase.value = withRepeat(
       withTiming(1, { duration: 3000 }),
       -1,
-      true // Reverse for smooth breathing
+      true 
     );
   }, []);
 
-  // Gradient colors: Cyan (#00E5FF) to Hot Pink/Orange (#FF4757)
-  const gradientStartColor = '#00E5FF'; // Cyan
-  const gradientEndColor = '#FF4757'; // Hot Pink/Orange
+  const gradientStartColor = '#00E5FF'; 
+  const gradientEndColor = '#FF4757'; 
 
-  // Generate stroke path in animatedProps (worklet context) - morphs smoothly
   const animatedStrokePath = useAnimatedProps(() => {
     'worklet';
     const dist = distraction.value;
-    // Use modulo to create continuous loop without resetting
-    // Slower time multiplier for slower wave movement (reduced by 80%)
-    const t = (continuousTime.value % 62832) * 0.002; // Reduced from 0.01 to 0.002 for slower motion
+    const t = (continuousTime.value % 62832) * 0.002; 
     
-    // Add breathing effect - subtle vertical shift
-    const breathingOffset = Math.sin(breathingPhase.value * Math.PI * 2) * 3; // 3px breathing amplitude
+    const breathingOffset = Math.sin(breathingPhase.value * Math.PI * 2) * 3; 
     
-    // Interpolate wave parameters based on distraction level
-    // Monk (0%): Low amplitude, low frequency - smooth sine wave
-    // Goldfish (100%): High amplitude, high frequency, plus noise
     const baseAmplitude = interpolate(
       dist,
       [0, 100],
-      [AMPLITUDE_BASE, AMPLITUDE_BASE * 0.7], // Slightly lower at high distraction for visual balance
+      [AMPLITUDE_BASE, AMPLITUDE_BASE * 0.7], 
       Extrapolate.CLAMP
     );
 
     const frequency = interpolate(
       dist,
       [0, 100],
-      [0.015, 0.12], // Low freq at 0, high freq at 100
+      [0.015, 0.12], 
       Extrapolate.CLAMP
     );
 
-    // Noise/chaos factors
     const noiseAmplitude = interpolate(
       dist,
       [0, 100],
@@ -138,7 +118,6 @@ export const FocusWave: React.FC<FocusWaveProps> = ({ distractionLevel }) => {
     return { d: path };
   });
 
-  // Generate fill path
   const animatedFillPath = useAnimatedProps(() => {
     'worklet';
     const dist = distraction.value;
@@ -205,12 +184,10 @@ export const FocusWave: React.FC<FocusWaveProps> = ({ distractionLevel }) => {
             <Stop offset="100%" stopColor={gradientStartColor} stopOpacity="0" />
           </LinearGradient>
         </Defs>
-        {/* Fill under curve */}
         <AnimatedPath
           animatedProps={animatedFillPath}
           fill="url(#waveFill)"
         />
-        {/* Stroke with gradient */}
         <AnimatedPath
           animatedProps={animatedStrokePath}
           strokeWidth={3}
@@ -230,7 +207,7 @@ const styles = StyleSheet.create({
     height: WAVE_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 40,
+    marginVertical: 10, // Reduced from 40
   },
   svg: {
     position: 'absolute',
