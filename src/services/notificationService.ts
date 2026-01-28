@@ -6,28 +6,31 @@ import { lightColors as colors } from '../constants/colors';
 // 1. Configure how notifications look when the app is OPEN
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true, // We will catch this and show our Custom HUD instead
+    shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 });
 
-const getCopyForArchetype = (archetype: string | null, type: 'start' | 'streak' | 'gap') => {
+const getCopyForArchetype = (archetype: string | null, type: 'start' | 'streak' | 'gap' | 'rescue') => {
   const messages = {
     'night-owl': {
       start: ["🌑 The world is asleep. Your watch begins.", "Protocol: Midnight Oil engaged.", "Silence secured. Time to build."],
       streak: ["⚠️ Reactor cooling down.", "Don't let the silence go to waste.", "The night is slipping away."],
-      gap: ["⚡ 30m Ghost Gap detected.", "Moonlight is for makers. Fill the gap."]
+      gap: ["⚡ 30m Ghost Gap detected.", "Moonlight is for makers. Fill the gap."],
+      rescue: ["⚠️ STREAK CRITICAL. 2 hours until midnight.", "Do not break the chain. One task. Now.", "The night is fading. Save your progress."]
     },
     'early-bird': {
       start: ["🌅 Win the morning, win the day.", "Protocol: Sunrise Strike initiated.", "While they sleep, we build."],
       streak: ["⚠️ Momentum detected dropping.", "Keep the early streak alive.", "Don't break the morning chain."],
-      gap: ["⚡ 45m Ghost Gap detected.", "Coffee is hot. Gap is open."]
+      gap: ["⚡ 45m Ghost Gap detected.", "Coffee is hot. Gap is open."],
+      rescue: ["⚠️ DAY ENDING. Streak at risk.", "You won the morning, don't lose the night.", "Secure the W before sleep."]
     },
     'default': {
       start: ["⚡ Mission parameters set.", "Your tactical plan is ready.", "Objective clear. Engage."],
       streak: ["⚠️ Reactor Core critical.", "Secure the objective to maintain streak.", "System instability detected."],
-      gap: ["⚡ Ghost Time detected.", "Reclaim lost minutes now."]
+      gap: ["⚡ Ghost Time detected.", "Reclaim lost minutes now."],
+      rescue: ["🚨 REACTOR CRITICAL. Streak expires in 3 hours.", "Don't let the zero win.", "One small task saves the streak."]
     }
   };
 
@@ -39,8 +42,6 @@ const getCopyForArchetype = (archetype: string | null, type: 'start' | 'streak' 
 
 export const NotificationService = {
   async registerForPushNotificationsAsync() {
-    let token;
-
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'default',
@@ -60,41 +61,30 @@ export const NotificationService = {
       }
       
       if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
         return false;
       }
-      
-      // We don't strictly need the token if we are just scheduling local notifications
       return true;
-    } else {
-      console.log('Must use physical device for Push Notifications');
-      return false;
     }
+    return false;
   },
 
   async scheduleFocusReminder(focusWindow: string) {
     try {
-      // 1. Cancel existing to avoid duplicates
       await Notifications.cancelAllScheduledNotificationsAsync();
 
-      // 2. Logic for time
       let triggerHour = 9; 
-      if (focusWindow === 'early-bird') triggerHour = 6; // 6 AM
-      if (focusWindow === 'night-owl') triggerHour = 21; // 9 PM
-      if (focusWindow === 'mid-day') triggerHour = 13;   // 1 PM
+      if (focusWindow === 'early-bird') triggerHour = 6;
+      if (focusWindow === 'night-owl') triggerHour = 21;
+      if (focusWindow === 'mid-day') triggerHour = 13;
 
       const message = getCopyForArchetype(focusWindow, 'start');
 
-      console.log(`🔔 Scheduling Reminder: "${message}" at ${triggerHour}:00`);
-
-      // 3. Schedule with explicit trigger object
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "⚡ Tactical Alert",
           body: message,
           sound: true,
           data: { type: 'focus_start' },
-          ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
@@ -104,24 +94,70 @@ export const NotificationService = {
         },
       });
     } catch (error) {
-      // Catch and log error, but DO NOT CRASH THE APP
-      console.warn("⚠️ Notification Schedule Failed (Non-Fatal):", error);
+      console.warn("⚠️ Notification Schedule Failed:", error);
+    }
+  },
+
+  // --- NEW: STREAK RESCUE PROTOCOL ---
+  async scheduleStreakRescue(archetype: string = 'default') {
+    try {
+      // 1. Check if we already have a rescue notification
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      const hasRescue = scheduled.some(n => n.content.data?.type === 'streak_rescue');
+      if (hasRescue) return;
+
+      const message = getCopyForArchetype(archetype, 'rescue');
+
+      // 2. Schedule for 9:00 PM (21:00) Tonight
+      const now = new Date();
+      const triggerDate = new Date();
+      triggerDate.setHours(21, 0, 0, 0);
+
+      // If it's already past 9 PM, schedule for 1 hour from now (Emergency mode)
+      if (now.getHours() >= 21) {
+        triggerDate.setTime(now.getTime() + (60 * 60 * 1000)); 
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "⚠️ STREAK RESCUE",
+          body: message,
+          sound: true,
+          badge: 1,
+          data: { type: 'streak_rescue' },
+        },
+        trigger: {
+            // @ts-ignore - Expo types can be finicky with Date objects vs Components
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerDate, 
+        },
+      });
+      console.log("🛡️ Streak Rescue Scheduled for:", triggerDate.toLocaleTimeString());
+    } catch (error) {
+      console.warn("⚠️ Rescue Schedule Failed:", error);
+    }
+  },
+
+  async cancelStreakRescue() {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const rescueNotif = scheduled.find(n => n.content.data?.type === 'streak_rescue');
+    if (rescueNotif) {
+      await Notifications.cancelScheduledNotificationAsync(rescueNotif.identifier);
+      console.log("✅ Streak Saved. Rescue notification cancelled.");
     }
   },
 
   async sendImmediateTest(archetype: string) {
     try {
-      const message = getCopyForArchetype(archetype, 'gap');
+      const message = getCopyForArchetype(archetype, 'rescue'); // Changed to rescue for testing
       
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: "⚠️ Anomaly Detected",
+          title: "⚠️ STREAK RESCUE TEST",
           body: message,
-          data: { type: 'ghost_gap' },
+          data: { type: 'streak_rescue' },
           sound: true,
-          ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
         },
-        // Using 1 second delay is more stable on Android than 'null'
         trigger: { 
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: 1, 

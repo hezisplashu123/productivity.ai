@@ -11,6 +11,8 @@ interface User {
   email: string;
   name: string;
   onboardingData?: any;
+  currentStreak?: number; // Added
+  lastActiveDate?: string; // Added
 }
 
 interface AppContextType {
@@ -36,7 +38,7 @@ interface AppContextType {
   generatePlan: (goalText: string, clarification?: string, dailyMinutes?: number) => Promise<any | null>;
   generateDailyPlan: (goalTitle: string, dayNumber: number, totalDays: number, dailyMinutes: number) => Promise<any>;
   getAiQuestion: (goalText: string) => Promise<string | null>;
-  analyzeGoal: (goal: string, clarification?: string, question?: string) => Promise<any>; // UPDATED SIGNATURE
+  analyzeGoal: (goal: string, clarification?: string, question?: string) => Promise<any>; 
   triggerTestNotification: () => void;
 }
 
@@ -58,6 +60,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
 
+  // --- STREAK MONITORING ---
+  useEffect(() => {
+    const checkStreakStatus = async () => {
+      if (!user) return;
+      
+      const today = new Date().toISOString().split('T')[0];
+      const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate).toISOString().split('T')[0] : '';
+
+      if (lastActive !== today) {
+        // User hasn't completed a task today yet -> Schedule Rescue
+        const archetype = user.onboardingData?.focusWindow || 'default';
+        await NotificationService.scheduleStreakRescue(archetype);
+      } else {
+        // User IS active today -> Cancel Rescue
+        await NotificationService.cancelStreakRescue();
+      }
+    };
+
+    checkStreakStatus();
+  }, [user, tasks]); // Re-run when user or tasks change
+
   useEffect(() => {
     const setupNotifications = async () => {
       const hasPermission = await NotificationService.registerForPushNotificationsAsync();
@@ -69,11 +92,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       const { title, body, data } = notification.request.content;
+      
+      // Determine HUD type based on notification type
+      let hudType: 'info' | 'warning' | 'success' = 'info';
+      if (data?.type === 'streak_rescue') hudType = 'warning';
+      
       setHudState({
         visible: true,
-        title: title || 'New Directive',
+        title: title || 'System Alert',
         message: body || 'Tap to view',
-        type: data?.type === 'streak_rescue' ? 'warning' : 'info'
+        type: hudType
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     });
@@ -100,14 +128,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
       setTasks(allTasks);
+      
+      // Update local user streak data from profile
+      setUser(prev => prev ? { 
+        ...prev, 
+        currentStreak: profile.currentStreak,
+        lastActiveDate: profile.lastActiveDate 
+      } : null);
+
     } catch (e) {
       console.error("Data Sync Error:", e);
     }
-  }, [user]);
+  }, [user?.email]); // Only depend on email to prevent loops
 
   useEffect(() => {
-    if (user) refreshData();
-  }, [user, refreshData]);
+    if (user?.email) refreshData();
+  }, [user?.email, refreshData]);
 
   // AI & Goals
   const analyzeGoal = useCallback(async (goal: string, clarification: string = "", question: string = "") => {
@@ -196,7 +232,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateTask = useCallback(async (taskId: string, updates: any) => {
     const { id, goalId, createdAt, updatedAt, completed, goal, ...cleanUpdates } = updates;
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...cleanUpdates } : t)));
-    try { await apiService.updateTask(taskId, cleanUpdates); refreshData(); } catch (e) { console.error("Update Task Error:", e); }
+    
+    // We refresh data after update to sync streaks
+    try { 
+      await apiService.updateTask(taskId, cleanUpdates); 
+      refreshData(); 
+    } catch (e) { 
+      console.error("Update Task Error:", e); 
+    }
   }, [refreshData]);
 
   const completeTask = useCallback((taskId: string) => {

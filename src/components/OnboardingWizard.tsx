@@ -2,7 +2,36 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, withSpring } from 'react-native-reanimated';
-import { ArrowRight, Check, Briefcase, Flame, Zap, Brain, Smartphone, Gamepad2, BedDouble, Target, Activity, AlertTriangle, Anchor, Sunrise, Sun, CloudSun, Sunset, Moon, GraduationCap, PenTool, TrendingUp, Shield, Globe, Gem, ChevronsRight, Home, Layers } from 'lucide-react-native';
+import { 
+  ArrowRight, 
+  ArrowLeft, // Added ArrowLeft
+  Check, 
+  Briefcase, 
+  Flame, 
+  Zap, 
+  Brain, 
+  Smartphone, 
+  Gamepad2, 
+  BedDouble, 
+  Target, 
+  Activity, 
+  AlertTriangle, 
+  Anchor, 
+  Sunrise, 
+  Sun, 
+  CloudSun, 
+  Sunset, 
+  Moon, 
+  GraduationCap, 
+  PenTool, 
+  TrendingUp, 
+  Shield, 
+  Globe, 
+  Gem, 
+  ChevronsRight, 
+  Home, 
+  Layers 
+} from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
 
@@ -138,7 +167,11 @@ export const OnboardingWizard = ({ onComplete }: any) => {
     else onComplete(data);
   };
 
-  // --- UPDATED TITLES FOR CLARITY ---
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (currentStep > 0) setCurrentStep(currentStep - 1);
+  };
+
   const steps = [
     { title: "Which profile best fits you?", data: IDENTITIES, key: 'identity' },
     { title: "What is your natural work style?", data: ARCHETYPES, key: 'workArchetype' },
@@ -194,9 +227,24 @@ export const OnboardingWizard = ({ onComplete }: any) => {
           </View>
         </View>
         <View style={styles.footer}>
-          <TouchableOpacity style={[styles.nextBtn, !canProceed && { opacity: 0.5 }]} disabled={!canProceed} onPress={handleNext}>
-            <Text style={styles.nextText}>{isLastStep ? 'Finish' : 'Next'}</Text>
-            <ArrowRight size={20} color="#FFF" />
+          {currentStep > 0 && (
+            <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.7}>
+              <ArrowLeft size={20} color={colors.text} />
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity 
+            style={[
+              styles.nextBtn, 
+              !canProceed && { opacity: 0.5, backgroundColor: '#E5E7EB' }
+            ]} 
+            disabled={!canProceed} 
+            onPress={handleNext}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.nextText, !canProceed && { color: '#9CA3AF' }]}>{isLastStep ? 'Finish' : 'Next'}</Text>
+            <ArrowRight size={20} color={!canProceed ? '#9CA3AF' : "#FFF"} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -217,7 +265,44 @@ const styles = StyleSheet.create({
   radioActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   skyCard: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, borderRadius: 16 },
   skyTime: { fontSize: 12, fontWeight: '600', opacity: 0.7 },
-  footer: { padding: 24, borderTopWidth: 1, borderTopColor: '#EEE' },
-  nextBtn: { backgroundColor: colors.primary, padding: 18, borderRadius: 16, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  nextText: { color: '#FFF', fontSize: 16, fontWeight: '800' }
+  
+  footer: { 
+    padding: 24, 
+    borderTopWidth: 1, 
+    borderTopColor: '#F3F4F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FFF'
+  },
+  backBtn: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F3F4F6',
+  },
+  backText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '700'
+  },
+  nextBtn: { 
+    backgroundColor: colors.primary, 
+    paddingVertical: 16, 
+    borderRadius: 16, 
+    flexDirection: 'row', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    gap: 8,
+    flex: 1
+  },
+  nextText: { 
+    color: '#FFF', 
+    fontSize: 16, 
+    fontWeight: '800' 
+  }
 });
