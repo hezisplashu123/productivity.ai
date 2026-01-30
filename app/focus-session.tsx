@@ -7,7 +7,7 @@ import {
   Dimensions, 
   AppState, 
   Switch,
-  Platform
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -20,8 +20,7 @@ import Animated, {
   withTiming, 
   withRepeat, 
   withSequence,
-  interpolateColor,
-  Easing
+  interpolateColor
 } from 'react-native-reanimated';
 import { MotiView } from 'moti';
 import { 
@@ -32,14 +31,17 @@ import {
   SmartphoneNfc, 
   ScanFace,
   FastForward,
-  ShieldAlert
+  ShieldAlert,
+  Lock
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
 import { SessionDebrief } from '../src/components/SessionDebrief';
 
-const { width } = Dimensions.get('window');
+// --- IMPORT LOCAL NATIVE MODULE ---
+import * as ScreenTime from '../modules/screen-time-control';
+
 const MOVEMENT_THRESHOLD = 0.15; 
 
 export default function FocusSessionScreen() {
@@ -58,6 +60,7 @@ export default function FocusSessionScreen() {
   const [sessionState, setSessionState] = useState<'focus' | 'paused' | 'compromised'>('focus');
   const [phoneRequired, setPhoneRequired] = useState(false); 
   const [showDebrief, setShowDebrief] = useState(false); 
+  const [isLocked, setIsLocked] = useState(false); // Track if Screen Time API is active
   
   // --- ANIMATIONS ---
   const pulse = useSharedValue(1);
@@ -69,7 +72,23 @@ export default function FocusSessionScreen() {
 
   // --- 1. HANDLERS ---
 
-  const handleStartMission = () => {
+  const handleStartMission = async () => {
+    // If phone is NOT required, attempt to lock it using Screen Time API
+    if (!phoneRequired) {
+      try {
+        const authorized = await ScreenTime.requestAuthorization();
+        if (authorized) {
+          setIsLocked(true);
+          console.log("🔒 Screen Time Access Granted & Active");
+        } else {
+          // Optional: Warn user if they denied it, but let them proceed anyway
+          console.log("⚠️ Screen Time Access Denied or Not Available");
+        }
+      } catch (e) {
+        console.error("Screen Time Error:", e);
+      }
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setIsSetup(false);
     setIsActive(true);
@@ -104,7 +123,14 @@ export default function FocusSessionScreen() {
 
   const handleAbort = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.back();
+    Alert.alert(
+      "Abort Mission?",
+      "Giving up now will break your streak.",
+      [
+        { text: "Stay Focused", style: "cancel" },
+        { text: "I Give Up", style: "destructive", onPress: () => router.back() }
+      ]
+    );
   };
 
   const handleResume = () => {
@@ -216,22 +242,32 @@ export default function FocusSessionScreen() {
 
             <View style={styles.configCard}>
               <View style={styles.configHeader}>
-                <SmartphoneNfc size={24} color={phoneRequired ? "#10B981" : "#F59E0B"} />
-                <Text style={styles.configTitle}>Device Usage</Text>
+                {phoneRequired ? 
+                  <SmartphoneNfc size={24} color="#10B981" /> : 
+                  <Lock size={24} color="#F59E0B" /> 
+                }
+                <Text style={styles.configTitle}>Distraction Block</Text>
                 <Switch 
-                  value={phoneRequired}
-                  onValueChange={(val) => { setPhoneRequired(val); Haptics.selectionAsync(); }}
-                  trackColor={{ false: "#333", true: "rgba(16, 185, 129, 0.3)" }}
-                  thumbColor={phoneRequired ? "#10B981" : "#f4f3f4"}
+                  value={!phoneRequired} 
+                  onValueChange={(val) => { setPhoneRequired(!val); Haptics.selectionAsync(); }}
+                  trackColor={{ false: "#333", true: "rgba(245, 158, 11, 0.3)" }}
+                  thumbColor={!phoneRequired ? "#10B981" : "#F59E0B"}
                 />
               </View>
-              <Text style={styles.configDescription}>Do you need to use this phone to complete the task?</Text>
-              <View style={[styles.warningBox, { borderColor: phoneRequired ? '#10B981' : '#F59E0B' }]}>
-                <Text style={[styles.warningTitle, { color: phoneRequired ? '#10B981' : '#F59E0B' }]}>
-                  {phoneRequired ? 'SENSORS DISABLED' : 'SENSORS ACTIVE'}
+              <Text style={styles.configDescription}>
+                {!phoneRequired 
+                  ? "Screen Time API will block apps. Movement sensors active." 
+                  : "Basic mode. Sensors disabled for phone use."}
+              </Text>
+              
+              <View style={[styles.warningBox, { borderColor: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
+                <Text style={[styles.warningTitle, { color: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
+                  {!phoneRequired ? 'HARD LOCK ENABLED' : 'SOFT LOCK ONLY'}
                 </Text>
                 <Text style={styles.warningText}>
-                  {phoneRequired ? 'Background tracking only.' : 'Place phone face down. Movement triggers alarm.'}
+                  {!phoneRequired 
+                    ? 'Apple Family Controls will restrict access to social media during this session.' 
+                    : 'Background tracking only. You can use other apps.'}
                 </Text>
               </View>
             </View>
@@ -260,7 +296,9 @@ export default function FocusSessionScreen() {
           <View style={[styles.statusBadge, sessionState === 'compromised' ? styles.statusBadgeCompromised : null]}>
             <View style={[styles.dot, { backgroundColor: sessionState === 'focus' ? '#10B981' : sessionState === 'compromised' ? '#EF4444' : '#F59E0B' }]} />
             <Text style={styles.statusText}>
-              {sessionState === 'focus' ? (phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') : sessionState === 'compromised' ? 'BREACH DETECTED' : 'PAUSED'}
+              {sessionState === 'focus' 
+                ? (isLocked ? 'LOCKED & SECURE' : phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') 
+                : sessionState === 'compromised' ? 'BREACH DETECTED' : 'PAUSED'}
             </Text>
           </View>
           <View style={{ width: 40 }} />
@@ -349,7 +387,6 @@ const styles = StyleSheet.create({
   compromisedContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', zIndex: 20, padding: 40 },
   compromisedTitle: { color: '#EF4444', fontSize: 24, fontWeight: '900', letterSpacing: 1, marginBottom: 8, textAlign: 'center' },
   compromisedSubtitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
-  compromisedSubtext: { color: 'rgba(255,255,255,0.6)', fontSize: 14, textAlign: 'center', marginBottom: 40 },
   resumeBtn: { backgroundColor: '#FFFFFF', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 30 },
   resumeText: { color: '#000000', fontWeight: '800', fontSize: 14, letterSpacing: 1 }
 });

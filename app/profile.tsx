@@ -31,48 +31,54 @@ import {
   LogOut,
   ChevronRight,
   X,
-  Brain // Added Brain for the onboarding icon
+  Brain
 } from 'lucide-react-native';
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
+import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal'; // Import the modal
 
 // --- HELPER COMPONENTS ---
 
-const MissionHistoryCard = ({ goal, delay }: { goal: any, delay: number }) => {
+const MissionHistoryCard = ({ goal, delay, onPress }: { goal: any, delay: number, onPress: () => void }) => {
   const totalTasks = goal.tasks ? goal.tasks.length : 0;
   const totalDuration = goal.tasks ? goal.tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0) : 0;
   
   return (
     <Animated.View 
       entering={FadeInDown.delay(delay).springify()}
-      style={styles.historyCard}
     >
-      <View style={styles.historyHeader}>
-        <View style={styles.historyIcon}>
-          <CheckCircle2 size={20} color="#10B981" />
+      <TouchableOpacity
+        style={styles.historyCard}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.historyHeader}>
+          <View style={styles.historyIcon}>
+            <CheckCircle2 size={20} color="#10B981" />
+          </View>
+          <View style={styles.historyTitleBox}>
+            <Text style={styles.historyTitle} numberOfLines={1}>{goal.title}</Text>
+            <Text style={styles.historyDate}>
+              {new Date(goal.completedAt || goal.createdAt).toLocaleDateString()}
+            </Text>
+          </View>
         </View>
-        <View style={styles.historyTitleBox}>
-          <Text style={styles.historyTitle} numberOfLines={1}>{goal.title}</Text>
-          <Text style={styles.historyDate}>
-            {new Date(goal.completedAt || goal.createdAt).toLocaleDateString()}
-          </Text>
+        
+        <View style={styles.historyStats}>
+          <View style={styles.historyStatItem}>
+            <Clock size={12} color={colors.textSecondary} />
+            <Text style={styles.historyStatText}>{(totalDuration / 60).toFixed(1)}h Focused</Text>
+          </View>
+          <View style={styles.historyStatItem}>
+            <Target size={12} color={colors.textSecondary} />
+            <Text style={styles.historyStatText}>{totalTasks} Tasks</Text>
+          </View>
+          <View style={styles.historyBadge}>
+            <Text style={styles.historyBadgeText}>COMPLETED</Text>
+          </View>
         </View>
-      </View>
-      
-      <View style={styles.historyStats}>
-        <View style={styles.historyStatItem}>
-          <Clock size={12} color={colors.textSecondary} />
-          <Text style={styles.historyStatText}>{(totalDuration / 60).toFixed(1)}h Focused</Text>
-        </View>
-        <View style={styles.historyStatItem}>
-          <Target size={12} color={colors.textSecondary} />
-          <Text style={styles.historyStatText}>{totalTasks} Tasks</Text>
-        </View>
-        <View style={styles.historyBadge}>
-          <Text style={styles.historyBadgeText}>COMPLETED</Text>
-        </View>
-      </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
@@ -173,6 +179,9 @@ export default function ProfileScreen() {
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  
+  // State for the selected goal to view in the modal
+  const [viewingHistoryGoal, setViewingHistoryGoal] = useState<any>(null);
 
   // Filter for archived/completed goals
   const archivedGoals = useMemo(() => {
@@ -218,9 +227,16 @@ export default function ProfileScreen() {
 
   const handleRedoOnboarding = () => {
     setSettingsVisible(false);
-    // Navigate to onboarding wizard. 
-    // Since user is logged in, app/onboarding.tsx will update existing profile instead of creating new.
     router.push('/onboarding');
+  };
+
+  // Calculate stats for the modal
+  const getGoalStats = (goal: any) => {
+    if (!goal) return { totalTime: 0, taskCount: 0 };
+    const tasks = goal.tasks || [];
+    const totalTime = tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0);
+    const taskCount = tasks.length;
+    return { totalTime, taskCount };
   };
 
   // Helper for icons based on archetype
@@ -328,7 +344,12 @@ export default function ProfileScreen() {
           ) : (
             <View style={styles.archiveList}>
               {archivedGoals.map((goal, index) => (
-                <MissionHistoryCard key={goal.id} goal={goal} delay={500 + (index * 100)} />
+                <MissionHistoryCard 
+                  key={goal.id} 
+                  goal={goal} 
+                  delay={500 + (index * 100)}
+                  onPress={() => setViewingHistoryGoal(goal)} 
+                />
               ))}
             </View>
           )}
@@ -342,6 +363,20 @@ export default function ProfileScreen() {
           onLogout={handleLogout}
           onRedoOnboarding={handleRedoOnboarding}
         />
+
+        {/* History Modal */}
+        {viewingHistoryGoal && (
+          <MissionAccomplishedModal
+            visible={!!viewingHistoryGoal}
+            goalTitle={viewingHistoryGoal.title}
+            totalTime={getGoalStats(viewingHistoryGoal).totalTime}
+            taskCount={getGoalStats(viewingHistoryGoal).taskCount}
+            isHistoryView={true} // Enable history mode
+            onArchive={() => {}} // Not needed in history view
+            onClose={() => setViewingHistoryGoal(null)}
+          />
+        )}
+
       </SafeAreaView>
     </View>
   );

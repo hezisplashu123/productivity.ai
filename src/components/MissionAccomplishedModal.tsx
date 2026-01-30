@@ -8,7 +8,7 @@ import Animated, {
   runOnJS
 } from 'react-native-reanimated';
 import ConfettiCannon from 'react-native-confetti-cannon';
-import { Trophy, Clock, CheckCircle2, ArrowRight } from 'lucide-react-native';
+import { Trophy, Clock, CheckCircle2, ArrowRight, X } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
 
@@ -21,6 +21,7 @@ interface MissionAccomplishedModalProps {
   taskCount: number;
   onArchive: () => void;
   onClose: () => void;
+  isHistoryView?: boolean; // New prop to toggle display mode
 }
 
 export const MissionAccomplishedModal: React.FC<MissionAccomplishedModalProps> = ({
@@ -30,12 +31,17 @@ export const MissionAccomplishedModal: React.FC<MissionAccomplishedModalProps> =
   taskCount,
   onArchive,
   onClose,
+  isHistoryView = false,
 }) => {
   const scale = useSharedValue(0);
   
   useEffect(() => {
     if (visible) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (!isHistoryView) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Haptics.selectionAsync();
+      }
       // Smoother entry animation
       scale.value = withSpring(1, { 
         damping: 18, 
@@ -51,12 +57,16 @@ export const MissionAccomplishedModal: React.FC<MissionAccomplishedModalProps> =
     transform: [{ scale: scale.value }]
   }));
 
-  const handleArchive = () => {
+  const handleMainAction = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Animate out before calling callback
     scale.value = withTiming(0, { duration: 200 }, (finished) => {
       if (finished) {
-        runOnJS(onArchive)();
+        if (isHistoryView) {
+          runOnJS(onClose)();
+        } else {
+          runOnJS(onArchive)();
+        }
       }
     });
   };
@@ -64,23 +74,34 @@ export const MissionAccomplishedModal: React.FC<MissionAccomplishedModalProps> =
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => {}}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <ConfettiCannon 
-          count={200} 
-          origin={{x: width/2, y: 0}} 
-          fadeOut 
-          fallSpeed={3000} 
-        />
+        {/* Only show confetti if it's a fresh win, not history review */}
+        {!isHistoryView && (
+          <ConfettiCannon 
+            count={200} 
+            origin={{x: width/2, y: 0}} 
+            fadeOut 
+            fallSpeed={3000} 
+          />
+        )}
         
         <Animated.View style={[styles.card, containerStyle]}>
+          {isHistoryView && (
+            <TouchableOpacity onPress={onClose} style={styles.closeIcon}>
+              <X size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+
           <View style={styles.iconHeader}>
-            <View style={styles.trophyCircle}>
-              <Trophy size={40} color="#F59E0B" fill="#F59E0B" />
+            <View style={[styles.trophyCircle, isHistoryView && styles.trophyCircleHistory]}>
+              <Trophy size={40} color={isHistoryView ? colors.primary : "#F59E0B"} fill={isHistoryView ? colors.primary : "#F59E0B"} />
             </View>
           </View>
 
-          <Text style={styles.title}>MISSION ACCOMPLISHED</Text>
+          <Text style={styles.title}>
+            {isHistoryView ? "MISSION LOG" : "MISSION ACCOMPLISHED"}
+          </Text>
           <Text style={styles.subtitle} numberOfLines={2}>
             {goalTitle}
           </Text>
@@ -101,17 +122,21 @@ export const MissionAccomplishedModal: React.FC<MissionAccomplishedModalProps> =
             </View>
           </View>
 
-          <View style={styles.efficiencyBadge}>
-            <Text style={styles.efficiencyText}>⚡ Efficiency Rating: S-Class</Text>
+          <View style={[styles.efficiencyBadge, isHistoryView && { backgroundColor: '#F3F4F6' }]}>
+            <Text style={[styles.efficiencyText, isHistoryView && { color: colors.textSecondary }]}>
+              {isHistoryView ? "📂 Archived Record" : "⚡ Efficiency Rating: S-Class"}
+            </Text>
           </View>
 
           <TouchableOpacity 
-            style={styles.archiveButton}
-            onPress={handleArchive}
+            style={[styles.archiveButton, isHistoryView && styles.archiveButtonHistory]}
+            onPress={handleMainAction}
             activeOpacity={0.9}
           >
-            <Text style={styles.archiveButtonText}>SEND TO PROFILE</Text>
-            <ArrowRight size={20} color="#FFFFFF" />
+            <Text style={[styles.archiveButtonText, isHistoryView && { color: colors.text }]}>
+              {isHistoryView ? "CLOSE LOG" : "SEND TO PROFILE"}
+            </Text>
+            {!isHistoryView && <ArrowRight size={20} color="#FFFFFF" />}
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -140,6 +165,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 20,
     elevation: 10,
+    position: 'relative',
+  },
+  closeIcon: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 10,
+    padding: 4,
   },
   iconHeader: {
     marginBottom: 20,
@@ -153,6 +186,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 4,
     borderColor: '#FDE68A',
+  },
+  trophyCircleHistory: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderColor: 'rgba(245, 158, 11, 0.2)',
   },
   title: {
     fontSize: 22,
@@ -224,6 +261,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 5,
+  },
+  archiveButtonHistory: {
+    backgroundColor: '#F3F4F6',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   archiveButtonText: {
     color: '#FFFFFF',

@@ -1,33 +1,50 @@
 {
   "expo": {
-    "name": "productivity-ai",
+    "name": "HourBack AI",
     "slug": "productivity-ai",
-    "owner": "goathezisplash123",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "newArchEnabled": false,
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#FFF8E7"
     },
     "assetBundlePatterns": [
-      "**/*"
+        "**/*"
+
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hezisplash133.productivityai"
+      "bundleIdentifier": "com.mumix.productivityai",
+      "entitlements": {
+        "com.apple.developer.family-controls": true
+      },
+      "infoPlist": {
+        "NSFamilyControlsUsageDescription": "We need access to screen time controls to help you block distractions during focus sessions.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFF8E7"
       },
-      "package": "com.hezisplash133.productivityai"
+      "package": "com.mumix.productivityai"
     },
-    "scheme": "productivity-ai-goat",
+    "scheme": "hourback-ai",
     "plugins": [
       "expo-router",
       "expo-apple-authentication"
     ],
-    "sdkVersion": "54.0.0"
+    "extra": {
+      "eas": {
+        "projectId": "9b268f70-3853-458e-9e63-5609a25ed759"
+      }
+    }
   }
 }
