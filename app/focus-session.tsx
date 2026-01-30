@@ -74,6 +74,9 @@ export default function FocusSessionScreen() {
 
   const handleStartMission = async () => {
     // If phone is NOT required, attempt to lock it using Screen Time API
+    // 
+    // --- TEMPORARILY DISABLED SCREEN TIME FOR EAS BUILD FIX ---
+    /* 
     if (!phoneRequired) {
       try {
         const authorized = await ScreenTime.requestAuthorization();
@@ -87,6 +90,12 @@ export default function FocusSessionScreen() {
       } catch (e) {
         console.error("Screen Time Error:", e);
       }
+    }
+    */
+    
+    // Just log that we skipped it for dev
+    if (!phoneRequired) {
+      console.log("⚠️ Screen Time Controls bypassed for Development Build");
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -262,11 +271,11 @@ export default function FocusSessionScreen() {
               
               <View style={[styles.warningBox, { borderColor: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
                 <Text style={[styles.warningTitle, { color: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
-                  {!phoneRequired ? 'HARD LOCK ENABLED' : 'SOFT LOCK ONLY'}
+                  {!phoneRequired ? 'HARD LOCK DISABLED (DEV)' : 'SOFT LOCK ONLY'}
                 </Text>
                 <Text style={styles.warningText}>
                   {!phoneRequired 
-                    ? 'Apple Family Controls will restrict access to social media during this session.' 
+                    ? 'Screen Time bypass is active. Do not switch apps or move the phone.' 
                     : 'Background tracking only. You can use other apps.'}
                 </Text>
               </View>

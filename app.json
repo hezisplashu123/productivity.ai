@@ -19,11 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mumix.productivityai",
-      "entitlements": {
-        "com.apple.developer.family-controls": true
-      },
       "infoPlist": {
-        "NSFamilyControlsUsageDescription": "We need access to screen time controls to help you block distractions during focus sessions.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
