@@ -3,10 +3,9 @@
     "name": "HourBack AI",
     "slug": "productivity-ai",
     "version": "1.0.0",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": ["ios", "android"],
     "newArchEnabled": false,
     "icon": "./assets/icon.png",
     "splash": {
@@ -14,10 +13,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#FFF8E7"
     },
-    "assetBundlePatterns": [
-        "**/*"
-
-    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mumix.productivityai",
@@ -25,16 +20,14 @@
         "com.apple.developer.family-controls": true
       },
       "infoPlist": {
-        "NSFamilyControlsUsageDescription": "We need access to screen time controls to help you block distractions during focus sessions.",
-        "ITSAppUsesNonExemptEncryption": false
+        "NSFamilyControlsUsageDescription": "We need access to screen time controls to help you block distractions during focus sessions."
       }
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFF8E7"
-      },
       "package": "com.mumix.productivityai"
+    },
+    "web": {
+      "enabled": false
     },
     "scheme": "hourback-ai",
     "plugins": [
