@@ -40,6 +40,7 @@ The content is organized as follows:
 </file_summary>
 
 <directory_structure>
+.easignore
 .gitignore
 app.json
 app/_layout.tsx
@@ -57,8 +58,11 @@ app/lock-screen.tsx
 app/onboarding.tsx
 app/profile.tsx
 app/welcome.tsx
+assets/adaptive-icon.png
 assets/animations/Bar chart.json
 assets/animations/streak-flame.json
+assets/icon.png
+assets/splash.png
 babel.config.js
 backend/.gitignore
 backend/docker-compose.yml
@@ -78,6 +82,14 @@ backend/src/lib/prisma.ts
 backend/src/prisma/seed.ts
 backend/src/services/ai.service.ts
 backend/tsconfig.json
+eas.json
+modules/screen-time-control/expo-module.config.json
+modules/screen-time-control/index.ts
+modules/screen-time-control/src/ScreenTimeControl.types.ts
+modules/screen-time-control/src/ScreenTimeControlModule.ts
+modules/screen-time-control/src/ScreenTimeControlModule.web.ts
+modules/screen-time-control/src/ScreenTimeControlView.tsx
+modules/screen-time-control/src/ScreenTimeControlView.web.tsx
 package.json
 QUICK_START.md
 README.md
@@ -158,362 +170,12 @@ tsconfig.json
 <files>
 This section contains the contents of the repository's files.
 
-<file path="app/focus-session.tsx">
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Dimensions, 
-  AppState, 
-  Switch,
-  Platform
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useKeepAwake } from 'expo-keep-awake'; 
-import { Accelerometer } from 'expo-sensors';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withTiming, 
-  withRepeat, 
-  withSequence,
-  interpolateColor,
-  Easing
-} from 'react-native-reanimated';
-import { MotiView } from 'moti';
-import { 
-  X, 
-  Pause, 
-  Play, 
-  Check, 
-  SmartphoneNfc, 
-  ScanFace,
-  FastForward,
-  ShieldAlert
-} from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-import { lightColors as colors } from '../src/constants/colors';
-import { useApp } from '../src/context/AppContext';
-import { SessionDebrief } from '../src/components/SessionDebrief';
-
-const { width } = Dimensions.get('window');
-const MOVEMENT_THRESHOLD = 0.15; 
-
-export default function FocusSessionScreen() {
-  useKeepAwake(); // Prevents screen from sleeping
-  const router = useRouter();
-  const { taskId, duration } = useLocalSearchParams();
-  const { tasks, completeTask, updateTask } = useApp();
-  
-  // Find task data
-  const task = tasks.find(t => t.id === taskId) || { title: 'Deep Work Protocol', duration: Number(duration) || 25 };
-
-  // --- STATE ---
-  const [isSetup, setIsSetup] = useState(true); // Setup phase
-  const [timeLeft, setTimeLeft] = useState((Number(duration) || 25) * 60);
-  const [isActive, setIsActive] = useState(false);
-  const [sessionState, setSessionState] = useState<'focus' | 'paused' | 'compromised'>('focus');
-  const [phoneRequired, setPhoneRequired] = useState(false); 
-  const [showDebrief, setShowDebrief] = useState(false); 
-  
-  // --- ANIMATIONS ---
-  const pulse = useSharedValue(1);
-  const bgProgress = useSharedValue(0); // 0 = Black, 1 = Red (Compromised)
-
-  // --- REFS ---
-  const appState = useRef(AppState.currentState);
-  const subscription = useRef<any>(null);
-
-  // --- 1. HANDLERS ---
-
-  const handleStartMission = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setIsSetup(false);
-    setIsActive(true);
-  };
-
-  const handleTimerEnd = () => {
-    setIsActive(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowDebrief(true); // Trigger Debrief Modal
-  };
-
-  const handleDevSkip = () => {
-    setTimeLeft(0); // Triggers timer end via useEffect
-  };
-
-  // --- DEBRIEF LOGIC ---
-  const handleDebriefComplete = (data: { completed: boolean; distraction?: string; addedMinutes?: number }) => {
-    if (taskId) {
-      if (data.completed) {
-        // Mission Accomplished
-        completeTask(taskId as string);
-      } else if (data.addedMinutes) {
-        // Mission Failed -> Update Protocol
-        updateTask(taskId as string, {
-          duration: data.addedMinutes, // Set new time
-          status: 'queued' // Reset status to queued so it can be played again
-        });
-      }
-    }
-    router.back();
-  };
-
-  const handleAbort = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.back();
-  };
-
-  const handleResume = () => {
-    setSessionState('focus');
-    setIsActive(true);
-    bgProgress.value = withTiming(0, { duration: 500 });
-  };
-
-  // --- 2. SENSORS LOGIC ---
-
-  // App State Monitoring
-  useEffect(() => {
-    const appStateSub = AppState.addEventListener('change', nextAppState => {
-      if (isSetup || phoneRequired) return; 
-      if (appState.current.match(/active/) && nextAppState.match(/inactive|background/)) {
-        triggerCompromised();
-      }
-      appState.current = nextAppState;
-    });
-    return () => appStateSub.remove();
-  }, [phoneRequired, isSetup]);
-
-  // Accelerometer Monitoring
-  useEffect(() => {
-    const enableSensors = async () => {
-      if (isSetup || phoneRequired || !isActive || sessionState !== 'focus') {
-        if (subscription.current) {
-          subscription.current.remove();
-          subscription.current = null;
-        }
-        return;
-      }
-      Accelerometer.setUpdateInterval(500); 
-      let lastData = { x: 0, y: 0, z: 0 };
-      subscription.current = Accelerometer.addListener(data => {
-        const delta = Math.abs(data.x - lastData.x) + Math.abs(data.y - lastData.y) + Math.abs(data.z - lastData.z);
-        if (lastData.x !== 0 && delta > MOVEMENT_THRESHOLD) triggerCompromised();
-        lastData = data;
-      });
-    };
-    enableSensors();
-    return () => { if (subscription.current) subscription.current.remove(); };
-  }, [phoneRequired, isActive, sessionState, isSetup]);
-
-  const triggerCompromised = () => {
-    if (sessionState === 'compromised') return;
-    setSessionState('compromised');
-    setIsActive(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    bgProgress.value = withTiming(1, { duration: 300 });
-  };
-
-  // --- 3. TIMER LOGIC ---
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isActive && timeLeft > 0 && !isSetup) {
-      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-      pulse.value = withRepeat(
-        withSequence(withTiming(1.02, { duration: 1500 }), withTiming(1, { duration: 1500 })), 
-        -1, true
-      );
-    } else if (timeLeft <= 0 && !isSetup && isActive) {
-      // Timer hit 0 naturally while active
-      handleTimerEnd();
-    } else if (timeLeft <= 0 && !isSetup) {
-      // Timer is 0 but not active (handled via skip)
-      // Pulse animation stop
-      pulse.value = withTiming(1, { duration: 300 });
-    } else {
-      pulse.value = withTiming(1, { duration: 300 });
-    }
-    return () => clearInterval(interval);
-  }, [isActive, timeLeft, isSetup]);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Animated Styles
-  const containerStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(bgProgress.value, [0, 1], ['#000000', '#450a0a'])
-  }));
-
-  const timerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse.value }],
-    opacity: sessionState === 'compromised' ? 0.3 : 1,
-    color: interpolateColor(bgProgress.value, [0, 1], ['#FFFFFF', '#EF4444'])
-  }));
-
-  // --- RENDER SETUP ---
-  if (isSetup) {
-    return (
-      <View style={styles.container}>
-        <StatusBar style="light" />
-        <SafeAreaView style={styles.setupContainer}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={handleAbort} style={styles.closeBtn}>
-              <X size={24} color="rgba(255,255,255,0.4)" />
-            </TouchableOpacity>
-            <Text style={styles.setupHeaderTitle}>MISSION BRIEF</Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          <MotiView from={{ opacity: 0, translateY: 20 }} animate={{ opacity: 1, translateY: 0 }} style={styles.setupContent}>
-            <Text style={styles.setupTaskTitle} numberOfLines={2}>{task.title}</Text>
-            <Text style={styles.setupDuration}>{Math.floor(timeLeft / 60)} Minutes</Text>
-
-            <View style={styles.configCard}>
-              <View style={styles.configHeader}>
-                <SmartphoneNfc size={24} color={phoneRequired ? "#10B981" : "#F59E0B"} />
-                <Text style={styles.configTitle}>Device Usage</Text>
-                <Switch 
-                  value={phoneRequired}
-                  onValueChange={(val) => { setPhoneRequired(val); Haptics.selectionAsync(); }}
-                  trackColor={{ false: "#333", true: "rgba(16, 185, 129, 0.3)" }}
-                  thumbColor={phoneRequired ? "#10B981" : "#f4f3f4"}
-                />
-              </View>
-              <Text style={styles.configDescription}>Do you need to use this phone to complete the task?</Text>
-              <View style={[styles.warningBox, { borderColor: phoneRequired ? '#10B981' : '#F59E0B' }]}>
-                <Text style={[styles.warningTitle, { color: phoneRequired ? '#10B981' : '#F59E0B' }]}>
-                  {phoneRequired ? 'SENSORS DISABLED' : 'SENSORS ACTIVE'}
-                </Text>
-                <Text style={styles.warningText}>
-                  {phoneRequired ? 'Background tracking only.' : 'Place phone face down. Movement triggers alarm.'}
-                </Text>
-              </View>
-            </View>
-          </MotiView>
-
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.engageBtn} onPress={handleStartMission} activeOpacity={0.8}>
-              <ScanFace size={24} color="#000" style={{ marginRight: 8 }} />
-              <Text style={styles.engageText}>ENGAGE</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </View>
-    );
-  }
-
-  // --- RENDER ACTIVE SESSION ---
-  return (
-    <Animated.View style={[styles.container, containerStyle]}>
-      <StatusBar style="light" hidden={sessionState === 'focus'} />
-      <SafeAreaView style={{ flex: 1 }}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleAbort} style={styles.closeBtn}>
-            <X size={24} color="rgba(255,255,255,0.4)" />
-          </TouchableOpacity>
-          <View style={[styles.statusBadge, sessionState === 'compromised' ? styles.statusBadgeCompromised : null]}>
-            <View style={[styles.dot, { backgroundColor: sessionState === 'focus' ? '#10B981' : sessionState === 'compromised' ? '#EF4444' : '#F59E0B' }]} />
-            <Text style={styles.statusText}>
-              {sessionState === 'focus' ? (phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') : sessionState === 'compromised' ? 'BREACH DETECTED' : 'PAUSED'}
-            </Text>
-          </View>
-          <View style={{ width: 40 }} />
-        </View>
-
-        {/* DEV SKIP BUTTON */}
-        <TouchableOpacity style={styles.devSkipBtn} onPress={handleDevSkip} activeOpacity={0.6}>
-          <FastForward size={14} color="rgba(255,255,255,0.6)" />
-          <Text style={styles.devSkipText}>DEV: SKIP</Text>
-        </TouchableOpacity>
-
-        {sessionState === 'compromised' && (
-          <View style={styles.compromisedContainer}>
-            <ShieldAlert size={64} color="#EF4444" style={{ marginBottom: 20 }} />
-            <Text style={styles.compromisedTitle}>MISSION COMPROMISED</Text>
-            <Text style={styles.compromisedSubtitle}>Movement or distraction detected.</Text>
-            <TouchableOpacity style={styles.resumeBtn} onPress={handleResume}>
-              <Text style={styles.resumeText}>I'M BACK ON TASK</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.content}>
-          <View style={styles.taskContainer}>
-            <Text style={styles.taskLabel}>CURRENT OBJECTIVE</Text>
-            <Text style={styles.taskTitle} numberOfLines={3}>{task.title}</Text>
-          </View>
-          <Animated.Text style={[styles.timer, timerStyle]}>{formatTime(timeLeft)}</Animated.Text>
-        </View>
-
-        <View style={styles.footer}>
-            {sessionState !== 'compromised' && (
-                <View style={styles.controls}>
-                <TouchableOpacity style={styles.controlBtn} onPress={() => setIsActive(!isActive)}>
-                    {isActive ? <Pause size={32} color="#FFFFFF" /> : <Play size={32} color="#FFFFFF" />}
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.controlBtn, styles.completeBtn]} onPress={handleTimerEnd}>
-                    <Check size={32} color="#000000" />
-                </TouchableOpacity>
-                </View>
-            )}
-        </View>
-      </SafeAreaView>
-
-      <SessionDebrief visible={showDebrief} onComplete={handleDebriefComplete} />
-    </Animated.View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  setupContainer: { flex: 1, paddingHorizontal: 24 },
-  setupHeaderTitle: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '800', letterSpacing: 2 },
-  setupContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  setupTaskTitle: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', textAlign: 'center', marginBottom: 8 },
-  setupDuration: { fontSize: 16, color: '#F59E0B', fontWeight: '600', marginBottom: 40, textTransform: 'uppercase', letterSpacing: 1 },
-  configCard: { width: '100%', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  configHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  configTitle: { flex: 1, color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginLeft: 12 },
-  configDescription: { color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 20, marginBottom: 20 },
-  warningBox: { padding: 16, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, borderLeftWidth: 3 },
-  warningTitle: { fontSize: 12, fontWeight: '800', marginBottom: 6, letterSpacing: 1 },
-  warningText: { color: 'rgba(255,255,255,0.6)', fontSize: 13, lineHeight: 18 },
-  engageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F59E0B', width: '100%', paddingVertical: 18, borderRadius: 30, shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 15, elevation: 10 },
-  engageText: { color: '#000000', fontSize: 18, fontWeight: '800', letterSpacing: 2 },
-  
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 10, zIndex: 10 },
-  closeBtn: { padding: 10, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  statusBadgeCompromised: { borderColor: 'rgba(239, 68, 68, 0.5)', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
-  dot: { width: 6, height: 6, borderRadius: 3, marginRight: 8 },
-  statusText: { color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
-  content: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
-  taskContainer: { alignItems: 'center', marginBottom: 60 },
-  taskLabel: { color: '#F59E0B', fontSize: 11, fontWeight: '900', letterSpacing: 2, marginBottom: 12, textTransform: 'uppercase' },
-  taskTitle: { color: '#FFFFFF', fontSize: 26, fontWeight: '700', textAlign: 'center', lineHeight: 34 },
-  timer: { fontSize: 90, fontWeight: '800', color: '#FFFFFF', fontVariant: ['tabular-nums'], letterSpacing: -2 },
-  footer: { paddingBottom: 50, alignItems: 'center', paddingHorizontal: 30 },
-  controls: { flexDirection: 'row', gap: 40 },
-  controlBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  completeBtn: { backgroundColor: '#F59E0B', borderColor: '#F59E0B', shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 20 },
-  
-  devSkipBtn: { position: 'absolute', top: 70, left: 24, backgroundColor: 'rgba(255, 255, 255, 0.1)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)', flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: 999 },
-  devSkipText: { color: 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  
-  compromisedContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', zIndex: 20, padding: 40 },
-  compromisedTitle: { color: '#EF4444', fontSize: 24, fontWeight: '900', letterSpacing: 1, marginBottom: 8, textAlign: 'center' },
-  compromisedSubtitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
-  compromisedSubtext: { color: 'rgba(255,255,255,0.6)', fontSize: 14, textAlign: 'center', marginBottom: 40 },
-  resumeBtn: { backgroundColor: '#FFFFFF', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 30 },
-  resumeText: { color: '#000000', fontWeight: '800', fontSize: 14, letterSpacing: 1 }
-});
+<file path=".easignore">
+node_modules/
+.expo/
+ios/
+android/
+web-build/
 </file>
 
 <file path="app/ghost-hours.tsx">
@@ -970,6 +632,164 @@ ALTER TABLE "Task" ADD COLUMN     "dayNumber" INTEGER NOT NULL DEFAULT 1;
 # Please do not edit this file manually
 # It should be added in your version-control system (i.e. Git)
 provider = "postgresql"
+</file>
+
+<file path="eas.json">
+{
+  "cli": {
+    "version": ">= 16.31.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
+</file>
+
+<file path="modules/screen-time-control/expo-module.config.json">
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ScreenTimeControlModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.screentimecontrol.ScreenTimeControlModule"]
+  }
+}
+</file>
+
+<file path="modules/screen-time-control/index.ts">
+import { requireNativeModule } from 'expo-modules-core';
+
+// This links to the Swift/Kotlin code named "ScreenTimeControl"
+const ScreenTimeControl = requireNativeModule('ScreenTimeControl');
+
+/**
+ * Asks the user for permission to manage Screen Time / Family Controls.
+ * Returns true if authorized, false if denied or failed.
+ */
+export async function requestAuthorization(): Promise<boolean> {
+  try {
+    return await ScreenTimeControl.requestAuthorization();
+  } catch (e) {
+    console.warn("Screen Time Authorization failed:", e);
+    return false;
+  }
+}
+
+/**
+ * Checks if the user has currently authorized the app.
+ */
+export function isRestricted(): boolean {
+  try {
+    return ScreenTimeControl.isRestricted();
+  } catch (e) {
+    return false;
+  }
+}
+</file>
+
+<file path="modules/screen-time-control/src/ScreenTimeControl.types.ts">
+import type { StyleProp, ViewStyle } from 'react-native';
+
+export type OnLoadEventPayload = {
+  url: string;
+};
+
+export type ScreenTimeControlModuleEvents = {
+  onChange: (params: ChangeEventPayload) => void;
+};
+
+export type ChangeEventPayload = {
+  value: string;
+};
+
+export type ScreenTimeControlViewProps = {
+  url: string;
+  onLoad: (event: { nativeEvent: OnLoadEventPayload }) => void;
+  style?: StyleProp<ViewStyle>;
+};
+</file>
+
+<file path="modules/screen-time-control/src/ScreenTimeControlModule.ts">
+import { NativeModule, requireNativeModule } from 'expo';
+
+import { ScreenTimeControlModuleEvents } from './ScreenTimeControl.types';
+
+declare class ScreenTimeControlModule extends NativeModule<ScreenTimeControlModuleEvents> {
+  PI: number;
+  hello(): string;
+  setValueAsync(value: string): Promise<void>;
+}
+
+// This call loads the native module object from the JSI.
+export default requireNativeModule<ScreenTimeControlModule>('ScreenTimeControl');
+</file>
+
+<file path="modules/screen-time-control/src/ScreenTimeControlModule.web.ts">
+import { registerWebModule, NativeModule } from 'expo';
+
+import { ChangeEventPayload } from './ScreenTimeControl.types';
+
+type ScreenTimeControlModuleEvents = {
+  onChange: (params: ChangeEventPayload) => void;
+}
+
+class ScreenTimeControlModule extends NativeModule<ScreenTimeControlModuleEvents> {
+  PI = Math.PI;
+  async setValueAsync(value: string): Promise<void> {
+    this.emit('onChange', { value });
+  }
+  hello() {
+    return 'Hello world! 👋';
+  }
+};
+
+export default registerWebModule(ScreenTimeControlModule, 'ScreenTimeControlModule');
+</file>
+
+<file path="modules/screen-time-control/src/ScreenTimeControlView.tsx">
+import { requireNativeView } from 'expo';
+import * as React from 'react';
+
+import { ScreenTimeControlViewProps } from './ScreenTimeControl.types';
+
+const NativeView: React.ComponentType<ScreenTimeControlViewProps> =
+  requireNativeView('ScreenTimeControl');
+
+export default function ScreenTimeControlView(props: ScreenTimeControlViewProps) {
+  return <NativeView {...props} />;
+}
+</file>
+
+<file path="modules/screen-time-control/src/ScreenTimeControlView.web.tsx">
+import * as React from 'react';
+
+import { ScreenTimeControlViewProps } from './ScreenTimeControl.types';
+
+export default function ScreenTimeControlView(props: ScreenTimeControlViewProps) {
+  return (
+    <div>
+      <iframe
+        style={{ flex: 1 }}
+        src={props.url}
+        onLoad={() => props.onLoad({ nativeEvent: { url: props.url } })}
+      />
+    </div>
+  );
+}
 </file>
 
 <file path="src/components/ActiveTaskCard.tsx">
@@ -4348,285 +4168,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/components/MissionAccomplishedModal.tsx">
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions } from 'react-native';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  withTiming,
-  runOnJS
-} from 'react-native-reanimated';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import { Trophy, Clock, CheckCircle2, ArrowRight, X } from 'lucide-react-native';
-import { lightColors as colors } from '../constants/colors';
-import * as Haptics from 'expo-haptics';
-
-const { width } = Dimensions.get('window');
-
-interface MissionAccomplishedModalProps {
-  visible: boolean;
-  goalTitle: string;
-  totalTime: number; // in minutes
-  taskCount: number;
-  onArchive: () => void;
-  onClose: () => void;
-  isHistoryView?: boolean; // New prop to toggle display mode
-}
-
-export const MissionAccomplishedModal: React.FC<MissionAccomplishedModalProps> = ({
-  visible,
-  goalTitle,
-  totalTime,
-  taskCount,
-  onArchive,
-  onClose,
-  isHistoryView = false,
-}) => {
-  const scale = useSharedValue(0);
-  
-  useEffect(() => {
-    if (visible) {
-      if (!isHistoryView) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        Haptics.selectionAsync();
-      }
-      // Smoother entry animation
-      scale.value = withSpring(1, { 
-        damping: 18, 
-        stiffness: 120, 
-        mass: 1 
-      });
-    } else {
-      scale.value = withTiming(0, { duration: 150 });
-    }
-  }, [visible]);
-
-  const containerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }]
-  }));
-
-  const handleMainAction = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Animate out before calling callback
-    scale.value = withTiming(0, { duration: 200 }, (finished) => {
-      if (finished) {
-        if (isHistoryView) {
-          runOnJS(onClose)();
-        } else {
-          runOnJS(onArchive)();
-        }
-      }
-    });
-  };
-
-  if (!visible) return null;
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        {/* Only show confetti if it's a fresh win, not history review */}
-        {!isHistoryView && (
-          <ConfettiCannon 
-            count={200} 
-            origin={{x: width/2, y: 0}} 
-            fadeOut 
-            fallSpeed={3000} 
-          />
-        )}
-        
-        <Animated.View style={[styles.card, containerStyle]}>
-          {isHistoryView && (
-            <TouchableOpacity onPress={onClose} style={styles.closeIcon}>
-              <X size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.iconHeader}>
-            <View style={[styles.trophyCircle, isHistoryView && styles.trophyCircleHistory]}>
-              <Trophy size={40} color={isHistoryView ? colors.primary : "#F59E0B"} fill={isHistoryView ? colors.primary : "#F59E0B"} />
-            </View>
-          </View>
-
-          <Text style={styles.title}>
-            {isHistoryView ? "MISSION LOG" : "MISSION ACCOMPLISHED"}
-          </Text>
-          <Text style={styles.subtitle} numberOfLines={2}>
-            {goalTitle}
-          </Text>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statBox}>
-              <Clock size={24} color={colors.primary} style={{ marginBottom: 8 }} />
-              <Text style={styles.statValue}>
-                {(totalTime / 60).toFixed(1)}h
-              </Text>
-              <Text style={styles.statLabel}>Focus Time</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.statBox}>
-              <CheckCircle2 size={24} color="#10B981" style={{ marginBottom: 8 }} />
-              <Text style={styles.statValue}>{taskCount}</Text>
-              <Text style={styles.statLabel}>Tasks Done</Text>
-            </View>
-          </View>
-
-          <View style={[styles.efficiencyBadge, isHistoryView && { backgroundColor: '#F3F4F6' }]}>
-            <Text style={[styles.efficiencyText, isHistoryView && { color: colors.textSecondary }]}>
-              {isHistoryView ? "📂 Archived Record" : "⚡ Efficiency Rating: S-Class"}
-            </Text>
-          </View>
-
-          <TouchableOpacity 
-            style={[styles.archiveButton, isHistoryView && styles.archiveButtonHistory]}
-            onPress={handleMainAction}
-            activeOpacity={0.9}
-          >
-            <Text style={[styles.archiveButtonText, isHistoryView && { color: colors.text }]}>
-              {isHistoryView ? "CLOSE LOG" : "SEND TO PROFILE"}
-            </Text>
-            {!isHistoryView && <ArrowRight size={20} color="#FFFFFF" />}
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-};
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 32,
-    padding: 24,
-    paddingBottom: 32,
-    alignItems: 'center',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-    position: 'relative',
-  },
-  closeIcon: {
-    position: 'absolute',
-    top: 20,
-    right: 20,
-    zIndex: 10,
-    padding: 4,
-  },
-  iconHeader: {
-    marginBottom: 20,
-  },
-  trophyCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFFBEB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#FDE68A',
-  },
-  trophyCircleHistory: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderColor: 'rgba(245, 158, 11, 0.2)',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#F59E0B',
-    letterSpacing: 1,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: 30,
-    fontWeight: '600',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 20,
-    padding: 20,
-    width: '100%',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  statBox: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  divider: {
-    width: 1,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 10,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  efficiencyBadge: {
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginBottom: 30,
-  },
-  efficiencyText: {
-    color: '#059669',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  archiveButton: {
-    backgroundColor: colors.primary,
-    width: '100%',
-    paddingVertical: 18,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  archiveButtonHistory: {
-    backgroundColor: '#F3F4F6',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  archiveButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-});
-</file>
-
 <file path="src/components/onboarding/README.md">
 # Onboarding Wizard
 
@@ -7907,77 +7448,6 @@ export const storage = {
 };
 </file>
 
-<file path=".gitignore">
-# OSX
-.DS_Store
-
-# Xcode
-build/
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-xcuserdata
-*.xccheckout
-*.moved-aside
-DerivedData
-*.hmap
-*.ipa
-*.xcuserstate
-project.xcworkspace
-
-# Android/IntelliJ
-build/
-.idea
-.gradle
-local.properties
-*.iml
-*.hprof
-.cxx/
-*.keystore
-!debug.keystore
-
-# node.js
-node_modules/
-npm-debug.log
-yarn-error.log
-
-# fastlane
-**/fastlane/report.xml
-**/fastlane/Preview.html
-**/fastlane/screenshots
-**/fastlane/test_output
-
-# Bundle artifact
-*.jsbundle
-
-# CocoaPods
-/ios/Pods/
-
-# Expo
-.expo/
-dist/
-web-build/
-
-# @generated expo-cli sync-2c0a0a0c0b0a0a0a0a0a0a0a0a0a0a0a
-# The following patterns were generated by expo-cli
-
-# @end expo-cli
-
-# Environment
-.env
-.env.local
-
-# Backend
-backend/node_modules/
-backend/dist/
-backend/.env
-</file>
-
 <file path="app/action-plan.tsx">
 import React, { useState } from 'react';
 import {
@@ -8163,6 +7633,401 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+});
+</file>
+
+<file path="app/focus-session.tsx">
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Dimensions, 
+  AppState, 
+  Switch,
+  Alert
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useKeepAwake } from 'expo-keep-awake'; 
+import { Accelerometer } from 'expo-sensors';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming, 
+  withRepeat, 
+  withSequence,
+  interpolateColor
+} from 'react-native-reanimated';
+import { MotiView } from 'moti';
+import { 
+  X, 
+  Pause, 
+  Play, 
+  Check, 
+  SmartphoneNfc, 
+  ScanFace,
+  FastForward,
+  ShieldAlert,
+  Lock
+} from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { lightColors as colors } from '../src/constants/colors';
+import { useApp } from '../src/context/AppContext';
+import { SessionDebrief } from '../src/components/SessionDebrief';
+
+// --- IMPORT LOCAL NATIVE MODULE ---
+import * as ScreenTime from '../modules/screen-time-control';
+
+const MOVEMENT_THRESHOLD = 0.15; 
+
+export default function FocusSessionScreen() {
+  useKeepAwake(); // Prevents screen from sleeping
+  const router = useRouter();
+  const { taskId, duration } = useLocalSearchParams();
+  const { tasks, completeTask, updateTask } = useApp();
+  
+  // Find task data
+  const task = tasks.find(t => t.id === taskId) || { title: 'Deep Work Protocol', duration: Number(duration) || 25 };
+
+  // --- STATE ---
+  const [isSetup, setIsSetup] = useState(true); // Setup phase
+  const [timeLeft, setTimeLeft] = useState((Number(duration) || 25) * 60);
+  const [isActive, setIsActive] = useState(false);
+  const [sessionState, setSessionState] = useState<'focus' | 'paused' | 'compromised'>('focus');
+  const [phoneRequired, setPhoneRequired] = useState(false); 
+  const [showDebrief, setShowDebrief] = useState(false); 
+  const [isLocked, setIsLocked] = useState(false); // Track if Screen Time API is active
+  
+  // --- ANIMATIONS ---
+  const pulse = useSharedValue(1);
+  const bgProgress = useSharedValue(0); // 0 = Black, 1 = Red (Compromised)
+
+  // --- REFS ---
+  const appState = useRef(AppState.currentState);
+  const subscription = useRef<any>(null);
+
+  // --- 1. HANDLERS ---
+
+  const handleStartMission = async () => {
+    // If phone is NOT required, attempt to lock it using Screen Time API
+    if (!phoneRequired) {
+      try {
+        const authorized = await ScreenTime.requestAuthorization();
+        if (authorized) {
+          setIsLocked(true);
+          console.log("🔒 Screen Time Access Granted & Active");
+        } else {
+          // Optional: Warn user if they denied it, but let them proceed anyway
+          console.log("⚠️ Screen Time Access Denied or Not Available");
+        }
+      } catch (e) {
+        console.error("Screen Time Error:", e);
+      }
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsSetup(false);
+    setIsActive(true);
+  };
+
+  const handleTimerEnd = () => {
+    setIsActive(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowDebrief(true); // Trigger Debrief Modal
+  };
+
+  const handleDevSkip = () => {
+    setTimeLeft(0); // Triggers timer end via useEffect
+  };
+
+  // --- DEBRIEF LOGIC ---
+  const handleDebriefComplete = (data: { completed: boolean; distraction?: string; addedMinutes?: number }) => {
+    if (taskId) {
+      if (data.completed) {
+        // Mission Accomplished
+        completeTask(taskId as string);
+      } else if (data.addedMinutes) {
+        // Mission Failed -> Update Protocol
+        updateTask(taskId as string, {
+          duration: data.addedMinutes, // Set new time
+          status: 'queued' // Reset status to queued so it can be played again
+        });
+      }
+    }
+    router.back();
+  };
+
+  const handleAbort = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "Abort Mission?",
+      "Giving up now will break your streak.",
+      [
+        { text: "Stay Focused", style: "cancel" },
+        { text: "I Give Up", style: "destructive", onPress: () => router.back() }
+      ]
+    );
+  };
+
+  const handleResume = () => {
+    setSessionState('focus');
+    setIsActive(true);
+    bgProgress.value = withTiming(0, { duration: 500 });
+  };
+
+  // --- 2. SENSORS LOGIC ---
+
+  // App State Monitoring
+  useEffect(() => {
+    const appStateSub = AppState.addEventListener('change', nextAppState => {
+      if (isSetup || phoneRequired) return; 
+      if (appState.current.match(/active/) && nextAppState.match(/inactive|background/)) {
+        triggerCompromised();
+      }
+      appState.current = nextAppState;
+    });
+    return () => appStateSub.remove();
+  }, [phoneRequired, isSetup]);
+
+  // Accelerometer Monitoring
+  useEffect(() => {
+    const enableSensors = async () => {
+      if (isSetup || phoneRequired || !isActive || sessionState !== 'focus') {
+        if (subscription.current) {
+          subscription.current.remove();
+          subscription.current = null;
+        }
+        return;
+      }
+      Accelerometer.setUpdateInterval(500); 
+      let lastData = { x: 0, y: 0, z: 0 };
+      subscription.current = Accelerometer.addListener(data => {
+        const delta = Math.abs(data.x - lastData.x) + Math.abs(data.y - lastData.y) + Math.abs(data.z - lastData.z);
+        if (lastData.x !== 0 && delta > MOVEMENT_THRESHOLD) triggerCompromised();
+        lastData = data;
+      });
+    };
+    enableSensors();
+    return () => { if (subscription.current) subscription.current.remove(); };
+  }, [phoneRequired, isActive, sessionState, isSetup]);
+
+  const triggerCompromised = () => {
+    if (sessionState === 'compromised') return;
+    setSessionState('compromised');
+    setIsActive(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    bgProgress.value = withTiming(1, { duration: 300 });
+  };
+
+  // --- 3. TIMER LOGIC ---
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isActive && timeLeft > 0 && !isSetup) {
+      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+      pulse.value = withRepeat(
+        withSequence(withTiming(1.02, { duration: 1500 }), withTiming(1, { duration: 1500 })), 
+        -1, true
+      );
+    } else if (timeLeft <= 0 && !isSetup && isActive) {
+      // Timer hit 0 naturally while active
+      handleTimerEnd();
+    } else if (timeLeft <= 0 && !isSetup) {
+      // Timer is 0 but not active (handled via skip)
+      // Pulse animation stop
+      pulse.value = withTiming(1, { duration: 300 });
+    } else {
+      pulse.value = withTiming(1, { duration: 300 });
+    }
+    return () => clearInterval(interval);
+  }, [isActive, timeLeft, isSetup]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Animated Styles
+  const containerStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(bgProgress.value, [0, 1], ['#000000', '#450a0a'])
+  }));
+
+  const timerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+    opacity: sessionState === 'compromised' ? 0.3 : 1,
+    color: interpolateColor(bgProgress.value, [0, 1], ['#FFFFFF', '#EF4444'])
+  }));
+
+  // --- RENDER SETUP ---
+  if (isSetup) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <SafeAreaView style={styles.setupContainer}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleAbort} style={styles.closeBtn}>
+              <X size={24} color="rgba(255,255,255,0.4)" />
+            </TouchableOpacity>
+            <Text style={styles.setupHeaderTitle}>MISSION BRIEF</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <MotiView from={{ opacity: 0, translateY: 20 }} animate={{ opacity: 1, translateY: 0 }} style={styles.setupContent}>
+            <Text style={styles.setupTaskTitle} numberOfLines={2}>{task.title}</Text>
+            <Text style={styles.setupDuration}>{Math.floor(timeLeft / 60)} Minutes</Text>
+
+            <View style={styles.configCard}>
+              <View style={styles.configHeader}>
+                {phoneRequired ? 
+                  <SmartphoneNfc size={24} color="#10B981" /> : 
+                  <Lock size={24} color="#F59E0B" /> 
+                }
+                <Text style={styles.configTitle}>Distraction Block</Text>
+                <Switch 
+                  value={!phoneRequired} 
+                  onValueChange={(val) => { setPhoneRequired(!val); Haptics.selectionAsync(); }}
+                  trackColor={{ false: "#333", true: "rgba(245, 158, 11, 0.3)" }}
+                  thumbColor={!phoneRequired ? "#10B981" : "#F59E0B"}
+                />
+              </View>
+              <Text style={styles.configDescription}>
+                {!phoneRequired 
+                  ? "Screen Time API will block apps. Movement sensors active." 
+                  : "Basic mode. Sensors disabled for phone use."}
+              </Text>
+              
+              <View style={[styles.warningBox, { borderColor: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
+                <Text style={[styles.warningTitle, { color: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
+                  {!phoneRequired ? 'HARD LOCK ENABLED' : 'SOFT LOCK ONLY'}
+                </Text>
+                <Text style={styles.warningText}>
+                  {!phoneRequired 
+                    ? 'Apple Family Controls will restrict access to social media during this session.' 
+                    : 'Background tracking only. You can use other apps.'}
+                </Text>
+              </View>
+            </View>
+          </MotiView>
+
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.engageBtn} onPress={handleStartMission} activeOpacity={0.8}>
+              <ScanFace size={24} color="#000" style={{ marginRight: 8 }} />
+              <Text style={styles.engageText}>ENGAGE</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // --- RENDER ACTIVE SESSION ---
+  return (
+    <Animated.View style={[styles.container, containerStyle]}>
+      <StatusBar style="light" hidden={sessionState === 'focus'} />
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleAbort} style={styles.closeBtn}>
+            <X size={24} color="rgba(255,255,255,0.4)" />
+          </TouchableOpacity>
+          <View style={[styles.statusBadge, sessionState === 'compromised' ? styles.statusBadgeCompromised : null]}>
+            <View style={[styles.dot, { backgroundColor: sessionState === 'focus' ? '#10B981' : sessionState === 'compromised' ? '#EF4444' : '#F59E0B' }]} />
+            <Text style={styles.statusText}>
+              {sessionState === 'focus' 
+                ? (isLocked ? 'LOCKED & SECURE' : phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') 
+                : sessionState === 'compromised' ? 'BREACH DETECTED' : 'PAUSED'}
+            </Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+
+        {/* DEV SKIP BUTTON */}
+        <TouchableOpacity style={styles.devSkipBtn} onPress={handleDevSkip} activeOpacity={0.6}>
+          <FastForward size={14} color="rgba(255,255,255,0.6)" />
+          <Text style={styles.devSkipText}>DEV: SKIP</Text>
+        </TouchableOpacity>
+
+        {sessionState === 'compromised' && (
+          <View style={styles.compromisedContainer}>
+            <ShieldAlert size={64} color="#EF4444" style={{ marginBottom: 20 }} />
+            <Text style={styles.compromisedTitle}>MISSION COMPROMISED</Text>
+            <Text style={styles.compromisedSubtitle}>Movement or distraction detected.</Text>
+            <TouchableOpacity style={styles.resumeBtn} onPress={handleResume}>
+              <Text style={styles.resumeText}>I'M BACK ON TASK</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.content}>
+          <View style={styles.taskContainer}>
+            <Text style={styles.taskLabel}>CURRENT OBJECTIVE</Text>
+            <Text style={styles.taskTitle} numberOfLines={3}>{task.title}</Text>
+          </View>
+          <Animated.Text style={[styles.timer, timerStyle]}>{formatTime(timeLeft)}</Animated.Text>
+        </View>
+
+        <View style={styles.footer}>
+            {sessionState !== 'compromised' && (
+                <View style={styles.controls}>
+                <TouchableOpacity style={styles.controlBtn} onPress={() => setIsActive(!isActive)}>
+                    {isActive ? <Pause size={32} color="#FFFFFF" /> : <Play size={32} color="#FFFFFF" />}
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.controlBtn, styles.completeBtn]} onPress={handleTimerEnd}>
+                    <Check size={32} color="#000000" />
+                </TouchableOpacity>
+                </View>
+            )}
+        </View>
+      </SafeAreaView>
+
+      <SessionDebrief visible={showDebrief} onComplete={handleDebriefComplete} />
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000000' },
+  setupContainer: { flex: 1, paddingHorizontal: 24 },
+  setupHeaderTitle: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '800', letterSpacing: 2 },
+  setupContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  setupTaskTitle: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', textAlign: 'center', marginBottom: 8 },
+  setupDuration: { fontSize: 16, color: '#F59E0B', fontWeight: '600', marginBottom: 40, textTransform: 'uppercase', letterSpacing: 1 },
+  configCard: { width: '100%', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  configHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  configTitle: { flex: 1, color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginLeft: 12 },
+  configDescription: { color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  warningBox: { padding: 16, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, borderLeftWidth: 3 },
+  warningTitle: { fontSize: 12, fontWeight: '800', marginBottom: 6, letterSpacing: 1 },
+  warningText: { color: 'rgba(255,255,255,0.6)', fontSize: 13, lineHeight: 18 },
+  engageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F59E0B', width: '100%', paddingVertical: 18, borderRadius: 30, shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 15, elevation: 10 },
+  engageText: { color: '#000000', fontSize: 18, fontWeight: '800', letterSpacing: 2 },
+  
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 10, zIndex: 10 },
+  closeBtn: { padding: 10, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  statusBadgeCompromised: { borderColor: 'rgba(239, 68, 68, 0.5)', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
+  dot: { width: 6, height: 6, borderRadius: 3, marginRight: 8 },
+  statusText: { color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
+  taskContainer: { alignItems: 'center', marginBottom: 60 },
+  taskLabel: { color: '#F59E0B', fontSize: 11, fontWeight: '900', letterSpacing: 2, marginBottom: 12, textTransform: 'uppercase' },
+  taskTitle: { color: '#FFFFFF', fontSize: 26, fontWeight: '700', textAlign: 'center', lineHeight: 34 },
+  timer: { fontSize: 90, fontWeight: '800', color: '#FFFFFF', fontVariant: ['tabular-nums'], letterSpacing: -2 },
+  footer: { paddingBottom: 50, alignItems: 'center', paddingHorizontal: 30 },
+  controls: { flexDirection: 'row', gap: 40 },
+  controlBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  completeBtn: { backgroundColor: '#F59E0B', borderColor: '#F59E0B', shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 20 },
+  
+  devSkipBtn: { position: 'absolute', top: 70, left: 24, backgroundColor: 'rgba(255, 255, 255, 0.1)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)', flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: 999 },
+  devSkipText: { color: 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  
+  compromisedContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', zIndex: 20, padding: 40 },
+  compromisedTitle: { color: '#EF4444', fontSize: 24, fontWeight: '900', letterSpacing: 1, marginBottom: 8, textAlign: 'center' },
+  compromisedSubtitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
+  resumeBtn: { backgroundColor: '#FFFFFF', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 30 },
+  resumeText: { color: '#000000', fontWeight: '800', fontSize: 14, letterSpacing: 1 }
 });
 </file>
 
@@ -10071,6 +9936,285 @@ const styles = StyleSheet.create({
   progressDot: {
     height: 8,
     borderRadius: 4,
+  },
+});
+</file>
+
+<file path="src/components/MissionAccomplishedModal.tsx">
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions } from 'react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  withTiming,
+  runOnJS
+} from 'react-native-reanimated';
+import ConfettiCannon from 'react-native-confetti-cannon';
+import { Trophy, Clock, CheckCircle2, ArrowRight, X } from 'lucide-react-native';
+import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
+
+const { width } = Dimensions.get('window');
+
+interface MissionAccomplishedModalProps {
+  visible: boolean;
+  goalTitle: string;
+  totalTime: number; // in minutes
+  taskCount: number;
+  onArchive: () => void;
+  onClose: () => void;
+  isHistoryView?: boolean; // New prop to toggle display mode
+}
+
+export const MissionAccomplishedModal: React.FC<MissionAccomplishedModalProps> = ({
+  visible,
+  goalTitle,
+  totalTime,
+  taskCount,
+  onArchive,
+  onClose,
+  isHistoryView = false,
+}) => {
+  const scale = useSharedValue(0);
+  
+  useEffect(() => {
+    if (visible) {
+      if (!isHistoryView) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Haptics.selectionAsync();
+      }
+      // Smoother entry animation
+      scale.value = withSpring(1, { 
+        damping: 18, 
+        stiffness: 120, 
+        mass: 1 
+      });
+    } else {
+      scale.value = withTiming(0, { duration: 150 });
+    }
+  }, [visible]);
+
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }]
+  }));
+
+  const handleMainAction = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Animate out before calling callback
+    scale.value = withTiming(0, { duration: 200 }, (finished) => {
+      if (finished) {
+        if (isHistoryView) {
+          runOnJS(onClose)();
+        } else {
+          runOnJS(onArchive)();
+        }
+      }
+    });
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        {/* Only show confetti if it's a fresh win, not history review */}
+        {!isHistoryView && (
+          <ConfettiCannon 
+            count={200} 
+            origin={{x: width/2, y: 0}} 
+            fadeOut 
+            fallSpeed={3000} 
+          />
+        )}
+        
+        <Animated.View style={[styles.card, containerStyle]}>
+          {isHistoryView && (
+            <TouchableOpacity onPress={onClose} style={styles.closeIcon}>
+              <X size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.iconHeader}>
+            <View style={[styles.trophyCircle, isHistoryView && styles.trophyCircleHistory]}>
+              <Trophy size={40} color={isHistoryView ? colors.primary : "#F59E0B"} fill={isHistoryView ? colors.primary : "#F59E0B"} />
+            </View>
+          </View>
+
+          <Text style={styles.title}>
+            {isHistoryView ? "MISSION LOG" : "MISSION ACCOMPLISHED"}
+          </Text>
+          <Text style={styles.subtitle} numberOfLines={2}>
+            {goalTitle}
+          </Text>
+
+          <View style={styles.statsContainer}>
+            <View style={styles.statBox}>
+              <Clock size={24} color={colors.primary} style={{ marginBottom: 8 }} />
+              <Text style={styles.statValue}>
+                {(totalTime / 60).toFixed(1)}h
+              </Text>
+              <Text style={styles.statLabel}>Focus Time</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.statBox}>
+              <CheckCircle2 size={24} color="#10B981" style={{ marginBottom: 8 }} />
+              <Text style={styles.statValue}>{taskCount}</Text>
+              <Text style={styles.statLabel}>Tasks Done</Text>
+            </View>
+          </View>
+
+          <View style={[styles.efficiencyBadge, isHistoryView && { backgroundColor: '#F3F4F6' }]}>
+            <Text style={[styles.efficiencyText, isHistoryView && { color: colors.textSecondary }]}>
+              {isHistoryView ? "📂 Archived Record" : "⚡ Efficiency Rating: S-Class"}
+            </Text>
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.archiveButton, isHistoryView && styles.archiveButtonHistory]}
+            onPress={handleMainAction}
+            activeOpacity={0.9}
+          >
+            <Text style={[styles.archiveButtonText, isHistoryView && { color: colors.text }]}>
+              {isHistoryView ? "CLOSE LOG" : "SEND TO PROFILE"}
+            </Text>
+            {!isHistoryView && <ArrowRight size={20} color="#FFFFFF" />}
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
+    padding: 24,
+    paddingBottom: 32,
+    alignItems: 'center',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+    position: 'relative',
+  },
+  closeIcon: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 10,
+    padding: 4,
+  },
+  iconHeader: {
+    marginBottom: 20,
+  },
+  trophyCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FFFBEB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#FDE68A',
+  },
+  trophyCircleHistory: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#F59E0B',
+    letterSpacing: 1,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 30,
+    fontWeight: '600',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  divider: {
+    width: 1,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 10,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  efficiencyBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginBottom: 30,
+  },
+  efficiencyText: {
+    color: '#059669',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  archiveButton: {
+    backgroundColor: colors.primary,
+    width: '100%',
+    paddingVertical: 18,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  archiveButtonHistory: {
+    backgroundColor: '#F3F4F6',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  archiveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
 });
 </file>
@@ -12044,6 +12188,80 @@ export const mockTasks: Task[] = [
 }
 </file>
 
+<file path=".gitignore">
+# OSX
+.DS_Store
+
+# Xcode
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+*.xccheckout
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+project.xcworkspace
+
+# Android/IntelliJ
+build/
+.idea
+.gradle
+local.properties
+*.iml
+*.hprof
+.cxx/
+*.keystore
+!debug.keystore
+
+# node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+
+# Bundle artifact
+*.jsbundle
+
+# --- CRITICAL EXPO/EAS UPDATES ---
+# We ignore the ENTIRE native folders because EAS generates them in the cloud.
+# This prevents the "Permission Denied" (EACCES) error.
+ios/
+android/
+.expo/
+.eas/
+
+# Expo
+dist/
+web-build/
+
+# @generated expo-cli
+# The following patterns were generated by expo-cli
+# @end expo-cli
+
+# Environment
+.env
+.env.local
+
+# Backend
+backend/node_modules/
+backend/dist/
+backend/.env
+</file>
+
 <file path="backend/src/prisma/seed.ts">
 import { PrismaClient } from '@prisma/client';
 
@@ -12629,42 +12847,6 @@ export const NotificationService = {
     }
   }
 };
-</file>
-
-<file path="app.json">
-{
-  "expo": {
-    "name": "productivity-ai",
-    "slug": "productivity-ai",
-    "owner": "goathezisplash123",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#FFF8E7"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.hezisplash133.productivityai"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#FFF8E7"
-      },
-      "package": "com.hezisplash133.productivityai"
-    },
-    "scheme": "productivity-ai-goat",
-    "plugins": [
-      "expo-router",
-      "expo-apple-authentication"
-    ],
-    "sdkVersion": "54.0.0"
-  }
-}
 </file>
 
 <file path="app/welcome.tsx">
@@ -14958,456 +15140,6 @@ export default function OnboardingScreen() {
 }
 </file>
 
-<file path="app/profile.tsx">
-import React, { useEffect, useState, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Modal, 
-  Switch,
-  Alert 
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown, SlideInUp } from 'react-native-reanimated';
-import { 
-  ChevronLeft, 
-  Settings, 
-  Zap, 
-  Clock, 
-  Trophy, 
-  Target, 
-  Archive, 
-  CheckCircle2, 
-  User,
-  Moon,
-  Sunrise,
-  Coffee,
-  Bell,
-  LogOut,
-  ChevronRight,
-  X,
-  Brain
-} from 'lucide-react-native';
-import { lightColors as colors } from '../src/constants/colors';
-import { useApp } from '../src/context/AppContext';
-import { apiService } from '../src/services/api';
-import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal'; // Import the modal
-
-// --- HELPER COMPONENTS ---
-
-const MissionHistoryCard = ({ goal, delay, onPress }: { goal: any, delay: number, onPress: () => void }) => {
-  const totalTasks = goal.tasks ? goal.tasks.length : 0;
-  const totalDuration = goal.tasks ? goal.tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0) : 0;
-  
-  return (
-    <Animated.View 
-      entering={FadeInDown.delay(delay).springify()}
-    >
-      <TouchableOpacity
-        style={styles.historyCard}
-        onPress={onPress}
-        activeOpacity={0.7}
-      >
-        <View style={styles.historyHeader}>
-          <View style={styles.historyIcon}>
-            <CheckCircle2 size={20} color="#10B981" />
-          </View>
-          <View style={styles.historyTitleBox}>
-            <Text style={styles.historyTitle} numberOfLines={1}>{goal.title}</Text>
-            <Text style={styles.historyDate}>
-              {new Date(goal.completedAt || goal.createdAt).toLocaleDateString()}
-            </Text>
-          </View>
-        </View>
-        
-        <View style={styles.historyStats}>
-          <View style={styles.historyStatItem}>
-            <Clock size={12} color={colors.textSecondary} />
-            <Text style={styles.historyStatText}>{(totalDuration / 60).toFixed(1)}h Focused</Text>
-          </View>
-          <View style={styles.historyStatItem}>
-            <Target size={12} color={colors.textSecondary} />
-            <Text style={styles.historyStatText}>{totalTasks} Tasks</Text>
-          </View>
-          <View style={styles.historyBadge}>
-            <Text style={styles.historyBadgeText}>COMPLETED</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-const StatBox = ({ label, value, icon: Icon, delay }: any) => (
-  <Animated.View 
-    entering={FadeInDown.delay(delay).springify()}
-    style={styles.statBox}
-  >
-    <View style={styles.statIconBg}>
-      <Icon size={20} color={colors.primary} />
-    </View>
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
-  </Animated.View>
-);
-
-const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding }: any) => {
-  const [notifications, setNotifications] = useState(true);
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.settingsContainer}>
-        <View style={styles.settingsHeader}>
-          <Text style={styles.settingsTitle}>Settings</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <X size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.settingsContent}>
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>PREFERENCES</Text>
-            
-            <View style={styles.settingRow}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#EEF2FF' }]}>
-                  <Bell size={20} color="#4F46E5" />
-                </View>
-                <Text style={styles.settingText}>Push Notifications</Text>
-              </View>
-              <Switch 
-                value={notifications} 
-                onValueChange={setNotifications}
-                trackColor={{ false: colors.border, true: colors.primary }}
-              />
-            </View>
-
-            {/* Redo Onboarding Option */}
-            <TouchableOpacity style={styles.settingRow} onPress={onRedoOnboarding}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
-                  <Brain size={20} color={colors.primary} />
-                </View>
-                <Text style={styles.settingText}>Update Operative Profile</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
-            
-            <TouchableOpacity style={styles.settingRow}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
-                  <User size={20} color={colors.text} />
-                </View>
-                <Text style={styles.settingText}>Edit Profile</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingRow} onPress={onLogout}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
-                  <LogOut size={20} color={colors.error} />
-                </View>
-                <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Productivity Ops v1.0.3</Text>
-          </View>
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-};
-
-// --- MAIN COMPONENT ---
-
-export default function ProfileScreen() {
-  const router = useRouter();
-  const { user, goals, setUser } = useApp();
-  const [profileData, setProfileData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [settingsVisible, setSettingsVisible] = useState(false);
-  
-  // State for the selected goal to view in the modal
-  const [viewingHistoryGoal, setViewingHistoryGoal] = useState<any>(null);
-
-  // Filter for archived/completed goals
-  const archivedGoals = useMemo(() => {
-    return goals.filter(g => g.status === 'archived').sort((a, b) => {
-      const dateA = new Date(a.completedAt || a.createdAt).getTime();
-      const dateB = new Date(b.completedAt || b.createdAt).getTime();
-      return dateB - dateA; // Newest first
-    });
-  }, [goals]);
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (user?.email) {
-        try {
-          const data = await apiService.getUserProfile(user.email);
-          setProfileData(data);
-        } catch (error) {
-          console.error("Failed to load profile", error);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
-  }, [user]);
-
-  const handleLogout = () => {
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Log Out", 
-        style: "destructive", 
-        onPress: () => {
-          setSettingsVisible(false);
-          setUser(null);
-          router.replace('/auth');
-        }
-      }
-    ]);
-  };
-
-  const handleRedoOnboarding = () => {
-    setSettingsVisible(false);
-    router.push('/onboarding');
-  };
-
-  // Calculate stats for the modal
-  const getGoalStats = (goal: any) => {
-    if (!goal) return { totalTime: 0, taskCount: 0 };
-    const tasks = goal.tasks || [];
-    const totalTime = tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0);
-    const taskCount = tasks.length;
-    return { totalTime, taskCount };
-  };
-
-  // Helper for icons based on archetype
-  const getArchetypeIcon = () => {
-    const arch = profileData?.onboardingData?.focusWindow;
-    if (arch === 'night-owl' || arch === 'late_night') return Moon;
-    if (arch === 'early-bird' || arch === 'early_morning') return Sunrise;
-    return Coffee; // Default
-  };
-  const ArchetypeIcon = getArchetypeIcon();
-
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
-            <ChevronLeft size={28} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Operative Profile</Text>
-          <TouchableOpacity 
-            style={styles.iconBtn} 
-            onPress={() => setSettingsVisible(true)}
-          >
-            <Settings size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
-          {/* Identity Card */}
-          <Animated.View 
-            entering={FadeInDown.delay(100).springify()}
-            style={styles.identityCard}
-          >
-            <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>{profileData?.name?.[0] || "U"}</Text>
-            </View>
-            <View style={styles.identityText}>
-              <Text style={styles.userName}>{profileData?.name || "Unknown Agent"}</Text>
-              <Text style={styles.userLevel}>
-                Level {profileData?.stats?.level || 1} Strategist
-              </Text>
-            </View>
-            <View style={styles.archetypeBadge}>
-              <Text style={styles.archetypeText}>
-                {profileData?.onboardingData?.workArchetype ? profileData.onboardingData.workArchetype.replace('_', ' ') : "Recruit"}
-              </Text>
-            </View>
-          </Animated.View>
-
-          {/* Efficiency Metrics */}
-          <Text style={styles.sectionHeader}>Efficiency Metrics</Text>
-          <View style={styles.statsGrid}>
-            <StatBox label="Streak" value={`${profileData?.stats?.streak || 0} Day`} icon={Zap} delay={200} />
-            <StatBox label="Hours" value={`${profileData?.stats?.hoursFocused || 0}h`} icon={Clock} delay={300} />
-            <StatBox label="Tasks" value={profileData?.stats?.tasksCrushed || 0} icon={Trophy} delay={400} />
-          </View>
-
-          {/* Cognitive DNA */}
-          <Text style={styles.sectionHeader}>Cognitive DNA</Text>
-          <View style={styles.dnaContainer}>
-            {profileData?.onboardingData?.focusWindow && (
-                <Animated.View entering={FadeInDown.delay(500)} style={styles.dnaTag}>
-                    <ArchetypeIcon size={14} color={colors.primary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.dnaText, { color: colors.primary }]}>
-                        {profileData.onboardingData.focusWindow.replace(/[_-]/g, ' ').toUpperCase()}
-                    </Text>
-                </Animated.View>
-            )}
-            
-            {profileData?.onboardingData?.frictionVillain && (
-                <Animated.View entering={FadeInDown.delay(600)} style={styles.dnaTag}>
-                    <Target size={14} color="#10B981" style={{ marginRight: 6 }} />
-                    <Text style={[styles.dnaText, { color: "#10B981" }]}>
-                        FIGHTING: {profileData.onboardingData.frictionVillain.replace(/[_-]/g, ' ').toUpperCase()}
-                    </Text>
-                </Animated.View>
-            )}
-          </View>
-
-          {/* Mission Archive Section */}
-          <View style={styles.archiveHeaderRow}>
-            <Text style={styles.sectionHeader}>Mission Archive</Text>
-            <View style={styles.archiveCountBadge}>
-              <Archive size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
-              <Text style={styles.archiveCountText}>{archivedGoals.length}</Text>
-            </View>
-          </View>
-
-          {archivedGoals.length === 0 ? (
-            <View style={styles.emptyArchive}>
-              <Text style={styles.emptyText}>No completed missions yet.</Text>
-            </View>
-          ) : (
-            <View style={styles.archiveList}>
-              {archivedGoals.map((goal, index) => (
-                <MissionHistoryCard 
-                  key={goal.id} 
-                  goal={goal} 
-                  delay={500 + (index * 100)}
-                  onPress={() => setViewingHistoryGoal(goal)} 
-                />
-              ))}
-            </View>
-          )}
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
-
-        <SettingsModal 
-          visible={settingsVisible} 
-          onClose={() => setSettingsVisible(false)}
-          onLogout={handleLogout}
-          onRedoOnboarding={handleRedoOnboarding}
-        />
-
-        {/* History Modal */}
-        {viewingHistoryGoal && (
-          <MissionAccomplishedModal
-            visible={!!viewingHistoryGoal}
-            goalTitle={viewingHistoryGoal.title}
-            totalTime={getGoalStats(viewingHistoryGoal).totalTime}
-            taskCount={getGoalStats(viewingHistoryGoal).taskCount}
-            isHistoryView={true} // Enable history mode
-            onArchive={() => {}} // Not needed in history view
-            onClose={() => setViewingHistoryGoal(null)}
-          />
-        )}
-
-      </SafeAreaView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-  iconBtn: { padding: 8, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: colors.border },
-  scrollContent: { padding: 24 },
-  
-  identityCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4, borderWidth: 1, borderColor: colors.border, marginBottom: 32 },
-  avatarContainer: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  avatarText: { fontSize: 24, fontWeight: 'bold', color: '#FFF' },
-  identityText: { flex: 1 },
-  userName: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  userLevel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
-  archetypeBadge: { backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  archetypeText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'capitalize' },
-  
-  sectionHeader: { fontSize: 14, fontWeight: '800', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, marginLeft: 4 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32, gap: 12 },
-  statBox: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
-  statIconBg: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  statValue: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4, textAlign: 'center' },
-  statLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary, textAlign: 'center' },
-
-  // DNA Styles
-  dnaContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  dnaTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
-  dnaText: { fontSize: 13, fontWeight: '600' },
-
-  // Archive Styles
-  archiveHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  archiveCountBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  archiveCountText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
-  emptyArchive: { padding: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E5E7EB' },
-  emptyText: { color: colors.textSecondary, fontWeight: '500' },
-  archiveList: { gap: 12 },
-  
-  historyCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F3F4F6', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8 },
-  historyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  historyIcon: { marginRight: 12 },
-  historyTitleBox: { flex: 1 },
-  historyTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
-  historyDate: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  historyStats: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  historyStatItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  historyStatText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
-  historyBadge: { marginLeft: 'auto', backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  historyBadgeText: { fontSize: 10, fontWeight: '800', color: '#059669', letterSpacing: 0.5 },
-
-  // Settings Modal Styles
-  settingsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
-  settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border },
-  settingsTitle: { fontSize: 18, fontWeight: '700' },
-  closeBtn: { padding: 4 },
-  settingsContent: { padding: 24 },
-  settingGroup: { marginBottom: 32 },
-  settingGroupTitle: { fontSize: 12, fontWeight: '800', color: colors.textLight, marginBottom: 12, marginLeft: 4 },
-  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
-  settingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  settingIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  settingText: { fontSize: 16, fontWeight: '600', color: colors.text },
-  versionContainer: { alignItems: 'center', marginTop: 20 },
-  versionText: { color: colors.textLight, fontSize: 12 },
-});
-</file>
-
 <file path="backend/src/services/ai.service.ts">
 import OpenAI from 'openai';
 
@@ -16062,6 +15794,56 @@ const styles = StyleSheet.create({
 export default TaskReactorCircle;
 </file>
 
+<file path="app.json">
+{
+  "expo": {
+    "name": "HourBack AI",
+    "slug": "productivity-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "newArchEnabled": false,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF8E7"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mumix.productivityai",
+      "entitlements": {
+        "com.apple.developer.family-controls": true
+      },
+      "infoPlist": {
+        "NSFamilyControlsUsageDescription": "We need access to screen time controls to help you block distractions during focus sessions.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.mumix.productivityai"
+    },
+    "web": {
+      "enabled": false
+    },
+    "scheme": "hourback-ai",
+    "plugins": [
+      "expo-router",
+      "expo-apple-authentication"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9b268f70-3853-458e-9e63-5609a25ed759"
+      }
+    }
+  }
+}
+</file>
+
 <file path="app/auth.tsx">
 import React, { useState, useEffect } from 'react';
 import { 
@@ -16389,6 +16171,456 @@ const styles = StyleSheet.create({
   googleButton: { width: '100%', height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   iconContainer: { marginRight: 12, justifyContent: 'center', alignItems: 'center' },
   googleButtonText: { fontSize: 17, fontWeight: '600', color: '#1A1A1A' },
+});
+</file>
+
+<file path="app/profile.tsx">
+import React, { useEffect, useState, useMemo } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Modal, 
+  Switch,
+  Alert 
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import Animated, { FadeInDown, SlideInUp } from 'react-native-reanimated';
+import { 
+  ChevronLeft, 
+  Settings, 
+  Zap, 
+  Clock, 
+  Trophy, 
+  Target, 
+  Archive, 
+  CheckCircle2, 
+  User,
+  Moon,
+  Sunrise,
+  Coffee,
+  Bell,
+  LogOut,
+  ChevronRight,
+  X,
+  Brain
+} from 'lucide-react-native';
+import { lightColors as colors } from '../src/constants/colors';
+import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
+import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal'; // Import the modal
+
+// --- HELPER COMPONENTS ---
+
+const MissionHistoryCard = ({ goal, delay, onPress }: { goal: any, delay: number, onPress: () => void }) => {
+  const totalTasks = goal.tasks ? goal.tasks.length : 0;
+  const totalDuration = goal.tasks ? goal.tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0) : 0;
+  
+  return (
+    <Animated.View 
+      entering={FadeInDown.delay(delay).springify()}
+    >
+      <TouchableOpacity
+        style={styles.historyCard}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.historyHeader}>
+          <View style={styles.historyIcon}>
+            <CheckCircle2 size={20} color="#10B981" />
+          </View>
+          <View style={styles.historyTitleBox}>
+            <Text style={styles.historyTitle} numberOfLines={1}>{goal.title}</Text>
+            <Text style={styles.historyDate}>
+              {new Date(goal.completedAt || goal.createdAt).toLocaleDateString()}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.historyStats}>
+          <View style={styles.historyStatItem}>
+            <Clock size={12} color={colors.textSecondary} />
+            <Text style={styles.historyStatText}>{(totalDuration / 60).toFixed(1)}h Focused</Text>
+          </View>
+          <View style={styles.historyStatItem}>
+            <Target size={12} color={colors.textSecondary} />
+            <Text style={styles.historyStatText}>{totalTasks} Tasks</Text>
+          </View>
+          <View style={styles.historyBadge}>
+            <Text style={styles.historyBadgeText}>COMPLETED</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+const StatBox = ({ label, value, icon: Icon, delay }: any) => (
+  <Animated.View 
+    entering={FadeInDown.delay(delay).springify()}
+    style={styles.statBox}
+  >
+    <View style={styles.statIconBg}>
+      <Icon size={20} color={colors.primary} />
+    </View>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </Animated.View>
+);
+
+const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding }: any) => {
+  const [notifications, setNotifications] = useState(true);
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={styles.settingsContainer}>
+        <View style={styles.settingsHeader}>
+          <Text style={styles.settingsTitle}>Settings</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <X size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.settingsContent}>
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>PREFERENCES</Text>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#EEF2FF' }]}>
+                  <Bell size={20} color="#4F46E5" />
+                </View>
+                <Text style={styles.settingText}>Push Notifications</Text>
+              </View>
+              <Switch 
+                value={notifications} 
+                onValueChange={setNotifications}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+
+            {/* Redo Onboarding Option */}
+            <TouchableOpacity style={styles.settingRow} onPress={onRedoOnboarding}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
+                  <Brain size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.settingText}>Update Operative Profile</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
+            
+            <TouchableOpacity style={styles.settingRow}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
+                  <User size={20} color={colors.text} />
+                </View>
+                <Text style={styles.settingText}>Edit Profile</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.settingRow} onPress={onLogout}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
+                  <LogOut size={20} color={colors.error} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>Productivity Ops v1.0.3</Text>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+};
+
+// --- MAIN COMPONENT ---
+
+export default function ProfileScreen() {
+  const router = useRouter();
+  const { user, goals, setUser } = useApp();
+  const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  
+  // State for the selected goal to view in the modal
+  const [viewingHistoryGoal, setViewingHistoryGoal] = useState<any>(null);
+
+  // Filter for archived/completed goals
+  const archivedGoals = useMemo(() => {
+    return goals.filter(g => g.status === 'archived').sort((a, b) => {
+      const dateA = new Date(a.completedAt || a.createdAt).getTime();
+      const dateB = new Date(b.completedAt || b.createdAt).getTime();
+      return dateB - dateA; // Newest first
+    });
+  }, [goals]);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (user?.email) {
+        try {
+          const data = await apiService.getUserProfile(user.email);
+          setProfileData(data);
+        } catch (error) {
+          console.error("Failed to load profile", error);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  const handleLogout = () => {
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Log Out", 
+        style: "destructive", 
+        onPress: () => {
+          setSettingsVisible(false);
+          setUser(null);
+          router.replace('/auth');
+        }
+      }
+    ]);
+  };
+
+  const handleRedoOnboarding = () => {
+    setSettingsVisible(false);
+    router.push('/onboarding');
+  };
+
+  // Calculate stats for the modal
+  const getGoalStats = (goal: any) => {
+    if (!goal) return { totalTime: 0, taskCount: 0 };
+    const tasks = goal.tasks || [];
+    const totalTime = tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0);
+    const taskCount = tasks.length;
+    return { totalTime, taskCount };
+  };
+
+  // Helper for icons based on archetype
+  const getArchetypeIcon = () => {
+    const arch = profileData?.onboardingData?.focusWindow;
+    if (arch === 'night-owl' || arch === 'late_night') return Moon;
+    if (arch === 'early-bird' || arch === 'early_morning') return Sunrise;
+    return Coffee; // Default
+  };
+  const ArchetypeIcon = getArchetypeIcon();
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+            <ChevronLeft size={28} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Operative Profile</Text>
+          <TouchableOpacity 
+            style={styles.iconBtn} 
+            onPress={() => setSettingsVisible(true)}
+          >
+            <Settings size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          
+          {/* Identity Card */}
+          <Animated.View 
+            entering={FadeInDown.delay(100).springify()}
+            style={styles.identityCard}
+          >
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatarText}>{profileData?.name?.[0] || "U"}</Text>
+            </View>
+            <View style={styles.identityText}>
+              <Text style={styles.userName}>{profileData?.name || "Unknown Agent"}</Text>
+              <Text style={styles.userLevel}>
+                Level {profileData?.stats?.level || 1} Strategist
+              </Text>
+            </View>
+            <View style={styles.archetypeBadge}>
+              <Text style={styles.archetypeText}>
+                {profileData?.onboardingData?.workArchetype ? profileData.onboardingData.workArchetype.replace('_', ' ') : "Recruit"}
+              </Text>
+            </View>
+          </Animated.View>
+
+          {/* Efficiency Metrics */}
+          <Text style={styles.sectionHeader}>Efficiency Metrics</Text>
+          <View style={styles.statsGrid}>
+            <StatBox label="Streak" value={`${profileData?.stats?.streak || 0} Day`} icon={Zap} delay={200} />
+            <StatBox label="Hours" value={`${profileData?.stats?.hoursFocused || 0}h`} icon={Clock} delay={300} />
+            <StatBox label="Tasks" value={profileData?.stats?.tasksCrushed || 0} icon={Trophy} delay={400} />
+          </View>
+
+          {/* Cognitive DNA */}
+          <Text style={styles.sectionHeader}>Cognitive DNA</Text>
+          <View style={styles.dnaContainer}>
+            {profileData?.onboardingData?.focusWindow && (
+                <Animated.View entering={FadeInDown.delay(500)} style={styles.dnaTag}>
+                    <ArchetypeIcon size={14} color={colors.primary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: colors.primary }]}>
+                        {profileData.onboardingData.focusWindow.replace(/[_-]/g, ' ').toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
+            
+            {profileData?.onboardingData?.frictionVillain && (
+                <Animated.View entering={FadeInDown.delay(600)} style={styles.dnaTag}>
+                    <Target size={14} color="#10B981" style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: "#10B981" }]}>
+                        FIGHTING: {profileData.onboardingData.frictionVillain.replace(/[_-]/g, ' ').toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
+          </View>
+
+          {/* Mission Archive Section */}
+          <View style={styles.archiveHeaderRow}>
+            <Text style={styles.sectionHeader}>Mission Archive</Text>
+            <View style={styles.archiveCountBadge}>
+              <Archive size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
+              <Text style={styles.archiveCountText}>{archivedGoals.length}</Text>
+            </View>
+          </View>
+
+          {archivedGoals.length === 0 ? (
+            <View style={styles.emptyArchive}>
+              <Text style={styles.emptyText}>No completed missions yet.</Text>
+            </View>
+          ) : (
+            <View style={styles.archiveList}>
+              {archivedGoals.map((goal, index) => (
+                <MissionHistoryCard 
+                  key={goal.id} 
+                  goal={goal} 
+                  delay={500 + (index * 100)}
+                  onPress={() => setViewingHistoryGoal(goal)} 
+                />
+              ))}
+            </View>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+
+        <SettingsModal 
+          visible={settingsVisible} 
+          onClose={() => setSettingsVisible(false)}
+          onLogout={handleLogout}
+          onRedoOnboarding={handleRedoOnboarding}
+        />
+
+        {/* History Modal */}
+        {viewingHistoryGoal && (
+          <MissionAccomplishedModal
+            visible={!!viewingHistoryGoal}
+            goalTitle={viewingHistoryGoal.title}
+            totalTime={getGoalStats(viewingHistoryGoal).totalTime}
+            taskCount={getGoalStats(viewingHistoryGoal).taskCount}
+            isHistoryView={true} // Enable history mode
+            onArchive={() => {}} // Not needed in history view
+            onClose={() => setViewingHistoryGoal(null)}
+          />
+        )}
+
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  iconBtn: { padding: 8, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  scrollContent: { padding: 24 },
+  
+  identityCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4, borderWidth: 1, borderColor: colors.border, marginBottom: 32 },
+  avatarContainer: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  avatarText: { fontSize: 24, fontWeight: 'bold', color: '#FFF' },
+  identityText: { flex: 1 },
+  userName: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 },
+  userLevel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
+  archetypeBadge: { backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  archetypeText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'capitalize' },
+  
+  sectionHeader: { fontSize: 14, fontWeight: '800', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, marginLeft: 4 },
+  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32, gap: 12 },
+  statBox: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+  statIconBg: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  statValue: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4, textAlign: 'center' },
+  statLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary, textAlign: 'center' },
+
+  // DNA Styles
+  dnaContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
+  dnaTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
+  dnaText: { fontSize: 13, fontWeight: '600' },
+
+  // Archive Styles
+  archiveHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  archiveCountBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  archiveCountText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  emptyArchive: { padding: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E5E7EB' },
+  emptyText: { color: colors.textSecondary, fontWeight: '500' },
+  archiveList: { gap: 12 },
+  
+  historyCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F3F4F6', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8 },
+  historyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  historyIcon: { marginRight: 12 },
+  historyTitleBox: { flex: 1 },
+  historyTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+  historyDate: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  historyStats: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  historyStatItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  historyStatText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  historyBadge: { marginLeft: 'auto', backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  historyBadgeText: { fontSize: 10, fontWeight: '800', color: '#059669', letterSpacing: 0.5 },
+
+  // Settings Modal Styles
+  settingsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
+  settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border },
+  settingsTitle: { fontSize: 18, fontWeight: '700' },
+  closeBtn: { padding: 4 },
+  settingsContent: { padding: 24 },
+  settingGroup: { marginBottom: 32 },
+  settingGroupTitle: { fontSize: 12, fontWeight: '800', color: colors.textLight, marginBottom: 12, marginLeft: 4 },
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+  settingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  settingIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  settingText: { fontSize: 16, fontWeight: '600', color: colors.text },
+  versionContainer: { alignItems: 'center', marginTop: 20 },
+  versionText: { color: colors.textLight, fontSize: 12 },
 });
 </file>
 
@@ -17563,64 +17795,6 @@ model Task {
 }
 </file>
 
-<file path="package.json">
-{
-  "name": "productivity-ai",
-  "version": "1.0.0",
-  "main": "expo-router/entry",
-  "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
-  },
-  "dependencies": {
-    "@lottiefiles/dotlottie-react": "^0.13.5",
-    "@react-native-async-storage/async-storage": "^2.2.0",
-    "@react-native-community/datetimepicker": "8.4.4",
-    "@shopify/react-native-skia": "2.2.12",
-    "babel-preset-expo": "~54.0.9",
-    "expo": "~54.0.32",
-    "expo-apple-authentication": "~8.0.8",
-    "expo-auth-session": "~7.0.10",
-    "expo-crypto": "~15.0.8",
-    "expo-device": "~8.0.10",
-    "expo-haptics": "^15.0.8",
-    "expo-keep-awake": "~15.0.8",
-    "expo-linking": "~8.0.11",
-    "expo-network": "~8.0.8",
-    "expo-notifications": "~0.32.16",
-    "expo-router": "~6.0.22",
-    "expo-sensors": "~15.0.8",
-    "expo-status-bar": "~3.0.9",
-    "expo-web-browser": "~15.0.10",
-    "firebase": "12.8.0",
-    "lottie-react-native": "~7.3.1",
-    "lucide-react-native": "^0.562.0",
-    "moti": "^0.30.0",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-confetti-cannon": "^1.5.2",
-    "react-native-gesture-handler": "~2.28.0",
-    "react-native-reanimated": "~4.1.1",
-    "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0",
-    "react-native-shared-group-preferences": "^1.1.24",
-    "react-native-svg": "15.12.1",
-    "react-native-web": "^0.21.0",
-    "react-native-worklets": "0.5.1",
-    "react-native-worklets-core": "^1.6.2"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.24.0",
-    "@types/react": "~19.1.10",
-    "typescript": "^5.3.3"
-  },
-  "private": true
-}
-</file>
-
 <file path="backend/src/index.ts">
 import express from 'express';
 import cors from 'cors';
@@ -17975,6 +18149,65 @@ app.get('/leaderboard', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server listening on port ${PORT}`);
 });
+</file>
+
+<file path="package.json">
+{
+  "name": "productivity-ai",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@lottiefiles/dotlottie-react": "^0.13.5",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/datetimepicker": "8.4.4",
+    "@shopify/react-native-skia": "2.2.12",
+    "babel-preset-expo": "~54.0.9",
+    "expo": "~54.0.32",
+    "expo-apple-authentication": "~8.0.8",
+    "expo-auth-session": "~7.0.10",
+    "expo-crypto": "~15.0.8",
+    "expo-dev-client": "~6.0.20",
+    "expo-device": "~8.0.10",
+    "expo-haptics": "^15.0.8",
+    "expo-keep-awake": "~15.0.8",
+    "expo-linking": "~8.0.11",
+    "expo-network": "~8.0.8",
+    "expo-notifications": "~0.32.16",
+    "expo-router": "~6.0.22",
+    "expo-sensors": "~15.0.8",
+    "expo-status-bar": "~3.0.9",
+    "expo-web-browser": "~15.0.10",
+    "firebase": "12.8.0",
+    "lottie-react-native": "~7.3.1",
+    "lucide-react-native": "^0.562.0",
+    "moti": "^0.30.0",
+    "react": "19.1.0",
+ 
+    "react-native": "0.81.5",
+    "react-native-confetti-cannon": "^1.5.2",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-shared-group-preferences": "^1.1.24",
+    "react-native-svg": "15.12.1",
+   
+    "react-native-worklets": "0.5.1",
+    "react-native-worklets-core": "^1.6.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/react": "~19.1.10",
+    "typescript": "^5.3.3"
+  },
+  "private": true
+}
 </file>
 
 <file path="src/components/OnboardingWizard.tsx">

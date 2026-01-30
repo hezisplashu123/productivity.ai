@@ -5,8 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "platforms": ["ios", "android"],
-    "newArchEnabled": false,
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
@@ -20,7 +23,8 @@
         "com.apple.developer.family-controls": true
       },
       "infoPlist": {
-        "NSFamilyControlsUsageDescription": "We need access to screen time controls to help you block distractions during focus sessions."
+        "NSFamilyControlsUsageDescription": "We need access to screen time controls to help you block distractions during focus sessions.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
