@@ -17,6 +17,32 @@ export async function requestAuthorization(): Promise<boolean> {
 }
 
 /**
+ * LOCKS THE DEVICE (Focus Mode).
+ * Android: Starts "App Pinning" (Kiosk Mode).
+ * iOS: Activates Restriction Shield (requires Extension, stubbed here for MVP).
+ */
+export async function startRestriction(): Promise<void> {
+  try {
+    await ScreenTimeControl.startRestriction();
+  } catch (e) {
+    console.warn("Start Restriction failed:", e);
+  }
+}
+
+/**
+ * UNLOCKS THE DEVICE.
+ * Android: Stops App Pinning.
+ * iOS: Deactivates Shield.
+ */
+export async function stopRestriction(): Promise<void> {
+  try {
+    await ScreenTimeControl.stopRestriction();
+  } catch (e) {
+    console.warn("Stop Restriction failed:", e);
+  }
+}
+
+/**
  * Checks if the user has currently authorized the app.
  */
 export function isRestricted(): boolean {

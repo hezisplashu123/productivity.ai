@@ -7,7 +7,8 @@ import {
   Dimensions, 
   AppState, 
   Switch,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -39,7 +40,7 @@ import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
 import { SessionDebrief } from '../src/components/SessionDebrief';
 
-// --- IMPORT LOCAL NATIVE MODULE ---
+// --- IMPORT NATIVE MODULE ---
 import * as ScreenTime from '../modules/screen-time-control';
 
 const MOVEMENT_THRESHOLD = 0.15; 
@@ -73,29 +74,30 @@ export default function FocusSessionScreen() {
   // --- 1. HANDLERS ---
 
   const handleStartMission = async () => {
-    // If phone is NOT required, attempt to lock it using Screen Time API
-    // 
-    // --- TEMPORARILY DISABLED SCREEN TIME FOR EAS BUILD FIX ---
-    /* 
+    // If phone is NOT required, lock it using Native Module
     if (!phoneRequired) {
       try {
+        // 1. Request Authorization (iOS will show popup, Android returns true)
         const authorized = await ScreenTime.requestAuthorization();
+        
         if (authorized) {
+          // 2. Engage Lock
+          await ScreenTime.startRestriction();
           setIsLocked(true);
-          console.log("🔒 Screen Time Access Granted & Active");
+          console.log("🔒 Native Lock Engaged");
         } else {
-          // Optional: Warn user if they denied it, but let them proceed anyway
-          console.log("⚠️ Screen Time Access Denied or Not Available");
+          Alert.alert(
+            "Permission Required", 
+            "To use Hard Mode, please allow Screen Time / Admin access when prompted."
+          );
+          return; // Stop if they refused permissions
         }
       } catch (e) {
-        console.error("Screen Time Error:", e);
+        console.error("Lock Error:", e);
+        // Fallback: let them proceed without lock if error
       }
-    }
-    */
-    
-    // Just log that we skipped it for dev
-    if (!phoneRequired) {
-      console.log("⚠️ Screen Time Controls bypassed for Development Build");
+    } else {
+      console.log("⚠️ Soft Mode: Screen Time Controls bypassed");
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -103,41 +105,61 @@ export default function FocusSessionScreen() {
     setIsActive(true);
   };
 
-  const handleTimerEnd = () => {
-    setIsActive(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowDebrief(true); // Trigger Debrief Modal
+  const unlockDevice = async () => {
+    if (isLocked) {
+      try {
+        await ScreenTime.stopRestriction();
+        setIsLocked(false);
+        console.log("🔓 Native Lock Released");
+      } catch (e) {
+        console.error("Unlock Error:", e);
+      }
+    }
   };
 
-  const handleDevSkip = () => {
-    setTimeLeft(0); // Triggers timer end via useEffect
+  const handleTimerEnd = async () => {
+    setIsActive(false);
+    await unlockDevice();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowDebrief(true);
+  };
+
+  const handleDevSkip = async () => {
+    // For dev skip, we also need to ensure unlock happens if it was locked
+    await unlockDevice();
+    setTimeLeft(0); 
   };
 
   // --- DEBRIEF LOGIC ---
   const handleDebriefComplete = (data: { completed: boolean; distraction?: string; addedMinutes?: number }) => {
     if (taskId) {
       if (data.completed) {
-        // Mission Accomplished
         completeTask(taskId as string);
       } else if (data.addedMinutes) {
-        // Mission Failed -> Update Protocol
         updateTask(taskId as string, {
-          duration: data.addedMinutes, // Set new time
-          status: 'queued' // Reset status to queued so it can be played again
+          duration: data.addedMinutes,
+          status: 'queued'
         });
       }
     }
     router.back();
   };
 
-  const handleAbort = () => {
+  const handleAbort = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       "Abort Mission?",
       "Giving up now will break your streak.",
       [
         { text: "Stay Focused", style: "cancel" },
-        { text: "I Give Up", style: "destructive", onPress: () => router.back() }
+        { 
+          text: "I Give Up", 
+          style: "destructive", 
+          onPress: async () => {
+            await unlockDevice();
+            router.back();
+          } 
+        }
       ]
     );
   };
@@ -154,6 +176,8 @@ export default function FocusSessionScreen() {
   useEffect(() => {
     const appStateSub = AppState.addEventListener('change', nextAppState => {
       if (isSetup || phoneRequired) return; 
+      
+      // If user manages to leave app while locked (or hard mode enabled), trigger compromise
       if (appState.current.match(/active/) && nextAppState.match(/inactive|background/)) {
         triggerCompromised();
       }
@@ -202,11 +226,8 @@ export default function FocusSessionScreen() {
         -1, true
       );
     } else if (timeLeft <= 0 && !isSetup && isActive) {
-      // Timer hit 0 naturally while active
       handleTimerEnd();
     } else if (timeLeft <= 0 && !isSetup) {
-      // Timer is 0 but not active (handled via skip)
-      // Pulse animation stop
       pulse.value = withTiming(1, { duration: 300 });
     } else {
       pulse.value = withTiming(1, { duration: 300 });
@@ -238,7 +259,7 @@ export default function FocusSessionScreen() {
         <StatusBar style="light" />
         <SafeAreaView style={styles.setupContainer}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={handleAbort} style={styles.closeBtn}>
+            <TouchableOpacity onPress={router.back} style={styles.closeBtn}>
               <X size={24} color="rgba(255,255,255,0.4)" />
             </TouchableOpacity>
             <Text style={styles.setupHeaderTitle}>MISSION BRIEF</Text>
@@ -265,17 +286,17 @@ export default function FocusSessionScreen() {
               </View>
               <Text style={styles.configDescription}>
                 {!phoneRequired 
-                  ? "Screen Time API will block apps. Movement sensors active." 
-                  : "Basic mode. Sensors disabled for phone use."}
+                  ? "HARD MODE: App Pinning/Screen Time & Sensors Active." 
+                  : "SOFT MODE: Sensors disabled for phone use."}
               </Text>
               
               <View style={[styles.warningBox, { borderColor: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
                 <Text style={[styles.warningTitle, { color: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
-                  {!phoneRequired ? 'HARD LOCK DISABLED (DEV)' : 'SOFT LOCK ONLY'}
+                  {!phoneRequired ? 'HARD LOCK ENABLED' : 'SOFT LOCK ONLY'}
                 </Text>
                 <Text style={styles.warningText}>
                   {!phoneRequired 
-                    ? 'Screen Time bypass is active. Do not switch apps or move the phone.' 
+                    ? 'Do not leave the app. Do not move the phone.' 
                     : 'Background tracking only. You can use other apps.'}
                 </Text>
               </View>
@@ -306,7 +327,7 @@ export default function FocusSessionScreen() {
             <View style={[styles.dot, { backgroundColor: sessionState === 'focus' ? '#10B981' : sessionState === 'compromised' ? '#EF4444' : '#F59E0B' }]} />
             <Text style={styles.statusText}>
               {sessionState === 'focus' 
-                ? (isLocked ? 'LOCKED & SECURE' : phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') 
+                ? (isLocked ? 'SYSTEM LOCKED' : phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') 
                 : sessionState === 'compromised' ? 'BREACH DETECTED' : 'PAUSED'}
             </Text>
           </View>

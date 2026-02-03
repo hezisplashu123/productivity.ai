@@ -36,7 +36,7 @@ const VILLAIN_PROTOCOLS: Record<string, string> = {
 };
 
 /**
- * 🧠 STEP 1: THE CLARIFIER (Balanced Depth)
+ * 🧠 STEP 1: THE CLARIFIER
  */
 export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
   const onboarding = userProfile.onboardingData || {};
@@ -55,20 +55,27 @@ export const generateClarifyingQuestion = async (goal: string, userProfile: any)
     2. **Ask up to 2 Distinct Points:** You can combine two questions to triangulate their intent (e.g., "What is the topic AND what is the format?").
     3. **Be Conversational but Tactical:** Don't sound like a robot. Speak like a coach.
 
+    *** CRITICAL NEGATIVE CONSTRAINTS (READ CAREFULLY) ***
+    - **NEVER ASK ABOUT TIME OR SCHEDULE:** Do NOT ask "When do you want to finish?", "What is your deadline?", "How many hours a week?", or "How much time per day?".
+    - **REASON:** The app handles scheduling, deadlines, and daily time limits in a separate UI step immediately after this conversation. Asking now is redundant and annoying.
+    - **FOCUS ONLY ON SCOPE:** Only ask about the *content*, *specific outcome*, *tools*, or *methodology* of the goal.
+
     EXAMPLES:
     - Input: "Study"
-    - Output: "What specific subject or exam are we prepping for? Also, are we reviewing notes or doing active practice problems?"
+    - BAD Output: "When is your exam and how long do you want to study?" (Violates Negative Constraint)
+    - GOOD Output: "What specific subject or exam are we prepping for? Also, are we reviewing notes or doing active practice problems?"
     
-    - Input: "Work on project"
-    - Output: "What is the single most important feature you need to ship today? Is this a solo coding session or does it involve writing/planning?"
+    - Input: "Learn Spanish"
+    - BAD Output: "How many minutes a day do you want to practice?" (Violates Negative Constraint)
+    - GOOD Output: "Are you starting from absolute zero or do you have some basics? And are we using an app, a textbook, or conversation practice?"
     
     - Input: "Clean house"
-    - Output: "Let's focus. Which room is the biggest disaster right now? Do we need to do a deep clean or just a rapid visual tidy-up?"
+    - GOOD Output: "Let's focus. Which room is the biggest disaster right now? Do we need to do a deep clean or just a rapid visual tidy-up?"
 
     CONSTRAINTS: 
     - Aim for exactly 2 sentences. 
     - Use 3 sentences ONLY if the input is extremely ambiguous and needs context.
-    - Focus on "What" and "How".
+    - Focus on "What" and "How", NEVER "When".
     
     OUTPUT JSON:
     { "question": "..." }
@@ -89,7 +96,7 @@ export const generateClarifyingQuestion = async (goal: string, userProfile: any)
 };
 
 /**
- * 🧠 STEP 1.5: THE CLASSIFIER
+ * 🧠 STEP 1.5: THE CLASSIFIER (Adaptive Complexity)
  */
 export const analyzeGoalType = async (goal: string, previousQuestion: string, userAnswer: string) => {
   const systemPrompt = `
@@ -101,27 +108,25 @@ export const analyzeGoalType = async (goal: string, previousQuestion: string, us
     
     TASK: 
     1. Classify as "PROJECT" (Single Session) or "JOURNEY" (Multi-Day/Long Term).
-    2. If JOURNEY, estimate the typical time in DAYS.
+    2. If JOURNEY, estimate the typical time in DAYS based on complexity.
     3. If JOURNEY, recommend a sustainable DAILY TIME COMMITMENT (in minutes).
 
-    LOGIC ENGINE:
-    - Look at the relationship between Question and Answer.
-    - If Question was "When is this due?" and Answer is "Tomorrow" -> PROJECT.
-    - If Question was "How many chapters?" and Answer is "50 chapters" -> JOURNEY.
-    - If Question was "What is the outcome?" and Answer is "Learn Python" -> JOURNEY.
-    - If Question was "What specific task?" and Answer is "Write the intro" -> PROJECT.
-
-    CRITICAL OVERRIDE RULES:
-    1. **TEMPORAL MARKERS:** "Today", "tonight", "now", "this morning" -> PROJECT.
-    2. **SCALE MARKERS:** "Learn a language", "Build an app", "Get fit", "Write a book" -> JOURNEY.
-    3. **SPECIFICITY:** "Do lesson 1" -> PROJECT. "Finish the course" -> JOURNEY.
+    *** ADAPTIVE COMPLEXITY MATRIX ***
+    - **Simple Habit** (e.g., "Drink water", "Read more"): ~21-30 Days, 15-30 mins/day.
+    - **Medium Project/Skill** (e.g., "Finish book draft", "Learn basic SQL"): ~30-45 Days, 45-60 mins/day.
+    - **Major Lifestyle/Mastery** (e.g., "Get six pack", "Learn fluent Spanish", "Launch startup"): ~60-90+ Days, 60-90 mins/day.
     
+    LOGIC ENGINE:
+    - "Today", "tonight", "now" -> PROJECT.
+    - "Learn X", "Build X", "Become X" -> JOURNEY.
+    - If user implies a deadline in the answer, use that to calculate days (e.g., "Exam in 2 weeks" -> 14 days).
+
     OUTPUT JSON:
     { 
       "type": "project" | "journey",
       "reason": "Explain why based on the Q&A context.",
-      "estimatedDays": 30, // Default 30. Only for Journey.
-      "recommendedDailyMinutes": 45 // Default 45. Only for Journey.
+      "estimatedDays": number, // Intelligent estimate based on complexity
+      "recommendedDailyMinutes": number // Sustainable recommendation
     }
   `;
 
@@ -138,7 +143,7 @@ export const analyzeGoalType = async (goal: string, previousQuestion: string, us
 };
 
 /** 
- * 🧠 STEP 2: THE STRATEGIST
+ * 🧠 STEP 2: THE STRATEGIST (Proactive Resource Suggestions)
  */
 export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "", dailyMinutes: number = 0) => {
   const onboarding = userProfile.onboardingData || {};
@@ -153,8 +158,6 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     🎨 **TYPE B: THE BLANK PAGE (Creation)** - Structure -> Vomit Draft -> Refine.
     ❓ **TYPE C: THE BLACK BOX (Ambiguity)** - Research Spike -> Prototype -> Expand.
     🧠 **TYPE D: THE DOWNLOAD (Study)** - Scope -> Active Recall -> Gap Fill.
-    📄 **TYPE E: LIFE ADMIN** - Gather -> Blitz.
-    🏋️ **TYPE F: PHYSICAL** - Warmup -> Compound -> Accessory -> Cooldown.
   `;
 
   let timeConstraintPrompt = "";
@@ -165,9 +168,7 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     - The sum of task durations MUST equal ${dailyMinutes}.
     `;
   } else {
-    timeConstraintPrompt = `
-    - Target total duration: 45-90 minutes.
-    `;
+    timeConstraintPrompt = `- Target total duration: 45-90 minutes.`;
   }
 
   const systemPrompt = `
@@ -187,10 +188,21 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     ${SHORT_TERM_PROTOCOLS}
 
     CRITICAL RULES:
-    1. **APPLY THE DRIVER:** If 'Velocity', skip review steps. If 'Mastery', double the review time.
-    2. **COUNTER THE VILLAIN:** Include defense mechanisms in descriptions.
-    3. **MICRO-SCRIPTS:** Tell them EXACTLY what to do.
-    4. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Project Alpha', 'Draft Essay', 'Chest Day').
+    1. **ACTION BIAS:** Tasks must be tangible execution steps (e.g. "Draft the email", "Code the function") NOT meta-work (e.g. "Write down goals", "Decide what to do"). Assume the "Planning" phase is OVER.
+    2. **AVOID SINGLE TASKS:** Unless the duration is under 15 minutes, break the workflow into at least 2 steps (e.g. Draft -> Edit, or Research -> Implement).
+    3. **APPLY THE DRIVER:** If 'Velocity', skip review steps. If 'Mastery', double the review time.
+    4. **COUNTER THE VILLAIN:** Include defense mechanisms in descriptions.
+    
+    5. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
+       - If a task involves finding, watching, researching, or buying something, you MUST generate a search URL.
+       - Do NOT wait for a specific URL. Construct it yourself.
+       - **YouTube:** https://www.youtube.com/results?search_query=YOUR+SEARCH+TERMS
+       - **Google:** https://www.google.com/search?q=YOUR+SEARCH+TERMS
+       - **Amazon:** https://www.amazon.com/s?k=YOUR+SEARCH+TERMS
+       - **Example:** Task "Find a piano tutorial" -> link: { "url": "https://www.youtube.com/results?search_query=beginner+piano+tutorial", "label": "YouTube: Beginner Tutorial" }
+       - **Example:** Task "Research best microphones" -> link: { "url": "https://www.google.com/search?q=best+budget+microphones+2024", "label": "Google: Best Mics" }
+
+    6. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
     ${timeConstraintPrompt}
 
     OUTPUT FORMAT (JSON):
@@ -200,7 +212,8 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
         { 
           "title": "Action Verb + Object", 
           "duration": 15, 
-          "description": "Tactical instruction aligned with the Optimization Goal." 
+          "description": "Tactical instruction.",
+          "link": { "url": "https://...", "label": "Source: [Title]" } // OPTIONAL but HIGH PRIORITY for research tasks
         } 
       ]
     }
@@ -232,7 +245,7 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
 };
 
 /**
- * 🧠 STEP 2 (VARIANT): THE COACH
+ * 🧠 STEP 2 (VARIANT): THE COACH (Progressive Difficulty)
  */
 export const generateDailyPlan = async (
   goal: string, 
@@ -247,13 +260,17 @@ export const generateDailyPlan = async (
   const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || "";
   const villainPrompt = VILLAIN_PROTOCOLS[onboarding.frictionVillain] || "";
   
-  const JOURNEY_PROTOCOLS = `
-    DETERMINE THE JOURNEY TYPE AND PHASE:
-    📈 **TYPE A: THE COMPOUND (Skill)** - Progressive Overload.
-    🏃 **TYPE B: THE MARATHON (Volume)** - Non-Negotiable Minimum.
-    🏗️ **TYPE C: THE BUILD (Project)** - Modular Sprints.
-    📅 **TYPE D: THE EVENT (Deadline)** - Simulation & Taper.
-  `;
+  // Calculate Phase
+  const progress = dayNumber / totalDays;
+  let phaseInstruction = "";
+  
+  if (progress < 0.2) {
+    phaseInstruction = "PHASE: WARMUP. Keep tasks relatively easy and foundational. Focus on building the habit and reducing friction.";
+  } else if (progress >= 0.2 && progress < 0.8) {
+    phaseInstruction = "PHASE: THE GRIND (High Intensity). Apply Progressive Overload. tasks should be challenging and high-volume. Push the user.";
+  } else {
+    phaseInstruction = "PHASE: FINAL POLISH/TAPER. Focus on synthesizing results, reviewing work, and finishing strong.";
+  }
 
   const systemPrompt = `
     You are an expert Long-Term Performance Coach.
@@ -265,16 +282,21 @@ export const generateDailyPlan = async (
     CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
     TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
     
-    MISSION:
-    Generate a tactical plan for TODAY (Day ${dayNumber}) that fits exactly within ${dailyMinutes} minutes.
-    
-    ${JOURNEY_PROTOCOLS}
+    ${phaseInstruction}
 
     RULES:
-    1. **STRICT CONTEXT:** All tasks MUST contribute directly to the MAIN GOAL: "${goal}". Do NOT generate generic tasks or tasks for unrelated goals.
-    2. **PHASE AWARENESS:** Day 1 = Setup. Middle = Grind. End = Review.
-    3. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
-    4. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Day ${dayNumber}', 'Leg Day', 'Draft Mode').
+    1. **ACTION BIAS:** Focus on OUTPUT. Avoid "Review goals" or "Plan the day". Give them the actual work.
+    2. **STRICT CONTEXT:** All tasks MUST contribute directly to the MAIN GOAL.
+    3. **PROGRESSIVE DIFFICULTY:** Adjust the complexity of tasks based on the current PHASE.
+    
+    4. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
+       - If a task involves learning, finding, or watching, GENERATE A SEARCH URL.
+       - **YouTube:** https://www.youtube.com/results?search_query=...
+       - **Google:** https://www.google.com/search?q=...
+       - Example: "Watch tutorial" -> link: { "url": "https://www.youtube.com/results?search_query=advanced+react+tutorial", "label": "YouTube: React Tutorial" }
+
+    5. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
+    6. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
     
     OUTPUT JSON:
     {
@@ -283,7 +305,8 @@ export const generateDailyPlan = async (
         { 
           "title": "Specific Exercise/Task", 
           "duration": 15, 
-          "description": "Instruction + Motivational Context relating to ${goal}." 
+          "description": "Instruction + Motivation.",
+          "link": { "url": "https://...", "label": "Source: [Title]" } // OPTIONAL
         } 
       ]
     }

@@ -690,6 +690,32 @@ export async function requestAuthorization(): Promise<boolean> {
 }
 
 /**
+ * LOCKS THE DEVICE (Focus Mode).
+ * Android: Starts "App Pinning" (Kiosk Mode).
+ * iOS: Activates Restriction Shield (requires Extension, stubbed here for MVP).
+ */
+export async function startRestriction(): Promise<void> {
+  try {
+    await ScreenTimeControl.startRestriction();
+  } catch (e) {
+    console.warn("Start Restriction failed:", e);
+  }
+}
+
+/**
+ * UNLOCKS THE DEVICE.
+ * Android: Stops App Pinning.
+ * iOS: Deactivates Shield.
+ */
+export async function stopRestriction(): Promise<void> {
+  try {
+    await ScreenTimeControl.stopRestriction();
+  } catch (e) {
+    console.warn("Stop Restriction failed:", e);
+  }
+}
+
+/**
  * Checks if the user has currently authorized the app.
  */
 export function isRestricted(): boolean {
@@ -11499,59 +11525,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/config/firebase.ts">
-import { initializeApp, getApp, getApps } from 'firebase/app';
-import { 
-  initializeAuth, 
-  getReactNativePersistence, 
-  GoogleAuthProvider, 
-  signInWithCredential, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  updateProfile,
-  getAuth
-} from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Your existing config
-const firebaseConfig = {
-  apiKey: "AIzaSyAw7dKdWkr7WBO_BUG8EFqLOYw-wr0n2Z8",
-  authDomain: "hesi-ai.firebaseapp.com",
-  projectId: "hesi-ai",
-  storageBucket: "hesi-ai.firebasestorage.app",
-  messagingSenderId: "204716304779",
-  appId: "1:204716304779:web:b9876e929e0a60a717a78e"
-};
-
-// Initialize App
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-
-// Initialize Auth with Persistence
-let auth;
-if (getApps().length > 0) {
-  try {
-    auth = getAuth(app);
-  } catch {
-    // initialize below if getAuth fails
-  }
-}
-
-if (!auth) {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage)
-  });
-}
-
-export { 
-  auth, 
-  GoogleAuthProvider, 
-  signInWithCredential, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  updateProfile 
-};
-</file>
-
 <file path="src/constants/colors.ts">
 export const lightColors = {
   // Backgrounds - Set to Pure White
@@ -11881,7 +11854,8 @@ import {
   Dimensions, 
   AppState, 
   Switch,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -11913,7 +11887,7 @@ import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
 import { SessionDebrief } from '../src/components/SessionDebrief';
 
-// --- IMPORT LOCAL NATIVE MODULE ---
+// --- IMPORT NATIVE MODULE ---
 import * as ScreenTime from '../modules/screen-time-control';
 
 const MOVEMENT_THRESHOLD = 0.15; 
@@ -11947,29 +11921,30 @@ export default function FocusSessionScreen() {
   // --- 1. HANDLERS ---
 
   const handleStartMission = async () => {
-    // If phone is NOT required, attempt to lock it using Screen Time API
-    // 
-    // --- TEMPORARILY DISABLED SCREEN TIME FOR EAS BUILD FIX ---
-    /* 
+    // If phone is NOT required, lock it using Native Module
     if (!phoneRequired) {
       try {
+        // 1. Request Authorization (iOS will show popup, Android returns true)
         const authorized = await ScreenTime.requestAuthorization();
+        
         if (authorized) {
+          // 2. Engage Lock
+          await ScreenTime.startRestriction();
           setIsLocked(true);
-          console.log("🔒 Screen Time Access Granted & Active");
+          console.log("🔒 Native Lock Engaged");
         } else {
-          // Optional: Warn user if they denied it, but let them proceed anyway
-          console.log("⚠️ Screen Time Access Denied or Not Available");
+          Alert.alert(
+            "Permission Required", 
+            "To use Hard Mode, please allow Screen Time / Admin access when prompted."
+          );
+          return; // Stop if they refused permissions
         }
       } catch (e) {
-        console.error("Screen Time Error:", e);
+        console.error("Lock Error:", e);
+        // Fallback: let them proceed without lock if error
       }
-    }
-    */
-    
-    // Just log that we skipped it for dev
-    if (!phoneRequired) {
-      console.log("⚠️ Screen Time Controls bypassed for Development Build");
+    } else {
+      console.log("⚠️ Soft Mode: Screen Time Controls bypassed");
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -11977,41 +11952,61 @@ export default function FocusSessionScreen() {
     setIsActive(true);
   };
 
-  const handleTimerEnd = () => {
-    setIsActive(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowDebrief(true); // Trigger Debrief Modal
+  const unlockDevice = async () => {
+    if (isLocked) {
+      try {
+        await ScreenTime.stopRestriction();
+        setIsLocked(false);
+        console.log("🔓 Native Lock Released");
+      } catch (e) {
+        console.error("Unlock Error:", e);
+      }
+    }
   };
 
-  const handleDevSkip = () => {
-    setTimeLeft(0); // Triggers timer end via useEffect
+  const handleTimerEnd = async () => {
+    setIsActive(false);
+    await unlockDevice();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowDebrief(true);
+  };
+
+  const handleDevSkip = async () => {
+    // For dev skip, we also need to ensure unlock happens if it was locked
+    await unlockDevice();
+    setTimeLeft(0); 
   };
 
   // --- DEBRIEF LOGIC ---
   const handleDebriefComplete = (data: { completed: boolean; distraction?: string; addedMinutes?: number }) => {
     if (taskId) {
       if (data.completed) {
-        // Mission Accomplished
         completeTask(taskId as string);
       } else if (data.addedMinutes) {
-        // Mission Failed -> Update Protocol
         updateTask(taskId as string, {
-          duration: data.addedMinutes, // Set new time
-          status: 'queued' // Reset status to queued so it can be played again
+          duration: data.addedMinutes,
+          status: 'queued'
         });
       }
     }
     router.back();
   };
 
-  const handleAbort = () => {
+  const handleAbort = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       "Abort Mission?",
       "Giving up now will break your streak.",
       [
         { text: "Stay Focused", style: "cancel" },
-        { text: "I Give Up", style: "destructive", onPress: () => router.back() }
+        { 
+          text: "I Give Up", 
+          style: "destructive", 
+          onPress: async () => {
+            await unlockDevice();
+            router.back();
+          } 
+        }
       ]
     );
   };
@@ -12028,6 +12023,8 @@ export default function FocusSessionScreen() {
   useEffect(() => {
     const appStateSub = AppState.addEventListener('change', nextAppState => {
       if (isSetup || phoneRequired) return; 
+      
+      // If user manages to leave app while locked (or hard mode enabled), trigger compromise
       if (appState.current.match(/active/) && nextAppState.match(/inactive|background/)) {
         triggerCompromised();
       }
@@ -12076,11 +12073,8 @@ export default function FocusSessionScreen() {
         -1, true
       );
     } else if (timeLeft <= 0 && !isSetup && isActive) {
-      // Timer hit 0 naturally while active
       handleTimerEnd();
     } else if (timeLeft <= 0 && !isSetup) {
-      // Timer is 0 but not active (handled via skip)
-      // Pulse animation stop
       pulse.value = withTiming(1, { duration: 300 });
     } else {
       pulse.value = withTiming(1, { duration: 300 });
@@ -12112,7 +12106,7 @@ export default function FocusSessionScreen() {
         <StatusBar style="light" />
         <SafeAreaView style={styles.setupContainer}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={handleAbort} style={styles.closeBtn}>
+            <TouchableOpacity onPress={router.back} style={styles.closeBtn}>
               <X size={24} color="rgba(255,255,255,0.4)" />
             </TouchableOpacity>
             <Text style={styles.setupHeaderTitle}>MISSION BRIEF</Text>
@@ -12139,17 +12133,17 @@ export default function FocusSessionScreen() {
               </View>
               <Text style={styles.configDescription}>
                 {!phoneRequired 
-                  ? "Screen Time API will block apps. Movement sensors active." 
-                  : "Basic mode. Sensors disabled for phone use."}
+                  ? "HARD MODE: App Pinning/Screen Time & Sensors Active." 
+                  : "SOFT MODE: Sensors disabled for phone use."}
               </Text>
               
               <View style={[styles.warningBox, { borderColor: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
                 <Text style={[styles.warningTitle, { color: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
-                  {!phoneRequired ? 'HARD LOCK DISABLED (DEV)' : 'SOFT LOCK ONLY'}
+                  {!phoneRequired ? 'HARD LOCK ENABLED' : 'SOFT LOCK ONLY'}
                 </Text>
                 <Text style={styles.warningText}>
                   {!phoneRequired 
-                    ? 'Screen Time bypass is active. Do not switch apps or move the phone.' 
+                    ? 'Do not leave the app. Do not move the phone.' 
                     : 'Background tracking only. You can use other apps.'}
                 </Text>
               </View>
@@ -12180,7 +12174,7 @@ export default function FocusSessionScreen() {
             <View style={[styles.dot, { backgroundColor: sessionState === 'focus' ? '#10B981' : sessionState === 'compromised' ? '#EF4444' : '#F59E0B' }]} />
             <Text style={styles.statusText}>
               {sessionState === 'focus' 
-                ? (isLocked ? 'LOCKED & SECURE' : phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') 
+                ? (isLocked ? 'SYSTEM LOCKED' : phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') 
                 : sessionState === 'compromised' ? 'BREACH DETECTED' : 'PAUSED'}
             </Text>
           </View>
@@ -12656,6 +12650,59 @@ const styles = StyleSheet.create({
   secondaryBtn: { padding: 12, alignItems: 'center' },
   secondaryText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
 });
+</file>
+
+<file path="src/config/firebase.ts">
+import { initializeApp, getApp, getApps } from 'firebase/app';
+import { 
+  initializeAuth, 
+  getReactNativePersistence, 
+  GoogleAuthProvider, 
+  signInWithCredential, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile,
+  getAuth
+} from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Your existing config
+const firebaseConfig = {
+  apiKey: "AIzaSyAw7dKdWkr7WBO_BUG8EFqLOYw-wr0n2Z8",
+  authDomain: "hesi-ai.firebaseapp.com",
+  projectId: "hesi-ai",
+  storageBucket: "hesi-ai.firebasestorage.app",
+  messagingSenderId: "204716304779",
+  appId: "1:204716304779:web:b9876e929e0a60a717a78e"
+};
+
+// Initialize App
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// Initialize Auth with Persistence
+let auth;
+if (getApps().length > 0) {
+  try {
+    auth = getAuth(app);
+  } catch {
+    // initialize below if getAuth fails
+  }
+}
+
+if (!auth) {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage)
+  });
+}
+
+export { 
+  auth, 
+  GoogleAuthProvider, 
+  signInWithCredential, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile 
+};
 </file>
 
 <file path="src/services/notificationService.ts">
@@ -13735,11 +13782,9 @@ const Screen2Villain: React.FC<{ onNext: () => void; onSkip?: () => void }> = ({
         <SwitchTaxInteractive onChaosReached={handleChaos} />
       </View>
       <View style={styles.textContainerInteractive}>
-        <Text style={styles.villainTitle}>The Switch Tax</Text>
+        <Text style={styles.villainTitle}>Cognitive Debt</Text>
         <Text style={styles.villainSubtext}>
-          Every notification and tab switch fractures your focus.
-          At 10+ interruptions, your brain enters a "critical state" of cognitive debt.
-        </Text>
+A notification doesn’t just distract you; it breaks your flow. After 10+ interruptions, your mind is too scattered to focus, and your productivity tanks.        </Text>
       </View>
       <View style={styles.buttonContainer}>
         {canProceed ? (
@@ -13907,7 +13952,7 @@ const Screen4Verdict: React.FC<{
           <View style={styles.numberContainer}>
             <Animated.Text style={styles.ghostHoursNumber}>{displayValue}</Animated.Text>
           </View>
-          <Text style={styles.verdictSubtext}>every day to Switching.</Text>
+          <Text style={styles.verdictSubtext}>every day to Resetting.</Text>
           
           <View style={styles.barsContainer}>
             <View style={styles.barWrapper}>
@@ -15192,7 +15237,7 @@ const VILLAIN_PROTOCOLS: Record<string, string> = {
 };
 
 /**
- * 🧠 STEP 1: THE CLARIFIER (Balanced Depth)
+ * 🧠 STEP 1: THE CLARIFIER
  */
 export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
   const onboarding = userProfile.onboardingData || {};
@@ -15211,20 +15256,27 @@ export const generateClarifyingQuestion = async (goal: string, userProfile: any)
     2. **Ask up to 2 Distinct Points:** You can combine two questions to triangulate their intent (e.g., "What is the topic AND what is the format?").
     3. **Be Conversational but Tactical:** Don't sound like a robot. Speak like a coach.
 
+    *** CRITICAL NEGATIVE CONSTRAINTS (READ CAREFULLY) ***
+    - **NEVER ASK ABOUT TIME OR SCHEDULE:** Do NOT ask "When do you want to finish?", "What is your deadline?", "How many hours a week?", or "How much time per day?".
+    - **REASON:** The app handles scheduling, deadlines, and daily time limits in a separate UI step immediately after this conversation. Asking now is redundant and annoying.
+    - **FOCUS ONLY ON SCOPE:** Only ask about the *content*, *specific outcome*, *tools*, or *methodology* of the goal.
+
     EXAMPLES:
     - Input: "Study"
-    - Output: "What specific subject or exam are we prepping for? Also, are we reviewing notes or doing active practice problems?"
+    - BAD Output: "When is your exam and how long do you want to study?" (Violates Negative Constraint)
+    - GOOD Output: "What specific subject or exam are we prepping for? Also, are we reviewing notes or doing active practice problems?"
     
-    - Input: "Work on project"
-    - Output: "What is the single most important feature you need to ship today? Is this a solo coding session or does it involve writing/planning?"
+    - Input: "Learn Spanish"
+    - BAD Output: "How many minutes a day do you want to practice?" (Violates Negative Constraint)
+    - GOOD Output: "Are you starting from absolute zero or do you have some basics? And are we using an app, a textbook, or conversation practice?"
     
     - Input: "Clean house"
-    - Output: "Let's focus. Which room is the biggest disaster right now? Do we need to do a deep clean or just a rapid visual tidy-up?"
+    - GOOD Output: "Let's focus. Which room is the biggest disaster right now? Do we need to do a deep clean or just a rapid visual tidy-up?"
 
     CONSTRAINTS: 
     - Aim for exactly 2 sentences. 
     - Use 3 sentences ONLY if the input is extremely ambiguous and needs context.
-    - Focus on "What" and "How".
+    - Focus on "What" and "How", NEVER "When".
     
     OUTPUT JSON:
     { "question": "..." }
@@ -15245,7 +15297,7 @@ export const generateClarifyingQuestion = async (goal: string, userProfile: any)
 };
 
 /**
- * 🧠 STEP 1.5: THE CLASSIFIER
+ * 🧠 STEP 1.5: THE CLASSIFIER (Adaptive Complexity)
  */
 export const analyzeGoalType = async (goal: string, previousQuestion: string, userAnswer: string) => {
   const systemPrompt = `
@@ -15257,27 +15309,25 @@ export const analyzeGoalType = async (goal: string, previousQuestion: string, us
     
     TASK: 
     1. Classify as "PROJECT" (Single Session) or "JOURNEY" (Multi-Day/Long Term).
-    2. If JOURNEY, estimate the typical time in DAYS.
+    2. If JOURNEY, estimate the typical time in DAYS based on complexity.
     3. If JOURNEY, recommend a sustainable DAILY TIME COMMITMENT (in minutes).
 
-    LOGIC ENGINE:
-    - Look at the relationship between Question and Answer.
-    - If Question was "When is this due?" and Answer is "Tomorrow" -> PROJECT.
-    - If Question was "How many chapters?" and Answer is "50 chapters" -> JOURNEY.
-    - If Question was "What is the outcome?" and Answer is "Learn Python" -> JOURNEY.
-    - If Question was "What specific task?" and Answer is "Write the intro" -> PROJECT.
-
-    CRITICAL OVERRIDE RULES:
-    1. **TEMPORAL MARKERS:** "Today", "tonight", "now", "this morning" -> PROJECT.
-    2. **SCALE MARKERS:** "Learn a language", "Build an app", "Get fit", "Write a book" -> JOURNEY.
-    3. **SPECIFICITY:** "Do lesson 1" -> PROJECT. "Finish the course" -> JOURNEY.
+    *** ADAPTIVE COMPLEXITY MATRIX ***
+    - **Simple Habit** (e.g., "Drink water", "Read more"): ~21-30 Days, 15-30 mins/day.
+    - **Medium Project/Skill** (e.g., "Finish book draft", "Learn basic SQL"): ~30-45 Days, 45-60 mins/day.
+    - **Major Lifestyle/Mastery** (e.g., "Get six pack", "Learn fluent Spanish", "Launch startup"): ~60-90+ Days, 60-90 mins/day.
     
+    LOGIC ENGINE:
+    - "Today", "tonight", "now" -> PROJECT.
+    - "Learn X", "Build X", "Become X" -> JOURNEY.
+    - If user implies a deadline in the answer, use that to calculate days (e.g., "Exam in 2 weeks" -> 14 days).
+
     OUTPUT JSON:
     { 
       "type": "project" | "journey",
       "reason": "Explain why based on the Q&A context.",
-      "estimatedDays": 30, // Default 30. Only for Journey.
-      "recommendedDailyMinutes": 45 // Default 45. Only for Journey.
+      "estimatedDays": number, // Intelligent estimate based on complexity
+      "recommendedDailyMinutes": number // Sustainable recommendation
     }
   `;
 
@@ -15294,7 +15344,7 @@ export const analyzeGoalType = async (goal: string, previousQuestion: string, us
 };
 
 /** 
- * 🧠 STEP 2: THE STRATEGIST
+ * 🧠 STEP 2: THE STRATEGIST (Proactive Resource Suggestions)
  */
 export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "", dailyMinutes: number = 0) => {
   const onboarding = userProfile.onboardingData || {};
@@ -15309,8 +15359,6 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     🎨 **TYPE B: THE BLANK PAGE (Creation)** - Structure -> Vomit Draft -> Refine.
     ❓ **TYPE C: THE BLACK BOX (Ambiguity)** - Research Spike -> Prototype -> Expand.
     🧠 **TYPE D: THE DOWNLOAD (Study)** - Scope -> Active Recall -> Gap Fill.
-    📄 **TYPE E: LIFE ADMIN** - Gather -> Blitz.
-    🏋️ **TYPE F: PHYSICAL** - Warmup -> Compound -> Accessory -> Cooldown.
   `;
 
   let timeConstraintPrompt = "";
@@ -15321,9 +15369,7 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     - The sum of task durations MUST equal ${dailyMinutes}.
     `;
   } else {
-    timeConstraintPrompt = `
-    - Target total duration: 45-90 minutes.
-    `;
+    timeConstraintPrompt = `- Target total duration: 45-90 minutes.`;
   }
 
   const systemPrompt = `
@@ -15343,10 +15389,21 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     ${SHORT_TERM_PROTOCOLS}
 
     CRITICAL RULES:
-    1. **APPLY THE DRIVER:** If 'Velocity', skip review steps. If 'Mastery', double the review time.
-    2. **COUNTER THE VILLAIN:** Include defense mechanisms in descriptions.
-    3. **MICRO-SCRIPTS:** Tell them EXACTLY what to do.
-    4. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Project Alpha', 'Draft Essay', 'Chest Day').
+    1. **ACTION BIAS:** Tasks must be tangible execution steps (e.g. "Draft the email", "Code the function") NOT meta-work (e.g. "Write down goals", "Decide what to do"). Assume the "Planning" phase is OVER.
+    2. **AVOID SINGLE TASKS:** Unless the duration is under 15 minutes, break the workflow into at least 2 steps (e.g. Draft -> Edit, or Research -> Implement).
+    3. **APPLY THE DRIVER:** If 'Velocity', skip review steps. If 'Mastery', double the review time.
+    4. **COUNTER THE VILLAIN:** Include defense mechanisms in descriptions.
+    
+    5. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
+       - If a task involves finding, watching, researching, or buying something, you MUST generate a search URL.
+       - Do NOT wait for a specific URL. Construct it yourself.
+       - **YouTube:** https://www.youtube.com/results?search_query=YOUR+SEARCH+TERMS
+       - **Google:** https://www.google.com/search?q=YOUR+SEARCH+TERMS
+       - **Amazon:** https://www.amazon.com/s?k=YOUR+SEARCH+TERMS
+       - **Example:** Task "Find a piano tutorial" -> link: { "url": "https://www.youtube.com/results?search_query=beginner+piano+tutorial", "label": "YouTube: Beginner Tutorial" }
+       - **Example:** Task "Research best microphones" -> link: { "url": "https://www.google.com/search?q=best+budget+microphones+2024", "label": "Google: Best Mics" }
+
+    6. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
     ${timeConstraintPrompt}
 
     OUTPUT FORMAT (JSON):
@@ -15356,7 +15413,8 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
         { 
           "title": "Action Verb + Object", 
           "duration": 15, 
-          "description": "Tactical instruction aligned with the Optimization Goal." 
+          "description": "Tactical instruction.",
+          "link": { "url": "https://...", "label": "Source: [Title]" } // OPTIONAL but HIGH PRIORITY for research tasks
         } 
       ]
     }
@@ -15388,7 +15446,7 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
 };
 
 /**
- * 🧠 STEP 2 (VARIANT): THE COACH
+ * 🧠 STEP 2 (VARIANT): THE COACH (Progressive Difficulty)
  */
 export const generateDailyPlan = async (
   goal: string, 
@@ -15403,13 +15461,17 @@ export const generateDailyPlan = async (
   const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || "";
   const villainPrompt = VILLAIN_PROTOCOLS[onboarding.frictionVillain] || "";
   
-  const JOURNEY_PROTOCOLS = `
-    DETERMINE THE JOURNEY TYPE AND PHASE:
-    📈 **TYPE A: THE COMPOUND (Skill)** - Progressive Overload.
-    🏃 **TYPE B: THE MARATHON (Volume)** - Non-Negotiable Minimum.
-    🏗️ **TYPE C: THE BUILD (Project)** - Modular Sprints.
-    📅 **TYPE D: THE EVENT (Deadline)** - Simulation & Taper.
-  `;
+  // Calculate Phase
+  const progress = dayNumber / totalDays;
+  let phaseInstruction = "";
+  
+  if (progress < 0.2) {
+    phaseInstruction = "PHASE: WARMUP. Keep tasks relatively easy and foundational. Focus on building the habit and reducing friction.";
+  } else if (progress >= 0.2 && progress < 0.8) {
+    phaseInstruction = "PHASE: THE GRIND (High Intensity). Apply Progressive Overload. tasks should be challenging and high-volume. Push the user.";
+  } else {
+    phaseInstruction = "PHASE: FINAL POLISH/TAPER. Focus on synthesizing results, reviewing work, and finishing strong.";
+  }
 
   const systemPrompt = `
     You are an expert Long-Term Performance Coach.
@@ -15421,16 +15483,21 @@ export const generateDailyPlan = async (
     CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
     TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
     
-    MISSION:
-    Generate a tactical plan for TODAY (Day ${dayNumber}) that fits exactly within ${dailyMinutes} minutes.
-    
-    ${JOURNEY_PROTOCOLS}
+    ${phaseInstruction}
 
     RULES:
-    1. **STRICT CONTEXT:** All tasks MUST contribute directly to the MAIN GOAL: "${goal}". Do NOT generate generic tasks or tasks for unrelated goals.
-    2. **PHASE AWARENESS:** Day 1 = Setup. Middle = Grind. End = Review.
-    3. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
-    4. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max (e.g. 'Day ${dayNumber}', 'Leg Day', 'Draft Mode').
+    1. **ACTION BIAS:** Focus on OUTPUT. Avoid "Review goals" or "Plan the day". Give them the actual work.
+    2. **STRICT CONTEXT:** All tasks MUST contribute directly to the MAIN GOAL.
+    3. **PROGRESSIVE DIFFICULTY:** Adjust the complexity of tasks based on the current PHASE.
+    
+    4. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
+       - If a task involves learning, finding, or watching, GENERATE A SEARCH URL.
+       - **YouTube:** https://www.youtube.com/results?search_query=...
+       - **Google:** https://www.google.com/search?q=...
+       - Example: "Watch tutorial" -> link: { "url": "https://www.youtube.com/results?search_query=advanced+react+tutorial", "label": "YouTube: React Tutorial" }
+
+    5. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
+    6. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
     
     OUTPUT JSON:
     {
@@ -15439,7 +15506,8 @@ export const generateDailyPlan = async (
         { 
           "title": "Specific Exercise/Task", 
           "duration": 15, 
-          "description": "Instruction + Motivational Context relating to ${goal}." 
+          "description": "Instruction + Motivation.",
+          "link": { "url": "https://...", "label": "Source: [Title]" } // OPTIONAL
         } 
       ]
     }
@@ -15805,366 +15873,6 @@ const styles = StyleSheet.create({
 });
 
 export default TaskReactorCircle;
-</file>
-
-<file path="app/auth.tsx">
-import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, TextInput, TouchableOpacity, 
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView 
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { apiService } from '../src/services/api';
-import { useApp } from '../src/context/AppContext';
-import { lightColors as colors } from '../src/constants/colors';
-import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-import Svg, { Path } from 'react-native-svg'; 
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
-
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import * as AuthSession from 'expo-auth-session'; 
-import * as AppleAuthentication from 'expo-apple-authentication';
-import { 
-  auth, 
-  GoogleAuthProvider, 
-  signInWithCredential, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
-  updateProfile
-} from '../src/config/firebase';
-
-// 1. Mandatory for handling the browser redirect correctly in Expo
-WebBrowser.maybeCompleteAuthSession();
-
-export default function AuthScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
-  const { setUser } = useApp();
-  const insets = useSafeAreaInsets(); 
-  
-  const onboardingDataString = params.onboardingData as string;
-  const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
-
-  const [isLogin, setIsLogin] = useState(params.mode === 'login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  // --- NUCLEAR CONFIGURATION ---
-  const CLIENT_ID = "204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com";
-  
-  // This generates the "https://auth.expo.io/..." URL dynamically
-  const redirectUri = AuthSession.makeRedirectUri({
-    useProxy: true,
-    projectNameForProxy: "@goathezisplash123/productivity-ai",
-  });
-
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: CLIENT_ID,
-    useProxy: true,
-    redirectUri: redirectUri,
-  });
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      handleGoogleSignIn(id_token);
-    } else if (response?.type === 'error') {
-      console.error("Auth Session Error:", response.error);
-      Alert.alert("Sign In Error", "Google could not redirect back. Please check your Authorized Domains in Firebase.");
-    }
-  }, [response]);
-
-  const handleGoogleSignIn = async (idToken: string) => {
-    setLoading(true);
-    try {
-      // 1. Firebase Credential
-      const credential = GoogleAuthProvider.credential(idToken);
-      // 2. Firebase Sign In
-      const userCredential = await signInWithCredential(auth, credential);
-      
-      // 3. Backend Sync
-      const firebaseUser = userCredential.user;
-      const userName = firebaseUser.displayName || 'Google User';
-      const userEmail = firebaseUser.email || '';
-
-      await syncUserWithBackend(
-        firebaseUser, 
-        'google',
-        userName,
-        userEmail
-      );
-    } catch (error: any) {
-      console.error("Google Login Error:", error);
-      Alert.alert("Login Failed", error.message);
-      setLoading(false);
-    }
-  };
-
-  const handleAppleLogin = async () => {
-    try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      setLoading(true);
-      const displayName = credential.fullName?.givenName 
-        ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim() 
-        : "Apple User";
-
-      // Mock firebase user object structure for the sync function
-      const appleUserMock = {
-        uid: credential.user,
-        email: credential.email,
-        displayName: displayName
-      };
-
-      await syncUserWithBackend(
-        appleUserMock, 
-        'apple', 
-        displayName, 
-        credential.email || ''
-      );
-
-    } catch (e: any) {
-      if (e.code !== 'ERR_CANCELED') {
-        Alert.alert('Apple Login Failed', e.message);
-      }
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!email || !password || (!isLogin && !name)) {
-      Alert.alert('Missing Fields', 'Please fill in all fields.');
-      return;
-    }
-    setLoading(true);
-    Haptics.selectionAsync();
-    try {
-      let userCredential;
-      if (isLogin) {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        if (auth.currentUser) {
-          await updateProfile(auth.currentUser, { displayName: name });
-        }
-      }
-      await syncUserWithBackend(userCredential.user, 'email');
-    } catch (error: any) {
-      Alert.alert('Authentication Failed', error.message);
-      setLoading(false);
-    }
-  };
-
-  const syncUserWithBackend = async (firebaseUser: any, provider: string, nameOverride?: string, emailOverride?: string) => {
-    try {
-      const backendUser = await apiService.syncUser({
-        email: emailOverride || firebaseUser.email,
-        socialId: firebaseUser.uid || firebaseUser.socialId,
-        name: nameOverride || firebaseUser.displayName || name || 'Operative',
-        provider: provider,
-        onboardingData: onboardingData
-      });
-
-      setUser(backendUser);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      if (backendUser.onboardingData || onboardingData) {
-        router.replace('/home');
-      } else {
-        router.replace('/ghost-hours');
-      }
-    } catch (error) {
-      console.error("Backend Sync Error:", error);
-      Alert.alert("Sync Error", "Logged in, but failed to connect to the backend server.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <StatusBar style="dark" />
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        style={styles.container}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        <ScrollView 
-          contentContainerStyle={[
-            styles.scrollContent, 
-            { 
-              paddingTop: Math.max(insets.top + 40, 80),
-              paddingBottom: Math.max(insets.bottom + 20, 40)
-            }
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.headerSection}>
-            <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
-            <Text style={styles.subtitle}>
-              {isLogin ? 'Sign in to access your dashboard.' : 'Create an account to save your productivity plan.'}
-            </Text>
-          </View>
-
-          <View style={styles.form}>
-            {!isLogin && (
-              <View style={styles.inputContainer}>
-                <User size={20} color={colors.textSecondary} style={styles.icon} />
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="Full Name" 
-                  value={name} 
-                  onChangeText={setName} 
-                  placeholderTextColor={colors.textLight} 
-                />
-              </View>
-            )}
-            <View style={styles.inputContainer}>
-              <Mail size={20} color={colors.textSecondary} style={styles.icon} />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Email Address" 
-                value={email} 
-                onChangeText={setEmail} 
-                autoCapitalize="none" 
-                keyboardType="email-address" 
-                placeholderTextColor={colors.textLight} 
-              />
-            </View>
-            <View style={styles.inputContainer}>
-              <Lock size={20} color={colors.textSecondary} style={styles.icon} />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Password" 
-                value={password} 
-                onChangeText={setPassword} 
-                secureTextEntry 
-                placeholderTextColor={colors.textLight} 
-              />
-            </View>
-            
-            <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.buttonText}>{isLogin ? 'Log In' : 'Complete Setup'}</Text>
-                  <ArrowRight size={20} color="#FFFFFF" />
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.footer}>
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
-              <View style={styles.dividerLine} />
-            </View>
-            
-            <View style={styles.socialButtonsContainer}>
-              {Platform.OS === 'ios' && (
-                <TouchableOpacity style={styles.appleCustomButton} onPress={handleAppleLogin}>
-                  <View style={styles.iconContainer}>
-                    <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
-                      <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
-                    </Svg>
-                  </View>
-                  <Text style={styles.appleButtonText}>Continue with Apple</Text>
-                </TouchableOpacity>
-              )}
-              
-              <TouchableOpacity 
-                style={[styles.googleButton, !request && { opacity: 0.5 }]} 
-                onPress={() => promptAsync()} 
-                disabled={!request}
-              >
-                <View style={styles.iconContainer}>
-                  <Svg width={24} height={24} viewBox="0 0 48 48">
-                    <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                    <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                    <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                    <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                  </Svg>
-                </View>
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin(!isLogin)}>
-              <Text style={styles.switchText}>
-                {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: { 
-    flexGrow: 1, 
-    justifyContent: 'center', 
-    paddingHorizontal: 30,
-  },
-  headerSection: { marginBottom: 32 },
-  title: { fontSize: 32, fontWeight: '700', color: colors.text, marginBottom: 8 },
-  subtitle: { fontSize: 16, color: colors.textSecondary },
-  form: { gap: 16 },
-  inputContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: colors.backgroundLight, 
-    borderRadius: 16, 
-    borderWidth: 1, 
-    borderColor: colors.border, 
-    height: 56, 
-    paddingHorizontal: 16 
-  },
-  icon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 16, color: colors.text },
-  button: { 
-    backgroundColor: colors.primary, 
-    height: 56, 
-    borderRadius: 16, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    marginTop: 8, 
-    shadowColor: colors.primary, 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 8, 
-    elevation: 5 
-  },
-  buttonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', marginRight: 8 },
-  footer: { marginTop: 16 },
-  switchButton: { alignItems: 'center', marginTop: 16 },
-  switchText: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
-  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { marginHorizontal: 12, color: colors.textLight, fontSize: 14, fontWeight: '500' },
-  socialButtonsContainer: { gap: 12 },
-  appleCustomButton: { width: '100%', height: 56, backgroundColor: '#000000', borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
-  appleButtonText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
-  googleButton: { width: '100%', height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  iconContainer: { marginRight: 12, justifyContent: 'center', alignItems: 'center' },
-  googleButtonText: { fontSize: 17, fontWeight: '600', color: '#1A1A1A' },
-});
 </file>
 
 <file path="app/profile.tsx">
@@ -16630,10 +16338,11 @@ import {
   Dimensions, 
   ActivityIndicator, 
   KeyboardAvoidingView,
-  Platform 
+  Platform,
+  Linking
 } from 'react-native';
 import Animated, { ZoomIn, FadeInRight, FadeOutLeft } from 'react-native-reanimated';
-import { Play, X, ChevronLeft, Minus, Plus, Info, Edit3, Sparkles, Send, Calendar, Map, Target, ArrowRight, Check, Clock, Zap } from 'lucide-react-native';
+import { Play, X, ChevronLeft, Minus, Plus, Info, Edit3, Sparkles, Send, Map, Target, ArrowRight, Check, Zap, Link as LinkIcon } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
@@ -16645,6 +16354,7 @@ export interface StagingTask {
   title: string;
   duration: number;
   description?: string;
+  link?: { url: string; label: string }; // Added link support
 }
 
 interface TaskStagingModalProps {
@@ -16690,7 +16400,7 @@ export const TaskStagingModal = ({
     }
   }, [visible, goalTitle, generatedTasks]);
 
-  // --- DETAILED CONTEXT LOGIC ---
+  // ... (switchContext logic remains the same) ...
   const switchContext = useMemo(() => {
     const identity = user?.onboardingData?.identity || 'professional';
     const isSwitchingToJourney = goalType === 'project'; 
@@ -16792,9 +16502,18 @@ export const TaskStagingModal = ({
     onToggleMode();
   };
 
+  const openLink = async (url: string) => {
+    Haptics.selectionAsync();
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      console.error("Failed to open URL:", url);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
+      <View style={styles.overlay}>
         <Animated.View entering={ZoomIn.duration(400)} style={styles.container}>
           
           {/* --- DETAILED POPUP OVERLAY --- */}
@@ -16858,6 +16577,21 @@ export const TaskStagingModal = ({
                     <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>STRATEGY BRIEF</Text>
                   </View>
                   <Text style={styles.descText}>{editingTask.description}</Text>
+                  
+                  {/* --- NEW LINK RENDERER --- */}
+                  {editingTask.link && (
+                    <TouchableOpacity 
+                      style={styles.linkButton} 
+                      onPress={() => openLink(editingTask.link!.url)}
+                      activeOpacity={0.8}
+                    >
+                      <LinkIcon size={14} color={colors.primary} />
+                      <Text style={styles.linkText} numberOfLines={1}>
+                        {editingTask.link.label}
+                      </Text>
+                      <ArrowRight size={14} color={colors.primary} style={{ opacity: 0.6 }} />
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <View style={styles.refineSection}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
@@ -16933,7 +16667,10 @@ export const TaskStagingModal = ({
                   <TouchableOpacity key={task.id} style={styles.taskRow} onPress={() => setEditingTask(task)}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowTitle}>{task.title}</Text>
-                      <Text style={styles.tapToEdit}>Tap to edit details</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.tapToEdit}>Tap to edit details</Text>
+                        {task.link && <LinkIcon size={12} color={colors.primary} style={{ opacity: 0.8 }} />}
+                      </View>
                     </View>
                     <View style={styles.timeBadge}><Text style={styles.timeText}>{task.duration}m</Text></View>
                   </TouchableOpacity>
@@ -16965,7 +16702,7 @@ export const TaskStagingModal = ({
             </View>
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
@@ -16974,6 +16711,31 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
   container: { backgroundColor: '#FFF', borderRadius: 32, padding: 24, height: height * 0.8, position: 'relative', overflow: 'hidden' },
   
+  // Link Button Styles
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  linkText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+
   // Detailed Popup Styles
   popupOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
@@ -17100,6 +16862,355 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 8
   }
+});
+</file>
+
+<file path="app/auth.tsx">
+import React, { useState, useEffect } from 'react';
+import { 
+  View, Text, StyleSheet, TextInput, TouchableOpacity, 
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView 
+} from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { apiService } from '../src/services/api';
+import { useApp } from '../src/context/AppContext';
+import { lightColors as colors } from '../src/constants/colors';
+import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import Svg, { Path } from 'react-native-svg'; 
+import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
+
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session'; 
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { 
+  auth, 
+  GoogleAuthProvider, 
+  signInWithCredential, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  updateProfile
+} from '../src/config/firebase';
+
+// 1. Mandatory for handling the browser redirect
+WebBrowser.maybeCompleteAuthSession();
+
+export default function AuthScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const { setUser } = useApp();
+  const insets = useSafeAreaInsets(); 
+  
+  const onboardingDataString = params.onboardingData as string;
+  const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
+
+  const [isLogin, setIsLogin] = useState(params.mode === 'login');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // --- NUCLEAR GOOGLE CONFIG ---
+  // By removing useProxy: true and redirectUri, we force Expo Go 
+  // to use a Native Redirect which bypasses the "White Screen" proxy issue.
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    iosClientId: "204716304779-266i58dfvid6mg70reivvtdqqrpv2v9p.apps.googleusercontent.com",
+    webClientId: "204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com",
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleGoogleSignIn(id_token);
+    } else if (response?.type === 'error') {
+      console.error("Auth Session Error:", response.error);
+      Alert.alert("Google Sign-In Error", "Failed to connect to Google.");
+    }
+  }, [response]);
+
+  const handleGoogleSignIn = async (idToken: string) => {
+    setLoading(true);
+    try {
+      const credential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      
+      const firebaseUser = userCredential.user;
+      const userName = firebaseUser.displayName || 'Google User';
+      const userEmail = firebaseUser.email || '';
+
+      await syncUserWithBackend(
+        firebaseUser, 
+        'google',
+        userName,
+        userEmail
+      );
+    } catch (error: any) {
+      console.error("Google Login Error:", error);
+      Alert.alert("Login Failed", error.message);
+      setLoading(false);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      setLoading(true);
+      const displayName = credential.fullName?.givenName 
+        ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim() 
+        : "Apple User";
+
+      const appleUserMock = {
+        uid: credential.user,
+        email: credential.email,
+        displayName: displayName
+      };
+
+      await syncUserWithBackend(
+        appleUserMock, 
+        'apple', 
+        displayName, 
+        credential.email || ''
+      );
+
+    } catch (e: any) {
+      if (e.code !== 'ERR_CANCELED') {
+        Alert.alert('Apple Login Failed', e.message);
+      }
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!email || !password || (!isLogin && !name)) {
+      Alert.alert('Missing Fields', 'Please fill in all fields.');
+      return;
+    }
+    setLoading(true);
+    Haptics.selectionAsync();
+    try {
+      let userCredential;
+      if (isLogin) {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (auth.currentUser) {
+          await updateProfile(auth.currentUser, { displayName: name });
+        }
+      }
+      await syncUserWithBackend(userCredential.user, 'email');
+    } catch (error: any) {
+      Alert.alert('Authentication Failed', error.message);
+      setLoading(false);
+    }
+  };
+
+  const syncUserWithBackend = async (firebaseUser: any, provider: string, nameOverride?: string, emailOverride?: string) => {
+    try {
+      const backendUser = await apiService.syncUser({
+        email: emailOverride || firebaseUser.email,
+        socialId: firebaseUser.uid || firebaseUser.socialId,
+        name: nameOverride || firebaseUser.displayName || name || 'Operative',
+        provider: provider,
+        onboardingData: onboardingData
+      });
+
+      setUser(backendUser);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      if (backendUser.onboardingData || onboardingData) {
+        router.replace('/home');
+      } else {
+        router.replace('/ghost-hours');
+      }
+    } catch (error) {
+      console.error("Backend Sync Error:", error);
+      Alert.alert("Sync Error", "Logged in, but failed to connect to the backend server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <StatusBar style="dark" />
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        style={styles.container}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          contentContainerStyle={[
+            styles.scrollContent, 
+            { 
+              paddingTop: Math.max(insets.top + 40, 80),
+              paddingBottom: Math.max(insets.bottom + 20, 40)
+            }
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.headerSection}>
+            <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
+            <Text style={styles.subtitle}>
+              {isLogin ? 'Sign in to access your dashboard.' : 'Create an account to save your productivity plan.'}
+            </Text>
+          </View>
+
+          <View style={styles.form}>
+            {!isLogin && (
+              <View style={styles.inputContainer}>
+                <User size={20} color={colors.textSecondary} style={styles.icon} />
+                <TextInput 
+                  style={styles.input} 
+                  placeholder="Full Name" 
+                  value={name} 
+                  onChangeText={setName} 
+                  placeholderTextColor={colors.textLight} 
+                />
+              </View>
+            )}
+            <View style={styles.inputContainer}>
+              <Mail size={20} color={colors.textSecondary} style={styles.icon} />
+              <TextInput 
+                style={styles.input} 
+                placeholder="Email Address" 
+                value={email} 
+                onChangeText={setEmail} 
+                autoCapitalize="none" 
+                keyboardType="email-address" 
+                placeholderTextColor={colors.textLight} 
+              />
+            </View>
+            <View style={styles.inputContainer}>
+              <Lock size={20} color={colors.textSecondary} style={styles.icon} />
+              <TextInput 
+                style={styles.input} 
+                placeholder="Password" 
+                value={password} 
+                onChangeText={setPassword} 
+                secureTextEntry 
+                placeholderTextColor={colors.textLight} 
+              />
+            </View>
+            
+            <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.buttonText}>{isLogin ? 'Log In' : 'Complete Setup'}</Text>
+                  <ArrowRight size={20} color="#FFFFFF" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.footer}>
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or continue with</Text>
+              <View style={styles.dividerLine} />
+            </View>
+            
+            <View style={styles.socialButtonsContainer}>
+              {Platform.OS === 'ios' && (
+                <TouchableOpacity style={styles.appleCustomButton} onPress={handleAppleLogin}>
+                  <View style={styles.iconContainer}>
+                    <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
+                      <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
+                    </Svg>
+                  </View>
+                  <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity 
+                style={[styles.googleButton, !request && { opacity: 0.5 }]} 
+                onPress={() => promptAsync()} 
+                disabled={!request}
+              >
+                <View style={styles.iconContainer}>
+                  <Svg width={24} height={24} viewBox="0 0 48 48">
+                    <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                    <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                    <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                    <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                  </Svg>
+                </View>
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin(!isLogin)}>
+              <Text style={styles.switchText}>
+                {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  scrollContent: { 
+    flexGrow: 1, 
+    justifyContent: 'center', 
+    paddingHorizontal: 30,
+  },
+  headerSection: { marginBottom: 32 },
+  title: { fontSize: 32, fontWeight: '700', color: colors.text, marginBottom: 8 },
+  subtitle: { fontSize: 16, color: colors.textSecondary },
+  form: { gap: 16 },
+  inputContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: colors.backgroundLight, 
+    borderRadius: 16, 
+    borderWidth: 1, 
+    borderColor: colors.border, 
+    height: 56, 
+    paddingHorizontal: 16 
+  },
+  icon: { marginRight: 12 },
+  input: { flex: 1, fontSize: 16, color: colors.text },
+  button: { 
+    backgroundColor: colors.primary, 
+    height: 56, 
+    borderRadius: 16, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginTop: 8, 
+    shadowColor: colors.primary, 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.3, 
+    shadowRadius: 8, 
+    elevation: 5 
+  },
+  buttonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', marginRight: 8 },
+  footer: { marginTop: 16 },
+  switchButton: { alignItems: 'center', marginTop: 16 },
+  switchText: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { marginHorizontal: 12, color: colors.textLight, fontSize: 14, fontWeight: '500' },
+  socialButtonsContainer: { gap: 12 },
+  appleCustomButton: { width: '100%', height: 56, backgroundColor: '#000000', borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+  appleButtonText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
+  googleButton: { width: '100%', height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  iconContainer: { marginRight: 12, justifyContent: 'center', alignItems: 'center' },
+  googleButtonText: { fontSize: 17, fontWeight: '600', color: '#1A1A1A' },
 });
 </file>
 
@@ -17793,6 +17904,7 @@ model Task {
   "expo": {
     "name": "HourBack AI",
     "slug": "productivity-ai",
+    "scheme": "hourback-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -17811,7 +17923,17 @@ model Task {
       "supportsTablet": true,
       "bundleIdentifier": "com.mumix.productivityai",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.204716304779-266i58dfvid6mg70reivvtdqqrpv2v9p"
+            ]
+          }
+        ]
+      },
+      "entitlements": {
+        "com.apple.developer.family-controls": true
       }
     },
     "android": {
@@ -17820,10 +17942,17 @@ model Task {
     "web": {
       "enabled": false
     },
-    "scheme": "hourback-ai",
     "plugins": [
       "expo-router",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.0"
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {
@@ -18210,6 +18339,7 @@ app.listen(PORT, '0.0.0.0', () => {
     "expo": "~54.0.32",
     "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.10",
+    "expo-build-properties": "~1.0.10",
     "expo-crypto": "~15.0.8",
     "expo-dev-client": "~6.0.20",
     "expo-device": "~8.0.10",
@@ -18227,7 +18357,6 @@ app.listen(PORT, '0.0.0.0', () => {
     "lucide-react-native": "^0.562.0",
     "moti": "^0.30.0",
     "react": "19.1.0",
- 
     "react-native": "0.81.5",
     "react-native-confetti-cannon": "^1.5.2",
     "react-native-gesture-handler": "~2.28.0",
@@ -18236,7 +18365,6 @@ app.listen(PORT, '0.0.0.0', () => {
     "react-native-screens": "~4.16.0",
     "react-native-shared-group-preferences": "^1.1.24",
     "react-native-svg": "15.12.1",
-   
     "react-native-worklets": "0.5.1",
     "react-native-worklets-core": "^1.6.2"
   },
@@ -18584,7 +18712,18 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { Sparkles, ArrowRight, Lightbulb } from 'lucide-react-native';
+import { 
+  Sparkles, 
+  ArrowRight, 
+  Lightbulb, 
+  Target, 
+  Zap, 
+  Clock, 
+  CheckCircle2, 
+  Brain, 
+  Layers,
+  Compass
+} from 'lucide-react-native';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
 import { TaskStagingModal, StagingTask } from '../src/components/TaskStagingModal';
@@ -18596,6 +18735,118 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
 
 type InputStep = 'goal' | 'clarification' | 'processing';
+
+// --- GENTLE HOVER SYMBOL ---
+// These stay in one place and just gently bob up/down.
+const FloatingSymbol = ({ 
+  Icon, 
+  top, left, right, bottom, 
+  size, 
+  delay, 
+  opacityMultiplier = 1,
+  hideOnKeyboard = false, 
+  isKeyboardVisible = false
+}: any) => {
+
+  // Logic: 
+  // 1. If keyboard is open & this symbol is marked to hide -> Opacity 0.
+  // 2. Otherwise -> Base Opacity (0.4) * Multiplier.
+  //    Normal: 0.4 * 1.0 = 40%
+  //    Reprompt: 0.4 * 0.1 = 4% (Targeting 2.5-5% range)
+  const effectiveOpacity = (hideOnKeyboard && isKeyboardVisible) 
+    ? 0 
+    : (0.4 * opacityMultiplier);
+
+  return (
+    <MotiView
+      from={{ 
+        translateY: 0, 
+        opacity: 0, 
+        scale: 0.9, 
+        rotate: '-5deg' 
+      }}
+      animate={{ 
+        translateY: -15, // Gentle bob
+        opacity: effectiveOpacity, 
+        scale: 1.05, 
+        rotate: '5deg' 
+      }}
+      transition={{
+        type: 'timing',
+        duration: 4000,
+        loop: true,
+        repeatReverse: true,
+        delay: delay,
+      }}
+      style={{
+        position: 'absolute',
+        top, left, right, bottom,
+        zIndex: 0,
+      }}
+    >
+      <Icon size={size} color={colors.primary} />
+    </MotiView>
+  );
+};
+
+const BackgroundEffects = ({ currentStep, isKeyboardVisible }: { currentStep: InputStep, isKeyboardVisible: boolean }) => {
+  // --- OPACITY LOGIC CHANGED HERE ---
+  // If we are in 'clarification' (reprompting), set multiplier to 0.1.
+  // This results in 4% final opacity (0.4 * 0.1).
+  const opacityMultiplier = currentStep === 'clarification' ? 0.1 : 1.0;
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* Symbols placed strictly in the 10% margins */}
+
+      {/* --- TOP ROW (Always Visible) --- */}
+      <FloatingSymbol 
+        Icon={Target} top="8%" left="6%" size={42} 
+        delay={0} opacityMultiplier={opacityMultiplier} 
+      />
+      <FloatingSymbol 
+        Icon={Brain} top="12%" right="6%" size={48} 
+        delay={1000} opacityMultiplier={opacityMultiplier} 
+      />
+
+      {/* --- MIDDLE ROW (Hides on Keyboard) --- */}
+      <FloatingSymbol 
+        Icon={Layers} top="35%" left="4%" size={34} 
+        delay={500} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+      <FloatingSymbol 
+        Icon={CheckCircle2} top="40%" right="4%" size={28} 
+        delay={1500} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+
+      {/* --- LOWER MIDDLE (Hides on Keyboard) --- */}
+      <FloatingSymbol 
+        Icon={Zap} top="60%" left="8%" size={30} 
+        delay={200} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+      <FloatingSymbol 
+        Icon={Clock} top="65%" right="8%" size={36} 
+        delay={1200} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+
+      {/* --- BOTTOM ROW (Hides on Keyboard) --- */}
+      <FloatingSymbol 
+        Icon={Compass} bottom="10%" left="15%" size={40} 
+        delay={2000} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+      <FloatingSymbol 
+        Icon={Sparkles} bottom="12%" right="15%" size={32} 
+        delay={800} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+    </View>
+  );
+};
 
 export default function GoalInputScreen() {
   const { initialText, editingGoalId } = useLocalSearchParams();
@@ -18623,7 +18874,7 @@ export default function GoalInputScreen() {
   const [targetDate, setTargetDate] = useState<Date | null>(null);
   const [committedDailyMinutes, setCommittedDailyMinutes] = useState(0);
   
-  // AI Suggestions for Journey
+  // AI Suggestions
   const [suggestedDays, setSuggestedDays] = useState(30);
   const [suggestedDailyMinutes, setSuggestedDailyMinutes] = useState(45);
 
@@ -18674,7 +18925,6 @@ export default function GoalInputScreen() {
   }));
 
   // --- HANDLERS ---
-
   const handleGoalSubmit = async () => {
     if (!goalText.trim()) return;
     Keyboard.dismiss();
@@ -18682,7 +18932,6 @@ export default function GoalInputScreen() {
 
     try {
       const question = await getAiQuestion(goalText);
-      
       if (question) {
         setAiQuestion(question);
         setStep('clarification');
@@ -18704,13 +18953,11 @@ export default function GoalInputScreen() {
     setStep('processing');
     try {
       const typeAnalysis = await analyzeGoal(goalText, clarification, aiQuestion);
-      
       if (typeAnalysis.type === 'journey') {
         setGoalType('journey');
         setJourneyReason(typeAnalysis.reason || "Long-term effort detected.");
         if (typeAnalysis.estimatedDays) setSuggestedDays(typeAnalysis.estimatedDays);
         if (typeAnalysis.recommendedDailyMinutes) setSuggestedDailyMinutes(typeAnalysis.recommendedDailyMinutes);
-        
         setIsJourneySetupVisible(true);
       } else {
         setGoalType('project'); 
@@ -18731,10 +18978,8 @@ export default function GoalInputScreen() {
 
   const handleFinalSubmit = async (clarification: string, dailyMinutes: number) => {
     setStep('processing');
-
     try {
       const aiResult = await generatePlan(goalText, clarification, dailyMinutes);
-      
       if (aiResult && aiResult.tasks && aiResult.tasks.length > 0) {
         const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
           id: `ai-${Date.now()}-${index}`,
@@ -18742,11 +18987,9 @@ export default function GoalInputScreen() {
           duration: t.duration,
           description: t.description
         }));
-        
         setAiTasks(formattedTasks);
         setAiTitle(aiResult.shortTitle);
         setIsStagingVisible(true);
-        
         if (goalType === 'project') setAnswerText(''); 
       } else {
         Alert.alert("Error", "Could not generate plan.");
@@ -18781,8 +19024,7 @@ export default function GoalInputScreen() {
   };
 
   const handleToggleMode = () => {
-    setIsStagingVisible(false); // Close staging
-    
+    setIsStagingVisible(false); 
     if (goalType === 'project') {
         setGoalType('journey');
         setJourneyReason("Switched from Project");
@@ -18798,7 +19040,6 @@ export default function GoalInputScreen() {
   const handleFinalConfirm = async (finalTasks: StagingTask[], finalTitle: string) => {
     setIsStagingVisible(false);
     setStep('processing'); 
-    
     try {
       if (isEditing) {
         const id = editingGoalId as string;
@@ -18837,10 +19078,12 @@ export default function GoalInputScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Used TouchableWithoutFeedback to dismiss keyboard when tapping outside */}
+      {/* Background with simple static positions that bob gently */}
+      <BackgroundEffects currentStep={step} isKeyboardVisible={isKeyboardVisible} />
+
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <KeyboardAvoidingView
-          style={[styles.container, { backgroundColor: '#FFFFFF' }]}
+          style={styles.container}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
@@ -18852,45 +19095,47 @@ export default function GoalInputScreen() {
               {step === 'goal' && (
                 <MotiView
                   key="step1"
-                  from={{ opacity: 0, translateX: -20 }}
-                  animate={{ opacity: 1, translateX: 0 }}
-                  exit={{ opacity: 0, translateX: -20 }}
+                  from={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
                   style={styles.stepWrapper}
                 >
-                  <Text style={styles.title}>
-                    {isEditing ? "Refine Directive" : "What is your main goal?"}
-                  </Text>
-
-                  <View style={styles.helperContainer}>
-                    <Lightbulb size={14} color={colors.primary} style={{ marginTop: 2 }} />
-                    <Text style={styles.helperText}>
-                      {helperText}
+                  <View style={styles.invisibleContentWrapper}>
+                    <Text style={styles.title}>
+                      {isEditing ? "Refine Directive" : "What is your main goal?"}
                     </Text>
-                  </View>
-                  
-                  <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g., Launch my dropshipping store"
-                      placeholderTextColor={colors.textLight}
-                      value={goalText}
-                      onChangeText={setGoalText}
-                      onFocus={handleFocus}
-                      onBlur={handleBlur}
-                      multiline
-                      autoFocus
-                      textAlignVertical="top" 
-                    />
-                    <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
-                      <TouchableOpacity
-                        style={styles.submitButton}
-                        onPress={handleGoalSubmit}
-                        disabled={!goalText.trim()}
-                      >
-                        <ArrowRight size={20} color="#FFFFFF" />
-                      </TouchableOpacity>
+
+                    <View style={styles.helperContainer}>
+                      <Lightbulb size={14} color={colors.primary} style={{ marginTop: 2 }} />
+                      <Text style={styles.helperText}>
+                        {helperText}
+                      </Text>
+                    </View>
+                    
+                    <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="e.g., Launch my dropshipping store"
+                        placeholderTextColor={colors.textLight}
+                        value={goalText}
+                        onChangeText={setGoalText}
+                        onFocus={handleFocus}
+                        onBlur={handleBlur}
+                        multiline
+                        autoFocus
+                        textAlignVertical="top" 
+                      />
+                      <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                        <TouchableOpacity
+                          style={styles.submitButton}
+                          onPress={handleGoalSubmit}
+                          disabled={!goalText.trim()}
+                        >
+                          <ArrowRight size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </Animated.View>
                     </Animated.View>
-                  </Animated.View>
+                  </View>
                 </MotiView>
               )}
 
@@ -18902,37 +19147,39 @@ export default function GoalInputScreen() {
                   exit={{ opacity: 0, translateX: -20 }}
                   style={styles.stepWrapper}
                 >
-                  <View style={styles.aiMessageContainer}>
-                    <Sparkles size={20} color={colors.primary} style={{marginBottom:8}} />
-                    <Text style={styles.aiQuestionText}>{aiQuestion}</Text>
-                  </View>
+                   <View style={styles.invisibleContentWrapper}>
+                    <View style={styles.aiMessageContainer}>
+                      <Sparkles size={20} color={colors.primary} style={{marginBottom:8}} />
+                      <Text style={styles.aiQuestionText}>{aiQuestion}</Text>
+                    </View>
 
-                  <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Type your answer..."
-                      placeholderTextColor={colors.textLight}
-                      value={answerText}
-                      onChangeText={(t) => {
-                          setAnswerText(t);
-                          if (t.length > 0) submitButtonOpacity.value = withSpring(1);
-                      }}
-                      onFocus={handleFocus}
-                      onBlur={handleBlur}
-                      multiline
-                      autoFocus
-                      textAlignVertical="top"
-                    />
-                    <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
-                      <TouchableOpacity
-                        style={styles.submitButton}
-                        onPress={handleClarificationSubmit}
-                        disabled={!answerText.trim()}
-                      >
-                        <ArrowRight size={20} color="#FFFFFF" />
-                      </TouchableOpacity>
+                    <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Type your answer..."
+                        placeholderTextColor={colors.textLight}
+                        value={answerText}
+                        onChangeText={(t) => {
+                            setAnswerText(t);
+                            if (t.length > 0) submitButtonOpacity.value = withSpring(1);
+                        }}
+                        onFocus={handleFocus}
+                        onBlur={handleBlur}
+                        multiline
+                        autoFocus
+                        textAlignVertical="top"
+                      />
+                      <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                        <TouchableOpacity
+                          style={styles.submitButton}
+                          onPress={handleClarificationSubmit}
+                          disabled={!answerText.trim()}
+                        >
+                          <ArrowRight size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </Animated.View>
                     </Animated.View>
-                  </Animated.View>
+                  </View>
                 </MotiView>
               )}
 
@@ -18996,26 +19243,37 @@ export default function GoalInputScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
-  container: { flex: 1 },
+  root: { flex: 1, backgroundColor: '#FAFAFA' }, 
+  container: { flex: 1, backgroundColor: 'transparent' }, 
+  
   centeredContainer: { 
     flex: 1, 
     justifyContent: 'center', 
     alignItems: 'center', 
     padding: 20, 
     width: '100%', 
-    paddingBottom: 100 
+    paddingBottom: 100,
+    zIndex: 10 
   },
-  stepWrapper: { width: '100%', alignItems: 'center' },
   
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 12, color: colors.text },
+  stepWrapper: { width: '100%', alignItems: 'center' },
+
+  invisibleContentWrapper: {
+    backgroundColor: 'transparent',
+    padding: 10,
+    width: '100%',
+    maxWidth: 640,
+    alignItems: 'center',
+  },
+  
+  title: { fontSize: 26, fontWeight: '700', textAlign: 'center', marginBottom: 12, color: colors.text },
   
   helperContainer: { 
     flexDirection: 'row', 
     alignItems: 'flex-start', 
     gap: 8, 
     marginBottom: 24, 
-    paddingHorizontal: 24,
+    paddingHorizontal: 10,
     opacity: 0.8
   },
   helperText: { 
@@ -19026,23 +19284,23 @@ const styles = StyleSheet.create({
     flex: 1
   },
 
-  aiMessageContainer: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 20 },
+  aiMessageContainer: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 10 },
   aiQuestionText: { fontSize: 20, fontWeight: '500', color: colors.primary, textAlign: 'center', lineHeight: 28 },
 
   inputCard: { 
     width: INPUT_CARD_WIDTH, 
-    borderRadius: 24, 
+    borderRadius: 20, 
     borderWidth: 2, 
     borderColor: 'rgba(245, 158, 11, 0.1)', 
-    backgroundColor: '#F9F9F9', 
+    backgroundColor: '#FFFFFF',
     position: 'relative', 
     minHeight: 140, 
     overflow: 'hidden',
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2
   },
   focusedCard: { borderColor: colors.primary, shadowColor: colors.primary },
   

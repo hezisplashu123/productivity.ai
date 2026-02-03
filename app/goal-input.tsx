@@ -21,7 +21,18 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { Sparkles, ArrowRight, Lightbulb } from 'lucide-react-native';
+import { 
+  Sparkles, 
+  ArrowRight, 
+  Lightbulb, 
+  Target, 
+  Zap, 
+  Clock, 
+  CheckCircle2, 
+  Brain, 
+  Layers,
+  Compass
+} from 'lucide-react-native';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
 import { TaskStagingModal, StagingTask } from '../src/components/TaskStagingModal';
@@ -33,6 +44,118 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
 
 type InputStep = 'goal' | 'clarification' | 'processing';
+
+// --- GENTLE HOVER SYMBOL ---
+// These stay in one place and just gently bob up/down.
+const FloatingSymbol = ({ 
+  Icon, 
+  top, left, right, bottom, 
+  size, 
+  delay, 
+  opacityMultiplier = 1,
+  hideOnKeyboard = false, 
+  isKeyboardVisible = false
+}: any) => {
+
+  // Logic: 
+  // 1. If keyboard is open & this symbol is marked to hide -> Opacity 0.
+  // 2. Otherwise -> Base Opacity (0.4) * Multiplier.
+  //    Normal: 0.4 * 1.0 = 40%
+  //    Reprompt: 0.4 * 0.1 = 4% (Targeting 2.5-5% range)
+  const effectiveOpacity = (hideOnKeyboard && isKeyboardVisible) 
+    ? 0 
+    : (0.4 * opacityMultiplier);
+
+  return (
+    <MotiView
+      from={{ 
+        translateY: 0, 
+        opacity: 0, 
+        scale: 0.9, 
+        rotate: '-5deg' 
+      }}
+      animate={{ 
+        translateY: -15, // Gentle bob
+        opacity: effectiveOpacity, 
+        scale: 1.05, 
+        rotate: '5deg' 
+      }}
+      transition={{
+        type: 'timing',
+        duration: 4000,
+        loop: true,
+        repeatReverse: true,
+        delay: delay,
+      }}
+      style={{
+        position: 'absolute',
+        top, left, right, bottom,
+        zIndex: 0,
+      }}
+    >
+      <Icon size={size} color={colors.primary} />
+    </MotiView>
+  );
+};
+
+const BackgroundEffects = ({ currentStep, isKeyboardVisible }: { currentStep: InputStep, isKeyboardVisible: boolean }) => {
+  // --- OPACITY LOGIC CHANGED HERE ---
+  // If we are in 'clarification' (reprompting), set multiplier to 0.1.
+  // This results in 4% final opacity (0.4 * 0.1).
+  const opacityMultiplier = currentStep === 'clarification' ? 0.1 : 1.0;
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* Symbols placed strictly in the 10% margins */}
+
+      {/* --- TOP ROW (Always Visible) --- */}
+      <FloatingSymbol 
+        Icon={Target} top="8%" left="6%" size={42} 
+        delay={0} opacityMultiplier={opacityMultiplier} 
+      />
+      <FloatingSymbol 
+        Icon={Brain} top="12%" right="6%" size={48} 
+        delay={1000} opacityMultiplier={opacityMultiplier} 
+      />
+
+      {/* --- MIDDLE ROW (Hides on Keyboard) --- */}
+      <FloatingSymbol 
+        Icon={Layers} top="35%" left="4%" size={34} 
+        delay={500} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+      <FloatingSymbol 
+        Icon={CheckCircle2} top="40%" right="4%" size={28} 
+        delay={1500} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+
+      {/* --- LOWER MIDDLE (Hides on Keyboard) --- */}
+      <FloatingSymbol 
+        Icon={Zap} top="60%" left="8%" size={30} 
+        delay={200} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+      <FloatingSymbol 
+        Icon={Clock} top="65%" right="8%" size={36} 
+        delay={1200} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+
+      {/* --- BOTTOM ROW (Hides on Keyboard) --- */}
+      <FloatingSymbol 
+        Icon={Compass} bottom="10%" left="15%" size={40} 
+        delay={2000} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+      <FloatingSymbol 
+        Icon={Sparkles} bottom="12%" right="15%" size={32} 
+        delay={800} opacityMultiplier={opacityMultiplier}
+        hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
+      />
+    </View>
+  );
+};
 
 export default function GoalInputScreen() {
   const { initialText, editingGoalId } = useLocalSearchParams();
@@ -60,7 +183,7 @@ export default function GoalInputScreen() {
   const [targetDate, setTargetDate] = useState<Date | null>(null);
   const [committedDailyMinutes, setCommittedDailyMinutes] = useState(0);
   
-  // AI Suggestions for Journey
+  // AI Suggestions
   const [suggestedDays, setSuggestedDays] = useState(30);
   const [suggestedDailyMinutes, setSuggestedDailyMinutes] = useState(45);
 
@@ -111,7 +234,6 @@ export default function GoalInputScreen() {
   }));
 
   // --- HANDLERS ---
-
   const handleGoalSubmit = async () => {
     if (!goalText.trim()) return;
     Keyboard.dismiss();
@@ -119,7 +241,6 @@ export default function GoalInputScreen() {
 
     try {
       const question = await getAiQuestion(goalText);
-      
       if (question) {
         setAiQuestion(question);
         setStep('clarification');
@@ -141,13 +262,11 @@ export default function GoalInputScreen() {
     setStep('processing');
     try {
       const typeAnalysis = await analyzeGoal(goalText, clarification, aiQuestion);
-      
       if (typeAnalysis.type === 'journey') {
         setGoalType('journey');
         setJourneyReason(typeAnalysis.reason || "Long-term effort detected.");
         if (typeAnalysis.estimatedDays) setSuggestedDays(typeAnalysis.estimatedDays);
         if (typeAnalysis.recommendedDailyMinutes) setSuggestedDailyMinutes(typeAnalysis.recommendedDailyMinutes);
-        
         setIsJourneySetupVisible(true);
       } else {
         setGoalType('project'); 
@@ -168,10 +287,8 @@ export default function GoalInputScreen() {
 
   const handleFinalSubmit = async (clarification: string, dailyMinutes: number) => {
     setStep('processing');
-
     try {
       const aiResult = await generatePlan(goalText, clarification, dailyMinutes);
-      
       if (aiResult && aiResult.tasks && aiResult.tasks.length > 0) {
         const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
           id: `ai-${Date.now()}-${index}`,
@@ -179,11 +296,9 @@ export default function GoalInputScreen() {
           duration: t.duration,
           description: t.description
         }));
-        
         setAiTasks(formattedTasks);
         setAiTitle(aiResult.shortTitle);
         setIsStagingVisible(true);
-        
         if (goalType === 'project') setAnswerText(''); 
       } else {
         Alert.alert("Error", "Could not generate plan.");
@@ -218,8 +333,7 @@ export default function GoalInputScreen() {
   };
 
   const handleToggleMode = () => {
-    setIsStagingVisible(false); // Close staging
-    
+    setIsStagingVisible(false); 
     if (goalType === 'project') {
         setGoalType('journey');
         setJourneyReason("Switched from Project");
@@ -235,7 +349,6 @@ export default function GoalInputScreen() {
   const handleFinalConfirm = async (finalTasks: StagingTask[], finalTitle: string) => {
     setIsStagingVisible(false);
     setStep('processing'); 
-    
     try {
       if (isEditing) {
         const id = editingGoalId as string;
@@ -274,10 +387,12 @@ export default function GoalInputScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Used TouchableWithoutFeedback to dismiss keyboard when tapping outside */}
+      {/* Background with simple static positions that bob gently */}
+      <BackgroundEffects currentStep={step} isKeyboardVisible={isKeyboardVisible} />
+
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <KeyboardAvoidingView
-          style={[styles.container, { backgroundColor: '#FFFFFF' }]}
+          style={styles.container}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
@@ -289,45 +404,47 @@ export default function GoalInputScreen() {
               {step === 'goal' && (
                 <MotiView
                   key="step1"
-                  from={{ opacity: 0, translateX: -20 }}
-                  animate={{ opacity: 1, translateX: 0 }}
-                  exit={{ opacity: 0, translateX: -20 }}
+                  from={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
                   style={styles.stepWrapper}
                 >
-                  <Text style={styles.title}>
-                    {isEditing ? "Refine Directive" : "What is your main goal?"}
-                  </Text>
-
-                  <View style={styles.helperContainer}>
-                    <Lightbulb size={14} color={colors.primary} style={{ marginTop: 2 }} />
-                    <Text style={styles.helperText}>
-                      {helperText}
+                  <View style={styles.invisibleContentWrapper}>
+                    <Text style={styles.title}>
+                      {isEditing ? "Refine Directive" : "What is your main goal?"}
                     </Text>
-                  </View>
-                  
-                  <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g., Launch my dropshipping store"
-                      placeholderTextColor={colors.textLight}
-                      value={goalText}
-                      onChangeText={setGoalText}
-                      onFocus={handleFocus}
-                      onBlur={handleBlur}
-                      multiline
-                      autoFocus
-                      textAlignVertical="top" 
-                    />
-                    <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
-                      <TouchableOpacity
-                        style={styles.submitButton}
-                        onPress={handleGoalSubmit}
-                        disabled={!goalText.trim()}
-                      >
-                        <ArrowRight size={20} color="#FFFFFF" />
-                      </TouchableOpacity>
+
+                    <View style={styles.helperContainer}>
+                      <Lightbulb size={14} color={colors.primary} style={{ marginTop: 2 }} />
+                      <Text style={styles.helperText}>
+                        {helperText}
+                      </Text>
+                    </View>
+                    
+                    <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="e.g., Launch my dropshipping store"
+                        placeholderTextColor={colors.textLight}
+                        value={goalText}
+                        onChangeText={setGoalText}
+                        onFocus={handleFocus}
+                        onBlur={handleBlur}
+                        multiline
+                        autoFocus
+                        textAlignVertical="top" 
+                      />
+                      <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                        <TouchableOpacity
+                          style={styles.submitButton}
+                          onPress={handleGoalSubmit}
+                          disabled={!goalText.trim()}
+                        >
+                          <ArrowRight size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </Animated.View>
                     </Animated.View>
-                  </Animated.View>
+                  </View>
                 </MotiView>
               )}
 
@@ -339,37 +456,39 @@ export default function GoalInputScreen() {
                   exit={{ opacity: 0, translateX: -20 }}
                   style={styles.stepWrapper}
                 >
-                  <View style={styles.aiMessageContainer}>
-                    <Sparkles size={20} color={colors.primary} style={{marginBottom:8}} />
-                    <Text style={styles.aiQuestionText}>{aiQuestion}</Text>
-                  </View>
+                   <View style={styles.invisibleContentWrapper}>
+                    <View style={styles.aiMessageContainer}>
+                      <Sparkles size={20} color={colors.primary} style={{marginBottom:8}} />
+                      <Text style={styles.aiQuestionText}>{aiQuestion}</Text>
+                    </View>
 
-                  <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Type your answer..."
-                      placeholderTextColor={colors.textLight}
-                      value={answerText}
-                      onChangeText={(t) => {
-                          setAnswerText(t);
-                          if (t.length > 0) submitButtonOpacity.value = withSpring(1);
-                      }}
-                      onFocus={handleFocus}
-                      onBlur={handleBlur}
-                      multiline
-                      autoFocus
-                      textAlignVertical="top"
-                    />
-                    <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
-                      <TouchableOpacity
-                        style={styles.submitButton}
-                        onPress={handleClarificationSubmit}
-                        disabled={!answerText.trim()}
-                      >
-                        <ArrowRight size={20} color="#FFFFFF" />
-                      </TouchableOpacity>
+                    <Animated.View style={[styles.inputCard, borderAnimatedStyle, isInputFocused && styles.focusedCard]}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Type your answer..."
+                        placeholderTextColor={colors.textLight}
+                        value={answerText}
+                        onChangeText={(t) => {
+                            setAnswerText(t);
+                            if (t.length > 0) submitButtonOpacity.value = withSpring(1);
+                        }}
+                        onFocus={handleFocus}
+                        onBlur={handleBlur}
+                        multiline
+                        autoFocus
+                        textAlignVertical="top"
+                      />
+                      <Animated.View style={[styles.submitButtonContainer, submitButtonStyle]}>
+                        <TouchableOpacity
+                          style={styles.submitButton}
+                          onPress={handleClarificationSubmit}
+                          disabled={!answerText.trim()}
+                        >
+                          <ArrowRight size={20} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </Animated.View>
                     </Animated.View>
-                  </Animated.View>
+                  </View>
                 </MotiView>
               )}
 
@@ -433,26 +552,37 @@ export default function GoalInputScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
-  container: { flex: 1 },
+  root: { flex: 1, backgroundColor: '#FAFAFA' }, 
+  container: { flex: 1, backgroundColor: 'transparent' }, 
+  
   centeredContainer: { 
     flex: 1, 
     justifyContent: 'center', 
     alignItems: 'center', 
     padding: 20, 
     width: '100%', 
-    paddingBottom: 100 
+    paddingBottom: 100,
+    zIndex: 10 
   },
-  stepWrapper: { width: '100%', alignItems: 'center' },
   
-  title: { fontSize: 28, fontWeight: '700', textAlign: 'center', marginBottom: 12, color: colors.text },
+  stepWrapper: { width: '100%', alignItems: 'center' },
+
+  invisibleContentWrapper: {
+    backgroundColor: 'transparent',
+    padding: 10,
+    width: '100%',
+    maxWidth: 640,
+    alignItems: 'center',
+  },
+  
+  title: { fontSize: 26, fontWeight: '700', textAlign: 'center', marginBottom: 12, color: colors.text },
   
   helperContainer: { 
     flexDirection: 'row', 
     alignItems: 'flex-start', 
     gap: 8, 
     marginBottom: 24, 
-    paddingHorizontal: 24,
+    paddingHorizontal: 10,
     opacity: 0.8
   },
   helperText: { 
@@ -463,23 +593,23 @@ const styles = StyleSheet.create({
     flex: 1
   },
 
-  aiMessageContainer: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 20 },
+  aiMessageContainer: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 10 },
   aiQuestionText: { fontSize: 20, fontWeight: '500', color: colors.primary, textAlign: 'center', lineHeight: 28 },
 
   inputCard: { 
     width: INPUT_CARD_WIDTH, 
-    borderRadius: 24, 
+    borderRadius: 20, 
     borderWidth: 2, 
     borderColor: 'rgba(245, 158, 11, 0.1)', 
-    backgroundColor: '#F9F9F9', 
+    backgroundColor: '#FFFFFF',
     position: 'relative', 
     minHeight: 140, 
     overflow: 'hidden',
     shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2
   },
   focusedCard: { borderColor: colors.primary, shadowColor: colors.primary },
   

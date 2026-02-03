@@ -339,11 +339,9 @@ const Screen2Villain: React.FC<{ onNext: () => void; onSkip?: () => void }> = ({
         <SwitchTaxInteractive onChaosReached={handleChaos} />
       </View>
       <View style={styles.textContainerInteractive}>
-        <Text style={styles.villainTitle}>The Switch Tax</Text>
+        <Text style={styles.villainTitle}>Cognitive Debt</Text>
         <Text style={styles.villainSubtext}>
-          Every notification and tab switch fractures your focus.
-          At 10+ interruptions, your brain enters a "critical state" of cognitive debt.
-        </Text>
+A notification doesn’t just distract you; it breaks your flow. After 10+ interruptions, your mind is too scattered to focus, and your productivity tanks.        </Text>
       </View>
       <View style={styles.buttonContainer}>
         {canProceed ? (
@@ -511,7 +509,7 @@ const Screen4Verdict: React.FC<{
           <View style={styles.numberContainer}>
             <Animated.Text style={styles.ghostHoursNumber}>{displayValue}</Animated.Text>
           </View>
-          <Text style={styles.verdictSubtext}>every day to Switching.</Text>
+          <Text style={styles.verdictSubtext}>every day to Resetting.</Text>
           
           <View style={styles.barsContainer}>
             <View style={styles.barWrapper}>

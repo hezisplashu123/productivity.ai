@@ -10,10 +10,11 @@ import {
   Dimensions, 
   ActivityIndicator, 
   KeyboardAvoidingView,
-  Platform 
+  Platform,
+  Linking
 } from 'react-native';
 import Animated, { ZoomIn, FadeInRight, FadeOutLeft } from 'react-native-reanimated';
-import { Play, X, ChevronLeft, Minus, Plus, Info, Edit3, Sparkles, Send, Calendar, Map, Target, ArrowRight, Check, Clock, Zap } from 'lucide-react-native';
+import { Play, X, ChevronLeft, Minus, Plus, Info, Edit3, Sparkles, Send, Map, Target, ArrowRight, Check, Zap, Link as LinkIcon } from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
 import { useApp } from '../context/AppContext';
@@ -25,6 +26,7 @@ export interface StagingTask {
   title: string;
   duration: number;
   description?: string;
+  link?: { url: string; label: string }; // Added link support
 }
 
 interface TaskStagingModalProps {
@@ -70,7 +72,7 @@ export const TaskStagingModal = ({
     }
   }, [visible, goalTitle, generatedTasks]);
 
-  // --- DETAILED CONTEXT LOGIC ---
+  // ... (switchContext logic remains the same) ...
   const switchContext = useMemo(() => {
     const identity = user?.onboardingData?.identity || 'professional';
     const isSwitchingToJourney = goalType === 'project'; 
@@ -172,9 +174,18 @@ export const TaskStagingModal = ({
     onToggleMode();
   };
 
+  const openLink = async (url: string) => {
+    Haptics.selectionAsync();
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      console.error("Failed to open URL:", url);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.overlay}>
+      <View style={styles.overlay}>
         <Animated.View entering={ZoomIn.duration(400)} style={styles.container}>
           
           {/* --- DETAILED POPUP OVERLAY --- */}
@@ -238,6 +249,21 @@ export const TaskStagingModal = ({
                     <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>STRATEGY BRIEF</Text>
                   </View>
                   <Text style={styles.descText}>{editingTask.description}</Text>
+                  
+                  {/* --- NEW LINK RENDERER --- */}
+                  {editingTask.link && (
+                    <TouchableOpacity 
+                      style={styles.linkButton} 
+                      onPress={() => openLink(editingTask.link!.url)}
+                      activeOpacity={0.8}
+                    >
+                      <LinkIcon size={14} color={colors.primary} />
+                      <Text style={styles.linkText} numberOfLines={1}>
+                        {editingTask.link.label}
+                      </Text>
+                      <ArrowRight size={14} color={colors.primary} style={{ opacity: 0.6 }} />
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <View style={styles.refineSection}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
@@ -313,7 +339,10 @@ export const TaskStagingModal = ({
                   <TouchableOpacity key={task.id} style={styles.taskRow} onPress={() => setEditingTask(task)}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowTitle}>{task.title}</Text>
-                      <Text style={styles.tapToEdit}>Tap to edit details</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.tapToEdit}>Tap to edit details</Text>
+                        {task.link && <LinkIcon size={12} color={colors.primary} style={{ opacity: 0.8 }} />}
+                      </View>
                     </View>
                     <View style={styles.timeBadge}><Text style={styles.timeText}>{task.duration}m</Text></View>
                   </TouchableOpacity>
@@ -345,7 +374,7 @@ export const TaskStagingModal = ({
             </View>
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
@@ -354,6 +383,31 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
   container: { backgroundColor: '#FFF', borderRadius: 32, padding: 24, height: height * 0.8, position: 'relative', overflow: 'hidden' },
   
+  // Link Button Styles
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+    gap: 8,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  linkText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+
   // Detailed Popup Styles
   popupOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
