@@ -11,10 +11,11 @@ import { lightColors as colors } from '../src/constants/colors';
 import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg'; 
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // Import this
+import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
 
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session'; 
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { 
   auth, 
@@ -25,13 +26,14 @@ import {
   updateProfile
 } from '../src/config/firebase';
 
+// 1. Mandatory for handling the browser redirect
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { setUser } = useApp();
-  const insets = useSafeAreaInsets(); // Get safe area dimensions
+  const insets = useSafeAreaInsets(); 
   
   const onboardingDataString = params.onboardingData as string;
   const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
@@ -42,15 +44,21 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // --- NUCLEAR GOOGLE CONFIG ---
+  // By removing useProxy: true and redirectUri, we force Expo Go 
+  // to use a Native Redirect which bypasses the "White Screen" proxy issue.
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    clientId: "204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com",
-    redirectUri: "https://auth.expo.io/@goathezisplash123/productivity-ai",
+    iosClientId: "204716304779-266i58dfvid6mg70reivvtdqqrpv2v9p.apps.googleusercontent.com",
+    webClientId: "204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com",
   });
 
   useEffect(() => {
     if (response?.type === 'success') {
       const { id_token } = response.params;
       handleGoogleSignIn(id_token);
+    } else if (response?.type === 'error') {
+      console.error("Auth Session Error:", response.error);
+      Alert.alert("Google Sign-In Error", "Failed to connect to Google.");
     }
   }, [response]);
 
@@ -59,9 +67,20 @@ export default function AuthScreen() {
     try {
       const credential = GoogleAuthProvider.credential(idToken);
       const userCredential = await signInWithCredential(auth, credential);
-      await syncUserWithBackend(userCredential.user, 'google');
+      
+      const firebaseUser = userCredential.user;
+      const userName = firebaseUser.displayName || 'Google User';
+      const userEmail = firebaseUser.email || '';
+
+      await syncUserWithBackend(
+        firebaseUser, 
+        'google',
+        userName,
+        userEmail
+      );
     } catch (error: any) {
-      Alert.alert("Google Login Error", error.message);
+      console.error("Google Login Error:", error);
+      Alert.alert("Login Failed", error.message);
       setLoading(false);
     }
   };
@@ -76,18 +95,22 @@ export default function AuthScreen() {
       });
 
       setLoading(true);
-      
       const displayName = credential.fullName?.givenName 
         ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim() 
         : "Apple User";
 
-      const userData = {
-        email: credential.email, 
-        uid: credential.user,    
+      const appleUserMock = {
+        uid: credential.user,
+        email: credential.email,
         displayName: displayName
       };
-      
-      await syncUserWithBackend(userData as any, 'apple');
+
+      await syncUserWithBackend(
+        appleUserMock, 
+        'apple', 
+        displayName, 
+        credential.email || ''
+      );
 
     } catch (e: any) {
       if (e.code !== 'ERR_CANCELED') {
@@ -102,10 +125,8 @@ export default function AuthScreen() {
       Alert.alert('Missing Fields', 'Please fill in all fields.');
       return;
     }
-
     setLoading(true);
     Haptics.selectionAsync();
-
     try {
       let userCredential;
       if (isLogin) {
@@ -123,12 +144,12 @@ export default function AuthScreen() {
     }
   };
 
-  const syncUserWithBackend = async (firebaseUser: any, provider: string) => {
+  const syncUserWithBackend = async (firebaseUser: any, provider: string, nameOverride?: string, emailOverride?: string) => {
     try {
       const backendUser = await apiService.syncUser({
-        email: firebaseUser.email,
+        email: emailOverride || firebaseUser.email,
         socialId: firebaseUser.uid || firebaseUser.socialId,
-        name: firebaseUser.displayName || name || 'Operative',
+        name: nameOverride || firebaseUser.displayName || name || 'Operative',
         provider: provider,
         onboardingData: onboardingData
       });
@@ -143,7 +164,7 @@ export default function AuthScreen() {
       }
     } catch (error) {
       console.error("Backend Sync Error:", error);
-      Alert.alert("Sync Error", "Logged in, but failed to connect to the server.");
+      Alert.alert("Sync Error", "Logged in, but failed to connect to the backend server.");
     } finally {
       setLoading(false);
     }
@@ -161,7 +182,6 @@ export default function AuthScreen() {
           contentContainerStyle={[
             styles.scrollContent, 
             { 
-              // DYNAMIC PADDING: Ensures title is always visible below notch/island
               paddingTop: Math.max(insets.top + 40, 80),
               paddingBottom: Math.max(insets.bottom + 20, 40)
             }
@@ -169,7 +189,6 @@ export default function AuthScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header Section - Will stay at top */}
           <View style={styles.headerSection}>
             <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
             <Text style={styles.subtitle}>
@@ -177,7 +196,6 @@ export default function AuthScreen() {
             </Text>
           </View>
 
-          {/* Form Section */}
           <View style={styles.form}>
             {!isLogin && (
               <View style={styles.inputContainer}>
@@ -227,7 +245,6 @@ export default function AuthScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Footer Section - Can be hidden by keyboard */}
           <View style={styles.footer}>
             <View style={styles.dividerContainer}>
               <View style={styles.dividerLine} />
@@ -247,7 +264,11 @@ export default function AuthScreen() {
                 </TouchableOpacity>
               )}
               
-              <TouchableOpacity style={styles.googleButton} onPress={() => promptAsync()}>
+              <TouchableOpacity 
+                style={[styles.googleButton, !request && { opacity: 0.5 }]} 
+                onPress={() => promptAsync()} 
+                disabled={!request}
+              >
                 <View style={styles.iconContainer}>
                   <Svg width={24} height={24} viewBox="0 0 48 48">
                     <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
@@ -276,9 +297,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { 
     flexGrow: 1, 
-    justifyContent: 'center', // Keeps content centered when keyboard is closed
+    justifyContent: 'center', 
     paddingHorizontal: 30,
-    // paddingTop and paddingBottom are set dynamically in the component
   },
   headerSection: { marginBottom: 32 },
   title: { fontSize: 32, fontWeight: '700', color: colors.text, marginBottom: 8 },
@@ -311,7 +331,6 @@ const styles = StyleSheet.create({
     elevation: 5 
   },
   buttonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', marginRight: 8 },
-  
   footer: { marginTop: 16 },
   switchButton: { alignItems: 'center', marginTop: 16 },
   switchText: { color: colors.textSecondary, fontSize: 14, fontWeight: '500' },

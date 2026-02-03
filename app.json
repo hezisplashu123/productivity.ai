@@ -2,6 +2,7 @@
   "expo": {
     "name": "HourBack AI",
     "slug": "productivity-ai",
+    "scheme": "hourback-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -20,7 +21,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.mumix.productivityai",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.204716304779-266i58dfvid6mg70reivvtdqqrpv2v9p"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -29,7 +37,6 @@
     "web": {
       "enabled": false
     },
-    "scheme": "hourback-ai",
     "plugins": [
       "expo-router",
       "expo-apple-authentication"
