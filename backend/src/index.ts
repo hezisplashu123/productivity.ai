@@ -92,6 +92,7 @@ app.get('/users/:email', async (req, res) => {
     
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    // Handle Streak Logic
     if (user.lastActiveDate && user.currentStreak > 0) {
       const today = new Date();
       const lastActive = new Date(user.lastActiveDate);
@@ -109,17 +110,25 @@ app.get('/users/:email', async (req, res) => {
 
     let tasksCrushed = 0;
     let totalMinutes = 0;
-    user.goals.forEach(goal => {
-      goal.tasks.forEach(task => {
+    
+    // Transform tasks to include 'link' object from 'linkUrl'/'linkLabel'
+    const transformedGoals = user.goals.map(goal => ({
+      ...goal,
+      tasks: goal.tasks.map(task => {
         if (task.status === 'completed') {
           tasksCrushed++;
           totalMinutes += task.duration;
         }
-      });
-    });
+        return {
+          ...task,
+          link: task.linkUrl ? { url: task.linkUrl, label: task.linkLabel || 'View Resource' } : undefined
+        };
+      })
+    }));
 
     res.json({
       ...user,
+      goals: transformedGoals,
       stats: {
         tasksCrushed,
         hoursFocused: (totalMinutes / 60).toFixed(1),
@@ -151,9 +160,8 @@ app.patch('/users/:email', async (req, res) => {
 // 3. AI ROUTES
 // ==========================================
 app.post('/ai/analyze-goal', async (req, res) => {
-  const { goal, clarification, question } = req.body; // <--- ADDED QUESTION
+  const { goal, clarification, question } = req.body;
   try {
-    // Pass question to service
     const analysis = await analyzeGoalType(goal, question || "", clarification || "");
     res.json(analysis);
   } catch (error) {
@@ -275,19 +283,34 @@ app.post('/goals/:goalId/tasks', async (req, res) => {
   }
   try {
     const createdTasks = await prisma.$transaction(
-      tasks.map((t: any, index: number) => prisma.task.create({
-        data: {
-          title: t.title,
-          description: t.description || '',
-          duration: Number(t.duration) || 15,
-          status: 'queued',
-          goalId: goalId,
-          order: index, 
-          dayNumber: t.dayNumber ? Number(t.dayNumber) : 1 
-        }
-      }))
+      tasks.map((t: any, index: number) => {
+        // Extract link data if available
+        const linkUrl = t.link?.url || null;
+        const linkLabel = t.link?.label || null;
+
+        return prisma.task.create({
+          data: {
+            title: t.title,
+            description: t.description || '',
+            duration: Number(t.duration) || 15,
+            status: 'queued',
+            goalId: goalId,
+            order: index, 
+            dayNumber: t.dayNumber ? Number(t.dayNumber) : 1,
+            linkUrl,
+            linkLabel
+          }
+        });
+      })
     );
-    res.json(createdTasks);
+    
+    // Map back to frontend format
+    const responseTasks = createdTasks.map(t => ({
+      ...t,
+      link: t.linkUrl ? { url: t.linkUrl, label: t.linkLabel || 'Resource' } : undefined
+    }));
+
+    res.json(responseTasks);
   } catch (error) {
     console.error("Create Tasks Error:", error);
     res.status(500).json({ error: 'Task creation failed', details: String(error) });
@@ -298,7 +321,7 @@ app.patch('/tasks/:taskId', async (req, res) => {
   const { taskId } = req.params;
   const updates = req.body;
   try {
-    const allowedFields = ['title', 'description', 'duration', 'status', 'order', 'dayNumber'];
+    const allowedFields = ['title', 'description', 'duration', 'status', 'order', 'dayNumber', 'linkUrl', 'linkLabel'];
     const filteredData: any = {};
     Object.keys(updates).forEach(key => {
       if (allowedFields.includes(key)) filteredData[key] = updates[key];
@@ -329,7 +352,14 @@ app.patch('/tasks/:taskId', async (req, res) => {
         });
       }
     }
-    res.json(task);
+    
+    // Format link
+    const formattedTask = {
+        ...task,
+        link: task.linkUrl ? { url: task.linkUrl, label: task.linkLabel || 'Resource' } : undefined
+    };
+
+    res.json(formattedTask);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update task' });
   }

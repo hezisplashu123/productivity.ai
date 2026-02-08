@@ -9,9 +9,21 @@ import {
   TextInput, 
   ActivityIndicator,
   Platform,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  Linking
 } from 'react-native';
-import { X, Minus, Plus, Send, Sparkles, Info, CheckCircle2, Circle } from 'lucide-react-native';
+import { 
+  X, 
+  Minus, 
+  Plus, 
+  Send, 
+  Sparkles, 
+  Info, 
+  CheckCircle2, 
+  Circle, 
+  ExternalLink, 
+  ArrowRight 
+} from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import Animated, { 
   useSharedValue, 
@@ -91,6 +103,15 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
     }
   };
 
+  const openLink = async (url: string) => {
+    Haptics.selectionAsync();
+    try {
+      await Linking.openURL(url);
+    } catch (error) {
+      console.error("Failed to open URL:", url);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="none">
       <KeyboardAvoidingView 
@@ -134,6 +155,21 @@ export const TaskEditModal: React.FC<TaskEditModalProps> = ({ visible, task, onC
                 <Text style={styles.descriptionText}>
                   {task.description || "No specific instructions provided."}
                 </Text>
+
+                {/* --- ADDED LINK BUTTON IN MODAL --- */}
+                {task.link && (
+                  <TouchableOpacity 
+                    style={styles.modalLinkButton}
+                    onPress={() => openLink(task.link.url)}
+                    activeOpacity={0.8}
+                  >
+                    <ExternalLink size={14} color="#0056D2" />
+                    <Text style={styles.modalLinkText} numberOfLines={1}>
+                      {task.link.label || "Open Resource"}
+                    </Text>
+                    <ArrowRight size={14} color="#0056D2" style={{ opacity: 0.5, marginLeft: 'auto' }} />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -267,7 +303,7 @@ const styles = StyleSheet.create({
   sectionHeaderRow: {
     flexDirection: 'row', 
     alignItems: 'center', 
-    gap: 6,
+    gap: 6, 
     marginBottom: 8,
   },
   sectionLabel: { 
@@ -289,6 +325,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '500'
   },
+  
+  // Link Button Styles for Modal
+  modalLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF', // Light Blue
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginTop: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  modalLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0056D2', 
+    flex: 1,
+  },
+
   reportRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -360,9 +417,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 4 }, 
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: 8, 
     elevation: 4,
   },
   completeBtnActive: { 

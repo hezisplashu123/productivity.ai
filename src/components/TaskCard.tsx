@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
@@ -9,9 +9,10 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { MotiView } from 'moti';
-import { CheckCircle2, Clock, ChevronDown, ChevronUp, Circle } from 'lucide-react-native';
+import { CheckCircle2, Clock, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react-native';
 import { Task } from '../types';
 import { lightColors as colors } from '../constants/colors';
+import * as Haptics from 'expo-haptics';
 
 interface TaskCardProps {
   task: Task;
@@ -66,6 +67,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     };
   });
 
+  const handleOpenLink = () => {
+    if (task.link?.url) {
+      Haptics.selectionAsync();
+      Linking.openURL(task.link.url);
+    }
+  };
+
   if (task.completed) {
     return null;
   }
@@ -94,16 +102,33 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               <View style={styles.mainContent}>
                 <View style={styles.textContainer}>
                   <Text style={[styles.title, { color: colors.text }]}>{task.title}</Text>
+                  
+                  {/* Task Description */}
                   {task.description && (
                     <Text style={[styles.description, { color: colors.textSecondary }]} numberOfLines={expanded ? undefined : 2}>
                       {task.description}
                     </Text>
                   )}
+
+                  {/* LINK BUTTON */}
+                  {task.link && (
+                    <TouchableOpacity 
+                      style={styles.linkButton} 
+                      onPress={handleOpenLink}
+                      activeOpacity={0.7}
+                    >
+                      <ExternalLink size={14} color="#0056D2" />
+                      <Text style={styles.linkText} numberOfLines={1}>
+                        {task.link.label || "Open Resource"}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
+
                 <View style={styles.badges}>
                   <View style={[styles.timeBadge, { backgroundColor: colors.glow }]}>
                     <Clock size={14} color={colors.textSecondary} />
-                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{task.timeBudget} mins</Text>
+                    <Text style={[styles.timeText, { color: colors.textSecondary }]}>{task.duration || task.timeBudget} mins</Text>
                   </View>
                 </View>
               </View>
@@ -198,6 +223,26 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 14,
     lineHeight: 20,
+    marginBottom: 8,
+  },
+  linkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#EFF6FF', // Light Blue
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginTop: 8,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  linkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0056D2', // Strong Blue
+    maxWidth: 150,
   },
   badges: {
     alignItems: 'flex-end',

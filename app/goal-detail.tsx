@@ -9,7 +9,8 @@ import {
   Modal, 
   TouchableWithoutFeedback,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  Linking
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -27,7 +28,8 @@ import {
   FastForward, 
   Sparkles, 
   Award,
-  ArrowRight
+  ArrowRight,
+  ExternalLink
 } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown, FadeIn, FadeInRight, FadeOutLeft } from 'react-native-reanimated';
@@ -152,7 +154,8 @@ export default function GoalDetailScreen() {
             description: t.description,
             duration: t.duration,
             dayNumber: currentProgressDay,
-            order: idx
+            order: idx,
+            link: t.link // Ensure link is passed
           }));
 
           await addTasks(goal.id, newTasks);
@@ -246,6 +249,14 @@ export default function GoalDetailScreen() {
         }
       ]
     );
+  };
+
+  const handleOpenLink = (url: string) => {
+    Haptics.selectionAsync();
+    Linking.openURL(url).catch(err => {
+      console.error("Failed to open link:", err);
+      Alert.alert("Error", "Could not open this resource.");
+    });
   };
 
   // --- UI RENDERERS ---
@@ -431,6 +442,21 @@ export default function GoalDetailScreen() {
                             <Text style={[styles.taskTitle, task.status === 'completed' && styles.taskTextDone]}>
                                 {task.title}
                             </Text>
+                            
+                            {/* --- ADDED LINK BUTTON IN LIST ITEM --- */}
+                            {task.link && (
+                              <TouchableOpacity 
+                                style={styles.listLinkButton} 
+                                onPress={() => handleOpenLink(task.link!.url)}
+                                activeOpacity={0.7}
+                              >
+                                <ExternalLink size={12} color="#0056D2" />
+                                <Text style={styles.listLinkText} numberOfLines={1}>
+                                  {task.link.label || "Open Resource"}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+
                             <View style={styles.taskMeta}>
                                 <Clock size={12} color={colors.textSecondary} />
                                 <Text style={styles.taskDuration}>{task.duration} min</Text>
@@ -555,15 +581,37 @@ const styles = StyleSheet.create({
   progressBarFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 4 },
   taskList: { gap: 16 },
   sectionHeader: { fontSize: 14, fontWeight: '800', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
-  taskCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F4F6', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2, marginBottom: 12 },
+  
+  // Task Card & List Link Button Styles
+  taskCard: { flexDirection: 'row', alignItems: 'flex-start', padding: 16, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F4F6', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2, marginBottom: 12 },
   taskCardDone: { opacity: 0.6, backgroundColor: '#FAFAFA' },
-  checkContainer: { marginRight: 16 },
+  checkContainer: { marginRight: 16, marginTop: 2 },
   taskContent: { flex: 1 },
   taskTitle: { fontSize: 16, fontWeight: '600', color: '#1A1A1A', marginBottom: 4 },
   taskTextDone: { textDecorationLine: 'line-through', color: '#9CA3AF' },
-  taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   taskDuration: { fontSize: 12, fontWeight: '500', color: colors.textSecondary },
   
+  listLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF', // Light Blue background for link
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  listLinkText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0056D2', // Strong Blue
+    maxWidth: 200,
+  },
+
   footer: { 
     position: 'absolute', 
     bottom: 0, 
@@ -610,7 +658,6 @@ const styles = StyleSheet.create({
   devSkipButton: { marginTop: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, backgroundColor: '#EF4444', borderRadius: 12 },
   devSkipText: { color: '#FFF', fontWeight: '800', fontSize: 12 },
 
-  // New Style for "Finished Early" Prompt
   finishedEarlyContainer: { marginBottom: 16 },
   finishedEarlyButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', padding: 12, borderRadius: 12, gap: 10, borderWidth: 1, borderColor: '#D1FAE5' },
   finishedEarlyText: { color: '#059669', fontSize: 13, fontWeight: '700', flex: 1 }

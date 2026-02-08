@@ -30,9 +30,7 @@
           }
         ]
       },
-      "entitlements": {
-        "com.apple.developer.family-controls": true
-      }
+      "entitlements": {}
     },
     "android": {
       "package": "com.mumix.productivityai"

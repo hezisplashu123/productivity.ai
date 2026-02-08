@@ -52,8 +52,12 @@ model Task {
   status      String   @default("queued")
   order       Int      @default(0)
   
-  // Track which day this task belongs to (Default 1 for normal projects)
+  // Track which day this task belongs to
   dayNumber   Int      @default(1) 
+  
+  // NEW: Link fields
+  linkUrl     String?
+  linkLabel   String?
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

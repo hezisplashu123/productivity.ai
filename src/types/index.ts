@@ -21,13 +21,19 @@ export interface Task {
   duration: number; // in minutes
   status: TaskStatus;
   order?: number; 
-  dayNumber?: number; // <--- NEW: Tracks which day of the journey this task belongs to
+  dayNumber?: number;
   dueDate?: Date | string;
   completedAt?: Date | string;
   productivityRating?: number;
   subTasks?: SubTask[];
   completed?: boolean;
   timeBudget?: number;
+  
+  // NEW: Link object
+  link?: {
+    url: string;
+    label: string;
+  };
 }
 
 export interface SubTask {

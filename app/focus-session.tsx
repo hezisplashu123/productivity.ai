@@ -8,7 +8,8 @@ import {
   AppState, 
   Switch,
   Alert,
-  Platform
+  Platform,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -33,7 +34,8 @@ import {
   ScanFace,
   FastForward,
   ShieldAlert,
-  Lock
+  Lock,
+  ExternalLink
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { lightColors as colors } from '../src/constants/colors';
@@ -52,7 +54,7 @@ export default function FocusSessionScreen() {
   const { tasks, completeTask, updateTask } = useApp();
   
   // Find task data
-  const task = tasks.find(t => t.id === taskId) || { title: 'Deep Work Protocol', duration: Number(duration) || 25 };
+  const task = tasks.find(t => t.id === taskId) || { title: 'Deep Work Protocol', duration: Number(duration) || 25, link: undefined };
 
   // --- STATE ---
   const [isSetup, setIsSetup] = useState(true); // Setup phase
@@ -128,6 +130,13 @@ export default function FocusSessionScreen() {
     // For dev skip, we also need to ensure unlock happens if it was locked
     await unlockDevice();
     setTimeLeft(0); 
+  };
+
+  const handleOpenLink = () => {
+    if (task.link?.url) {
+      Haptics.selectionAsync();
+      Linking.openURL(task.link.url);
+    }
   };
 
   // --- DEBRIEF LOGIC ---
@@ -355,6 +364,18 @@ export default function FocusSessionScreen() {
           <View style={styles.taskContainer}>
             <Text style={styles.taskLabel}>CURRENT OBJECTIVE</Text>
             <Text style={styles.taskTitle} numberOfLines={3}>{task.title}</Text>
+            
+            {/* LINK BUTTON */}
+            {task.link && (
+                <TouchableOpacity 
+                    style={styles.linkButton} 
+                    onPress={handleOpenLink}
+                    activeOpacity={0.8}
+                >
+                    <ExternalLink size={16} color="#F59E0B" />
+                    <Text style={styles.linkText}>OPEN RESOURCE</Text>
+                </TouchableOpacity>
+            )}
           </View>
           <Animated.Text style={[styles.timer, timerStyle]}>{formatTime(timeLeft)}</Animated.Text>
         </View>
@@ -418,5 +439,24 @@ const styles = StyleSheet.create({
   compromisedTitle: { color: '#EF4444', fontSize: 24, fontWeight: '900', letterSpacing: 1, marginBottom: 8, textAlign: 'center' },
   compromisedSubtitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
   resumeBtn: { backgroundColor: '#FFFFFF', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 30 },
-  resumeText: { color: '#000000', fontWeight: '800', fontSize: 14, letterSpacing: 1 }
+  resumeText: { color: '#000000', fontWeight: '800', fontSize: 14, letterSpacing: 1 },
+
+  linkButton: {
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  linkText: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
 });

@@ -8,10 +8,10 @@ const openai = new OpenAI({
  * 🧠 IDENTITY PROTOCOLS
  */
 const IDENTITY_FRAMEWORK: Record<string, string> = {
-  'student': "CONTEXT: User is a STUDENT. Focus: Grades, comprehension, deadlines. TONE: Academic Coach.",
-  'professional': "CONTEXT: User is a PROFESSIONAL. Focus: Efficiency, stakeholders, clear deliverables. TONE: Project Manager.",
-  'entrepreneur': "CONTEXT: User is an ENTREPRENEUR. Focus: ROI, speed, sales, delegation. TONE: Business Partner.",
-  'maker': "CONTEXT: User is a MAKER/CREATIVE. Focus: Deep work, flow state, shipping. TONE: Senior Tech Lead / Creative Director.",
+  'student': "CONTEXT: User is a STUDENT. Focus: Grades, comprehension, deadlines. TONE: Academic Coach. Use terms like 'Active Recall', 'Spaced Repetition', and 'Deep Focus'.",
+  'professional': "CONTEXT: User is a PROFESSIONAL. Focus: Efficiency, stakeholders, clear deliverables. TONE: Chief of Staff. Use terms like 'Q3 Goals', 'Stakeholder alignment', and '80/20 Rule'.",
+  'entrepreneur': "CONTEXT: User is an ENTREPRENEUR. Focus: ROI, speed, sales, delegation. TONE: Venture Partner. Use terms like 'MVP', 'Time-to-market', and 'High Leverage'.",
+  'maker': "CONTEXT: User is a MAKER/CREATIVE. Focus: Deep work, flow state, shipping. TONE: Senior Tech Lead / Creative Director. Focus on 'Flow State' and 'Shipping'.",
   'personal': "CONTEXT: User is doing LIFE ADMIN. Focus: Reducing friction, sanity, getting it over with. TONE: Supportive but efficient."
 };
 
@@ -193,7 +193,13 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
     3. **APPLY THE DRIVER:** If 'Velocity', skip review steps. If 'Mastery', double the review time.
     4. **COUNTER THE VILLAIN:** Include defense mechanisms in descriptions.
     
-    5. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
+    5. **ADAPTIVE RESOLUTION (THE "ANCHOR TASK" RULE):**
+       - You do NOT need to write a long essay for every task.
+       - **Simple Tasks:** Keep descriptions brief and punchy. (e.g., "Send the email. No overthinking.")
+       - **Complex/Ambiguous Tasks:** Provide a "High-Resolution" guide (2-3 sentences) with a specific method or mental model.
+       - **CRITICAL:** Ensure **at least ONE** task in the list (the most important or difficult one) has a deep, tactical description to anchor the plan's value.
+
+    6. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
        - If a task involves finding, watching, researching, or buying something, you MUST generate a search URL.
        - Do NOT wait for a specific URL. Construct it yourself.
        - **YouTube:** https://www.youtube.com/results?search_query=YOUR+SEARCH+TERMS
@@ -202,7 +208,7 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
        - **Example:** Task "Find a piano tutorial" -> link: { "url": "https://www.youtube.com/results?search_query=beginner+piano+tutorial", "label": "YouTube: Beginner Tutorial" }
        - **Example:** Task "Research best microphones" -> link: { "url": "https://www.google.com/search?q=best+budget+microphones+2024", "label": "Google: Best Mics" }
 
-    6. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
+    7. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
     ${timeConstraintPrompt}
 
     OUTPUT FORMAT (JSON):
@@ -289,14 +295,19 @@ export const generateDailyPlan = async (
     2. **STRICT CONTEXT:** All tasks MUST contribute directly to the MAIN GOAL.
     3. **PROGRESSIVE DIFFICULTY:** Adjust the complexity of tasks based on the current PHASE.
     
-    4. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
+    4. **ADAPTIVE RESOLUTION (THE "ANCHOR TASK" RULE):**
+       - **Simple Tasks:** Brief, direct descriptions.
+       - **Anchor Task:** Identify the "Main Event" for the day (the hardest or most important task) and give it a **2-3 sentence tactical breakdown**. Explain exactly *how* to do it or *why* it matters.
+       - Ensure at least one task gets this deep treatment to maximize user productivity.
+
+    5. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
        - If a task involves learning, finding, or watching, GENERATE A SEARCH URL.
        - **YouTube:** https://www.youtube.com/results?search_query=...
        - **Google:** https://www.google.com/search?q=...
        - Example: "Watch tutorial" -> link: { "url": "https://www.youtube.com/results?search_query=advanced+react+tutorial", "label": "YouTube: React Tutorial" }
 
-    5. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
-    6. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
+    6. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
+    7. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
     
     OUTPUT JSON:
     {
@@ -305,7 +316,7 @@ export const generateDailyPlan = async (
         { 
           "title": "Specific Exercise/Task", 
           "duration": 15, 
-          "description": "Instruction + Motivation.",
+          "description": "Tactical instruction.",
           "link": { "url": "https://...", "label": "Source: [Title]" } // OPTIONAL
         } 
       ]
@@ -351,8 +362,13 @@ export const refineSingleTask = async (task: any, feedback: string, userProfile:
     MISSION:
     Rewrite this task to bypass the obstacle.
     
+    CRITICAL:
+    - Provide a new, longer, and more detailed description (2-3 sentences) that specifically addresses *how* to overcome the reported obstacle.
+    - If the user says they don't have time, suggest a "Minimum Viable Version".
+    - If the user says they don't know how, provide a specific "First Step" or resource.
+
     OUTPUT JSON:
-    { "title": "New Task Name", "duration": 15, "description": "Specific tactical instructions..." }
+    { "title": "New Task Name", "duration": 15, "description": "Specific tactical instructions addressing the obstacle..." }
   `;
 
   try {

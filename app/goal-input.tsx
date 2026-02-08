@@ -46,7 +46,6 @@ const INPUT_CARD_WIDTH = Math.min(600, SCREEN_WIDTH - 40);
 type InputStep = 'goal' | 'clarification' | 'processing';
 
 // --- GENTLE HOVER SYMBOL ---
-// These stay in one place and just gently bob up/down.
 const FloatingSymbol = ({ 
   Icon, 
   top, left, right, bottom, 
@@ -56,12 +55,6 @@ const FloatingSymbol = ({
   hideOnKeyboard = false, 
   isKeyboardVisible = false
 }: any) => {
-
-  // Logic: 
-  // 1. If keyboard is open & this symbol is marked to hide -> Opacity 0.
-  // 2. Otherwise -> Base Opacity (0.4) * Multiplier.
-  //    Normal: 0.4 * 1.0 = 40%
-  //    Reprompt: 0.4 * 0.1 = 4% (Targeting 2.5-5% range)
   const effectiveOpacity = (hideOnKeyboard && isKeyboardVisible) 
     ? 0 
     : (0.4 * opacityMultiplier);
@@ -75,7 +68,7 @@ const FloatingSymbol = ({
         rotate: '-5deg' 
       }}
       animate={{ 
-        translateY: -15, // Gentle bob
+        translateY: -15, 
         opacity: effectiveOpacity, 
         scale: 1.05, 
         rotate: '5deg' 
@@ -99,16 +92,10 @@ const FloatingSymbol = ({
 };
 
 const BackgroundEffects = ({ currentStep, isKeyboardVisible }: { currentStep: InputStep, isKeyboardVisible: boolean }) => {
-  // --- OPACITY LOGIC CHANGED HERE ---
-  // If we are in 'clarification' (reprompting), set multiplier to 0.1.
-  // This results in 4% final opacity (0.4 * 0.1).
   const opacityMultiplier = currentStep === 'clarification' ? 0.1 : 1.0;
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {/* Symbols placed strictly in the 10% margins */}
-
-      {/* --- TOP ROW (Always Visible) --- */}
       <FloatingSymbol 
         Icon={Target} top="8%" left="6%" size={42} 
         delay={0} opacityMultiplier={opacityMultiplier} 
@@ -117,8 +104,6 @@ const BackgroundEffects = ({ currentStep, isKeyboardVisible }: { currentStep: In
         Icon={Brain} top="12%" right="6%" size={48} 
         delay={1000} opacityMultiplier={opacityMultiplier} 
       />
-
-      {/* --- MIDDLE ROW (Hides on Keyboard) --- */}
       <FloatingSymbol 
         Icon={Layers} top="35%" left="4%" size={34} 
         delay={500} opacityMultiplier={opacityMultiplier}
@@ -129,8 +114,6 @@ const BackgroundEffects = ({ currentStep, isKeyboardVisible }: { currentStep: In
         delay={1500} opacityMultiplier={opacityMultiplier}
         hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
       />
-
-      {/* --- LOWER MIDDLE (Hides on Keyboard) --- */}
       <FloatingSymbol 
         Icon={Zap} top="60%" left="8%" size={30} 
         delay={200} opacityMultiplier={opacityMultiplier}
@@ -141,8 +124,6 @@ const BackgroundEffects = ({ currentStep, isKeyboardVisible }: { currentStep: In
         delay={1200} opacityMultiplier={opacityMultiplier}
         hideOnKeyboard={true} isKeyboardVisible={isKeyboardVisible}
       />
-
-      {/* --- BOTTOM ROW (Hides on Keyboard) --- */}
       <FloatingSymbol 
         Icon={Compass} bottom="10%" left="15%" size={40} 
         delay={2000} opacityMultiplier={opacityMultiplier}
@@ -290,12 +271,17 @@ export default function GoalInputScreen() {
     try {
       const aiResult = await generatePlan(goalText, clarification, dailyMinutes);
       if (aiResult && aiResult.tasks && aiResult.tasks.length > 0) {
+        
+        // --- FIXED MAPPING HERE ---
+        // Ensure 'link' property is passed from AI result to StagingTask
         const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
           id: `ai-${Date.now()}-${index}`,
           title: t.title,
           duration: t.duration,
-          description: t.description
+          description: t.description,
+          link: t.link // <--- THIS WAS MISSING
         }));
+        
         setAiTasks(formattedTasks);
         setAiTitle(aiResult.shortTitle);
         setIsStagingVisible(true);
@@ -318,11 +304,13 @@ export default function GoalInputScreen() {
     try {
       const aiResult = await generatePlan(goalText, fullContext, committedDailyMinutes);
       if (aiResult && aiResult.tasks) {
+        // Ensure link is mapped here too
         const formattedTasks: StagingTask[] = aiResult.tasks.map((t: any, index: number) => ({
           id: `ai-refined-${Date.now()}-${index}`,
           title: t.title,
           duration: t.duration,
-          description: t.description
+          description: t.description,
+          link: t.link // <--- AND HERE
         }));
         setAiTasks(formattedTasks);
         setAiTitle(aiResult.shortTitle);
@@ -387,7 +375,6 @@ export default function GoalInputScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Background with simple static positions that bob gently */}
       <BackgroundEffects currentStep={step} isKeyboardVisible={isKeyboardVisible} />
 
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
