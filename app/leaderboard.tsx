@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Flame, Trophy, Shield, Zap, Target } from 'lucide-react-native';
+import { ChevronLeft, Flame, Users, Globe, Info, X, Trophy, Shield, Zap, Target } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -12,10 +12,11 @@ import * as Haptics from 'expo-haptics';
 import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
 import { lightColors as colors } from '../src/constants/colors';
+import { UserProfileModal } from '../src/components/UserProfileModal';
 
 const { width } = Dimensions.get('window');
 
-// --- TIERS ---
+// --- STANDARD PROGRESSION TIERS ---
 const TIERS = [
   { name: 'Recruit', min: 0, color: '#94A3B8', icon: Shield },
   { name: 'Agent', min: 3, color: '#3B82F6', icon: Zap },
@@ -32,7 +33,7 @@ const getNextTier = (streak: number) => {
   return TIERS.find(t => t.min > streak) || null;
 };
 
-// --- INTERACTIVE COMPONENT ---
+// --- INTERACTIVE FIRE COMPONENT ---
 const InteractiveFire = ({ onPress }: { onPress: () => void }) => {
   const scale = useSharedValue(1);
 
@@ -64,19 +65,22 @@ export default function LeaderboardScreen() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [myEntry, setMyEntry] = useState<any | null>(null);
+  const [mode, setMode] = useState<'global' | 'friends'>('global');
+  
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [user]);
+  }, [user, mode]);
 
   const fetchLeaderboard = async () => {
     setLoading(true);
     try {
-      const apiData = await apiService.getLeaderboard();
+      const apiData = await apiService.getLeaderboard(mode, user?.id);
       
       const formattedData = apiData.map((item: any, index: number) => {
         const isMe = user ? item.id === user.id : false;
-        const tier = getTier(item.streak).name;
+        const tier = getTier(item.streak);
         return {
           id: item.id,
           rank: index + 1,
@@ -97,7 +101,7 @@ export default function LeaderboardScreen() {
           streak: streak,
           rank: 0, 
           isCurrentUser: true,
-          tier: getTier(streak).name
+          tier: getTier(streak)
         };
       }
       setMyEntry(me || null);
@@ -109,8 +113,9 @@ export default function LeaderboardScreen() {
     }
   };
 
-  const handleRespect = () => {
-    console.log("Respect sent!");
+  const handleUserPress = (userId: string) => {
+    Haptics.selectionAsync();
+    setSelectedUserId(userId);
   };
 
   return (
@@ -124,8 +129,23 @@ export default function LeaderboardScreen() {
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerTitleBox}>
-            <Text style={styles.headerTitle}>GLOBAL INTELLIGENCE</Text>
-            <Text style={styles.headerSubtitle}>Top Operatives</Text>
+            <Text style={styles.headerTitle}>INTELLIGENCE</Text>
+            <View style={styles.toggleContainer}>
+              <TouchableOpacity 
+                style={[styles.toggleBtn, mode === 'global' && styles.toggleBtnActive]}
+                onPress={() => { Haptics.selectionAsync(); setMode('global'); }}
+              >
+                <Globe size={14} color={mode === 'global' ? colors.primary : colors.textSecondary} />
+                <Text style={[styles.toggleText, mode === 'global' && styles.toggleTextActive]}>Global</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.toggleBtn, mode === 'friends' && styles.toggleBtnActive]}
+                onPress={() => { Haptics.selectionAsync(); setMode('friends'); }}
+              >
+                <Users size={14} color={mode === 'friends' ? colors.primary : colors.textSecondary} />
+                <Text style={[styles.toggleText, mode === 'friends' && styles.toggleTextActive]}>Friends</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={{ width: 44 }} />
         </View>
@@ -141,57 +161,75 @@ export default function LeaderboardScreen() {
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {/* Podium Section */}
-              <View style={styles.podiumContainer}>
-                {data.slice(0, 3).map((entry) => {
-                  const isFirst = entry.rank === 1;
-                  return (
-                    <Animated.View 
-                      key={entry.id} 
-                      entering={FadeInDown.delay(200).springify()}
-                      style={[styles.podiumItem, isFirst && styles.podiumFirst]}
-                    >
-                      <View style={[styles.podiumAvatar, isFirst && { borderColor: '#F59E0B', backgroundColor: '#FFFBEB' }]}>
-                        <Text style={[styles.podiumRank, isFirst && { color: '#F59E0B' }]}>{entry.rank}</Text>
-                      </View>
-                      <Text style={styles.podiumName} numberOfLines={1}>{entry.name}</Text>
-                      <View style={[styles.podiumBadge, isFirst && { backgroundColor: '#FFF7ED' }]}>
-                        <Flame size={10} color={isFirst ? "#F59E0B" : "#9CA3AF"} />
-                        <Text style={[styles.podiumStreak, isFirst && { color: '#F59E0B' }]}>{entry.streak}</Text>
-                      </View>
-                    </Animated.View>
-                  );
-                })}
-              </View>
+              {data.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Users size={48} color={colors.textLight} />
+                  <Text style={styles.emptyText}>No operatives found.</Text>
+                  <Text style={styles.emptySubtext}>Add friends to compete.</Text>
+                </View>
+              ) : (
+                <>
+                  {/* Podium Section */}
+                  <View style={styles.podiumContainer}>
+                    {data.slice(0, 3).map((entry) => {
+                      const isFirst = entry.rank === 1;
+                      return (
+                        <TouchableOpacity 
+                          key={entry.id} 
+                          onPress={() => handleUserPress(entry.id)}
+                          activeOpacity={0.9}
+                          style={[styles.podiumItem, isFirst && styles.podiumFirst]}
+                        >
+                          <Animated.View entering={FadeInDown.delay(200).springify()} style={{alignItems: 'center'}}>
+                            <View style={[styles.podiumAvatar, isFirst && { borderColor: '#F59E0B', backgroundColor: '#FFFBEB' }]}>
+                              <Text style={[styles.podiumRank, isFirst && { color: '#F59E0B' }]}>{entry.rank}</Text>
+                            </View>
+                            <Text style={styles.podiumName} numberOfLines={1}>{entry.name}</Text>
+                            <View style={[styles.podiumBadge, isFirst && { backgroundColor: '#FFF7ED' }]}>
+                              <entry.tier.icon size={10} color={entry.tier.color} />
+                              <Text style={[styles.podiumStreak, { color: entry.tier.color }]}>{entry.streak} Days</Text>
+                            </View>
+                          </Animated.View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
 
-              {/* List Section */}
-              <View style={styles.listSection}>
-                <Text style={styles.listHeader}>OPERATIVE RANKINGS</Text>
-                {data.slice(3).map((entry, index) => (
-                  <Animated.View 
-                    key={entry.id}
-                    entering={FadeInDown.delay(index * 50 + 300)}
-                    style={[styles.row, entry.isCurrentUser && styles.rowMe]}
-                  >
-                    <Text style={styles.rowRank}>{entry.rank}</Text>
-                    <View style={styles.rowInfo}>
-                      <Text style={[styles.rowName, entry.isCurrentUser && { color: colors.primary }]}>
-                        {entry.name}
-                      </Text>
-                      <Text style={styles.rowTier}>{entry.tier}</Text>
-                    </View>
-                    
-                    {/* UPDATED: Flame Icon instead of Emoji */}
-                    <View style={styles.rowRight}>
-                      <View style={styles.streakBadge}>
-                        <Flame size={12} color={colors.textSecondary} />
-                        <Text style={styles.rowStreak}>{entry.streak}</Text>
-                      </View>
-                      {!entry.isCurrentUser && <InteractiveFire onPress={handleRespect} />}
-                    </View>
-                  </Animated.View>
-                ))}
-              </View>
+                  {/* List Section */}
+                  <View style={styles.listSection}>
+                    <Text style={styles.listHeader}>RANKINGS</Text>
+                    {data.slice(3).map((entry, index) => (
+                      <Animated.View 
+                        key={entry.id}
+                        entering={FadeInDown.delay(index * 50 + 300)}
+                      >
+                        <TouchableOpacity 
+                          style={[styles.row, entry.isCurrentUser && styles.rowMe]}
+                          onPress={() => handleUserPress(entry.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.rowRank}>{entry.rank}</Text>
+                          
+                          <View style={styles.rowInfo}>
+                            <Text style={[styles.rowName, entry.isCurrentUser && { color: colors.primary }]}>
+                              {entry.name}
+                            </Text>
+                            <Text style={[styles.rowTier, { color: entry.tier.color }]}>{entry.tier.name}</Text>
+                          </View>
+                          
+                          <View style={styles.rowRight}>
+                            <View style={styles.streakBadge}>
+                              <Flame size={12} color={colors.textSecondary} />
+                              <Text style={styles.rowStreak}>{entry.streak}</Text>
+                            </View>
+                            {!entry.isCurrentUser && <InteractiveFire onPress={() => {}} />}
+                          </View>
+                        </TouchableOpacity>
+                      </Animated.View>
+                    ))}
+                  </View>
+                </>
+              )}
             </ScrollView>
 
             {/* Sticky Footer */}
@@ -200,7 +238,9 @@ export default function LeaderboardScreen() {
                 <View style={styles.footerTop}>
                   <View>
                       <Text style={styles.footerLabel}>YOUR STATUS</Text>
-                      <Text style={styles.footerTierName}>{getTier(myEntry.streak).name}</Text>
+                      <Text style={[styles.footerTierName, { color: myEntry.tier.color }]}>
+                        {myEntry.tier.name}
+                      </Text>
                   </View>
                   <View style={styles.streakBigBox}>
                       <Text style={styles.streakBigNum}>{myEntry.streak}</Text>
@@ -211,7 +251,7 @@ export default function LeaderboardScreen() {
                 {getNextTier(myEntry.streak) ? (
                   <View style={styles.progressContainer}>
                       <View style={styles.progressHeader}>
-                          <Text style={styles.progressText}>Next Rank: {getNextTier(myEntry.streak)?.name}</Text>
+                          <Text style={styles.progressText}>Next: {getNextTier(myEntry.streak)?.name}</Text>
                           <Text style={styles.progressText}>
                               {myEntry.streak} / {getNextTier(myEntry.streak)?.min} Days
                           </Text>
@@ -235,6 +275,13 @@ export default function LeaderboardScreen() {
             )}
           </>
         )}
+
+        <UserProfileModal 
+          visible={!!selectedUserId} 
+          userId={selectedUserId} 
+          onClose={() => setSelectedUserId(null)} 
+        />
+
       </SafeAreaView>
     </View>
   );
@@ -247,17 +294,27 @@ const styles = StyleSheet.create({
   
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 24, borderBottomWidth: 1, borderBottomColor: colors.border },
   headerTitleBox: { alignItems: 'center' },
-  headerTitle: { fontSize: 10, fontWeight: '800', color: colors.primary, letterSpacing: 1.5, marginBottom: 4 },
-  headerSubtitle: { fontSize: 20, fontWeight: '700', color: colors.text },
+  headerTitle: { fontSize: 10, fontWeight: '800', color: colors.primary, letterSpacing: 1.5, marginBottom: 8 },
+  toggleContainer: { flexDirection: 'row', backgroundColor: '#F3F4F6', borderRadius: 20, padding: 4 },
+  toggleBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, gap: 6 },
+  toggleBtnActive: { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  toggleText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  toggleTextActive: { color: colors.primary },
+
   backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#F3F4F6' },
 
   scrollView: { flex: 1, backgroundColor: '#FFFFFF' },
   scrollContent: { paddingBottom: 160 },
 
+  // Empty State
+  emptyState: { alignItems: 'center', marginTop: 100, opacity: 0.5 },
+  emptyText: { marginTop: 16, fontSize: 16, fontWeight: '700', color: colors.text },
+  emptySubtext: { fontSize: 14, color: colors.textSecondary },
+
   // Podium
-  podiumContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', height: 180, marginBottom: 20, paddingHorizontal: 20, marginTop: 10 },
+  podiumContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', height: 200, marginBottom: 20, paddingHorizontal: 20, marginTop: 10 },
   podiumItem: { alignItems: 'center', width: '30%', marginBottom: 10 },
-  podiumFirst: { width: '35%', height: 180, justifyContent: 'flex-end' },
+  podiumFirst: { width: '35%', height: 200, justifyContent: 'flex-end' },
   podiumAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginBottom: 8, borderWidth: 2, borderColor: '#E5E7EB' },
   podiumRank: { color: '#9CA3AF', fontWeight: '800', fontSize: 18 },
   podiumName: { color: colors.text, fontSize: 12, fontWeight: '600', marginBottom: 4 },
@@ -275,11 +332,8 @@ const styles = StyleSheet.create({
   rowTier: { color: colors.textSecondary, fontSize: 11, marginTop: 2, fontWeight: '500' },
   
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  
-  // Replaced Emoji with Styled Badge
   streakBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F9FAFB', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   rowStreak: { color: colors.text, fontWeight: '700', fontSize: 14 },
-  
   fireButton: { padding: 8, backgroundColor: '#FFF7ED', borderRadius: 8 },
 
   // Footer
@@ -294,7 +348,6 @@ const styles = StyleSheet.create({
   footerTierName: { color: colors.text, fontSize: 20, fontWeight: '800', marginTop: 2 },
   streakBigBox: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   streakBigNum: { color: colors.primary, fontSize: 28, fontWeight: '800' },
-  
   progressContainer: { width: '100%' },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   progressText: { color: colors.textSecondary, fontSize: 11, fontWeight: '600' },

@@ -207,35 +207,6 @@ export default function WelcomeScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#FFFFFF' }]}>
       <StatusBar style="dark" />
-
-      {/* ========================================================= */}
-      {/* 🛠️ TEMPORARY DEV BUTTON: SKIP TO DASHBOARD 🛠️ */}
-      <TouchableOpacity
-        style={{
-          position: 'absolute',
-          top: 60,
-          left: 20,
-          zIndex: 999,
-          backgroundColor: '#EF4444', // Red for visibility
-          paddingVertical: 8,
-          paddingHorizontal: 12,
-          borderRadius: 8,
-          opacity: 0.9,
-          borderWidth: 1,
-          borderColor: 'white',
-          shadowColor: '#000',
-          shadowOpacity: 0.3,
-          shadowRadius: 4,
-          elevation: 10,
-        }}
-        onPress={() => router.replace('/home')}
-        activeOpacity={0.7}
-      >
-        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 10 }}>
-          ⚡ [DEV] SKIP TO DASH
-        </Text>
-      </TouchableOpacity>
-      {/* ========================================================= */}
       
       {/* Hero Section */}
       <View style={styles.heroSection}>

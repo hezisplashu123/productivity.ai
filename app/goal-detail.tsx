@@ -25,7 +25,6 @@ import {
   Edit3, 
   Calendar as CalendarIcon, 
   RefreshCw, 
-  FastForward, 
   Sparkles, 
   Award,
   ArrowRight,
@@ -56,7 +55,6 @@ export default function GoalDetailScreen() {
   const [showCelebration, setShowCelebration] = useState(false);
   
   // --- STATE ---
-  const [devDayOffset, setDevDayOffset] = useState(0); 
   const [viewingDay, setViewingDay] = useState<number>(1);
   const [isGenerating, setIsGenerating] = useState(false);
   
@@ -69,8 +67,8 @@ export default function GoalDetailScreen() {
     const now = Date.now();
     const diffTime = Math.max(0, now - start);
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; 
-    return Math.max(1, diffDays) + devDayOffset; 
-  }, [goal, devDayOffset]);
+    return Math.max(1, diffDays); 
+  }, [goal]);
 
   const totalDays = useMemo(() => {
     if (!goal || !goal.targetDate || !goal.startDate) return 30;
@@ -174,11 +172,6 @@ export default function GoalDetailScreen() {
   if (!goal) return null;
 
   // --- ACTIONS ---
-
-  const handleDevSkip = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    setDevDayOffset(prev => prev + 1);
-  };
 
   const handleStartSession = () => {
     if (tasksForViewingDay.length > 0) {
@@ -465,17 +458,6 @@ export default function GoalDetailScreen() {
                     </TouchableOpacity>
                 </Animated.View>
             ))}
-
-            {goal.type === 'journey' && !isGenerating && viewingDay === currentProgressDay && (
-                <TouchableOpacity 
-                    style={styles.devSkipButton} 
-                    onPress={handleDevSkip}
-                    activeOpacity={0.8}
-                >
-                    <FastForward size={16} color="#FFF" />
-                    <Text style={styles.devSkipText}>DEV: FORCE NEXT DAY</Text>
-                </TouchableOpacity>
-            )}
           </Animated.View>
         </ScrollView>
 
@@ -655,8 +637,6 @@ const styles = StyleSheet.create({
   generatingText: { marginTop: 16, color: colors.textSecondary, fontWeight: '600' },
   emptyState: { padding: 40, alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 16 },
   emptyText: { marginTop: 8, color: colors.textSecondary },
-  devSkipButton: { marginTop: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, backgroundColor: '#EF4444', borderRadius: 12 },
-  devSkipText: { color: '#FFF', fontWeight: '800', fontSize: 12 },
 
   finishedEarlyContainer: { marginBottom: 16 },
   finishedEarlyButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', padding: 12, borderRadius: 12, gap: 10, borderWidth: 1, borderColor: '#D1FAE5' },

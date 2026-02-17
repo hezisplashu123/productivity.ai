@@ -24,15 +24,43 @@ model User {
   
   onboardingData Json?
   goals          Goal[]
+
+  // Social Relations
+  following      Friendship[] @relation("UserFollowing")
+  followers      Friendship[] @relation("UserFollowers")
+  reportsFiled   Report[]     @relation("Reporter")
+  reportsReceived Report[]    @relation("ReportedUser")
+}
+
+model Friendship {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  status      String   @default("PENDING") // 'PENDING' or 'ACCEPTED'
+  createdAt   DateTime @default(now())
+
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id])
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  reporterId     String
+  reportedUserId String
+  reason         String
+  createdAt      DateTime @default(now())
+
+  reporter       User     @relation("Reporter", fields: [reporterId], references: [id])
+  reportedUser   User     @relation("ReportedUser", fields: [reportedUserId], references: [id])
 }
 
 model Goal {
   id          String   @id @default(uuid())
   title       String
   status      String   @default("active")
-  
-  // Journey Fields
-  type        String   @default("project") // 'project' or 'journey'
+  type        String   @default("project") 
   targetDate  DateTime?
   startDate   DateTime @default(now())
   dailyMinutes Int     @default(45)
@@ -51,11 +79,7 @@ model Task {
   duration    Int
   status      String   @default("queued")
   order       Int      @default(0)
-  
-  // Track which day this task belongs to
   dayNumber   Int      @default(1) 
-  
-  // NEW: Link fields
   linkUrl     String?
   linkLabel   String?
   

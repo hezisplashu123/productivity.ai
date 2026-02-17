@@ -32,7 +32,6 @@ import {
   Check, 
   SmartphoneNfc, 
   ScanFace,
-  FastForward,
   ShieldAlert,
   Lock,
   ExternalLink
@@ -124,12 +123,6 @@ export default function FocusSessionScreen() {
     await unlockDevice();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowDebrief(true);
-  };
-
-  const handleDevSkip = async () => {
-    // For dev skip, we also need to ensure unlock happens if it was locked
-    await unlockDevice();
-    setTimeLeft(0); 
   };
 
   const handleOpenLink = () => {
@@ -343,12 +336,6 @@ export default function FocusSessionScreen() {
           <View style={{ width: 40 }} />
         </View>
 
-        {/* DEV SKIP BUTTON */}
-        <TouchableOpacity style={styles.devSkipBtn} onPress={handleDevSkip} activeOpacity={0.6}>
-          <FastForward size={14} color="rgba(255,255,255,0.6)" />
-          <Text style={styles.devSkipText}>DEV: SKIP</Text>
-        </TouchableOpacity>
-
         {sessionState === 'compromised' && (
           <View style={styles.compromisedContainer}>
             <ShieldAlert size={64} color="#EF4444" style={{ marginBottom: 20 }} />
@@ -431,9 +418,6 @@ const styles = StyleSheet.create({
   controls: { flexDirection: 'row', gap: 40 },
   controlBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   completeBtn: { backgroundColor: '#F59E0B', borderColor: '#F59E0B', shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 20 },
-  
-  devSkipBtn: { position: 'absolute', top: 70, left: 24, backgroundColor: 'rgba(255, 255, 255, 0.1)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)', flexDirection: 'row', alignItems: 'center', gap: 6, zIndex: 999 },
-  devSkipText: { color: 'rgba(255, 255, 255, 0.6)', fontSize: 10, fontWeight: '700', letterSpacing: 1 },
   
   compromisedContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', zIndex: 20, padding: 40 },
   compromisedTitle: { color: '#EF4444', fontSize: 24, fontWeight: '900', letterSpacing: 1, marginBottom: 8, textAlign: 'center' },

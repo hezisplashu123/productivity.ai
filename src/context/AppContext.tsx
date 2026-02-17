@@ -11,8 +11,8 @@ interface User {
   email: string;
   name: string;
   onboardingData?: any;
-  currentStreak?: number; // Added
-  lastActiveDate?: string; // Added
+  currentStreak?: number;
+  lastActiveDate?: string;
 }
 
 interface AppContextType {
@@ -21,6 +21,7 @@ interface AppContextType {
   goals: Goal[];
   tasks: Task[];
   currentGoal: Goal | null;
+  pendingRequestsCount: number; // NEW
   addGoal: (title: string, type?: string, targetDate?: Date, dailyMinutes?: number) => Promise<Goal | null>; 
   updateGoal: (goalId: string, updates: Partial<Goal>) => void;
   deleteGoal: (goalId: string) => void;
@@ -49,6 +50,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0); // NEW
 
   const [hudState, setHudState] = useState({
     visible: false,
@@ -69,17 +71,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate).toISOString().split('T')[0] : '';
 
       if (lastActive !== today) {
-        // User hasn't completed a task today yet -> Schedule Rescue
         const archetype = user.onboardingData?.focusWindow || 'default';
         await NotificationService.scheduleStreakRescue(archetype);
       } else {
-        // User IS active today -> Cancel Rescue
         await NotificationService.cancelStreakRescue();
       }
     };
 
     checkStreakStatus();
-  }, [user, tasks]); // Re-run when user or tasks change
+  }, [user, tasks]); 
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -93,7 +93,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       const { title, body, data } = notification.request.content;
       
-      // Determine HUD type based on notification type
       let hudType: 'info' | 'warning' | 'success' = 'info';
       if (data?.type === 'streak_rescue') hudType = 'warning';
       
@@ -129,17 +128,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       setTasks(allTasks);
       
-      // Update local user streak data from profile
       setUser(prev => prev ? { 
         ...prev, 
         currentStreak: profile.currentStreak,
         lastActiveDate: profile.lastActiveDate 
       } : null);
 
-    } catch (e) {
-      console.error("Data Sync Error:", e);
+      // NEW: Fetch pending requests
+      if (profile.id) {
+        const requests = await apiService.getFriendRequests(profile.id);
+        setPendingRequestsCount(requests.length);
+      }
+
+    } catch (e: any) {
+      console.error("Data Sync Error:", e.message);
+      if (e.message && (e.message.includes('User not found') || e.message.includes('404'))) {
+        console.log("⚠️ User mismatch detected. Logging out.");
+        setUser(null);
+      }
     }
-  }, [user?.email]); // Only depend on email to prevent loops
+  }, [user?.email]); 
 
   useEffect(() => {
     if (user?.email) refreshData();
@@ -232,8 +240,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateTask = useCallback(async (taskId: string, updates: any) => {
     const { id, goalId, createdAt, updatedAt, completed, goal, ...cleanUpdates } = updates;
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...cleanUpdates } : t)));
-    
-    // We refresh data after update to sync streaks
     try { 
       await apiService.updateTask(taskId, cleanUpdates); 
       refreshData(); 
@@ -273,6 +279,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         user, setUser,
         goals, tasks, currentGoal,
+        pendingRequestsCount, // NEW
         addGoal, updateGoal, deleteGoal, archiveGoal,
         addTasks, overrideTasks, completeTask,
         toggleSubTask, updateTask, reportTaskIssue,

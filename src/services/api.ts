@@ -81,12 +81,93 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // --- UPDATED FOR CONTEXT ---
+  async deleteUser(email: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  // --- SOCIAL FEATURES ---
+  async getLeaderboard(mode: 'global' | 'friends' = 'global', userId?: string) {
+    let url = `${API_BASE_URL}/leaderboard?mode=${mode}`;
+    if (userId) url += `&userId=${userId}`;
+    
+    const res = await fetchWithTimeout(url, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async getPublicProfile(id: string, viewerId: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/social/profile/${id}?viewerId=${viewerId}`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async toggleFollow(followerId: string, followingId: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/social/follow`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ followerId, followingId }),
+    });
+    return handleResponse(res);
+  },
+
+  async reportUser(reporterId: string, reportedUserId: string, reason: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/social/report`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ reporterId, reportedUserId, reason }),
+    });
+    return handleResponse(res);
+  },
+
+  async searchUsers(query: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async getFriends(userId: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/social/friends/${userId}`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  // NEW: Get Friend Requests
+  async getFriendRequests(userId: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/social/requests/${userId}`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  // NEW: Respond to Request
+  async respondToRequest(requestId: string, action: 'accept' | 'decline') {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/social/respond`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ requestId, action }),
+    });
+    return handleResponse(res);
+  },
+
+  // --- AI & Goals ---
   async analyzeGoal(goal: string, clarification: string = "", question: string = "") {
     const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ goal, clarification, question }), // Send question
+      body: JSON.stringify({ goal, clarification, question }),
     });
     return handleResponse(res);
   },
@@ -128,6 +209,7 @@ export const apiService = {
     return handleResponse(res);
   },
 
+  // --- GOALS & TASKS ---
   async createGoal(email: string, title: string, type: string = 'project', targetDate?: Date, dailyMinutes: number = 45) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/goals`, {
       method: 'POST',
@@ -171,12 +253,4 @@ export const apiService = {
     });
     return handleResponse(res);
   },
-
-  async getLeaderboard() {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/leaderboard`, {
-      method: 'GET',
-      headers: getHeaders(),
-    });
-    return handleResponse(res);
-  }
 };

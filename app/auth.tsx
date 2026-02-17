@@ -8,14 +8,13 @@ import { StatusBar } from 'expo-status-bar';
 import { apiService } from '../src/services/api';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
-import { ArrowRight, Lock, Mail, User } from 'lucide-react-native';
+import { ArrowRight, Lock, Mail, User, AlertTriangle, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg'; 
 import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
 
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import * as AuthSession from 'expo-auth-session'; 
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { 
   auth, 
@@ -23,10 +22,10 @@ import {
   signInWithCredential, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  deleteUser 
 } from '../src/config/firebase';
 
-// 1. Mandatory for handling the browser redirect
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
@@ -37,16 +36,17 @@ export default function AuthScreen() {
   
   const onboardingDataString = params.onboardingData as string;
   const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
+  
+  const isDeleteMode = params.mode === 'delete_reauth';
+  const prefillEmail = params.email as string || '';
 
-  const [isLogin, setIsLogin] = useState(params.mode === 'login');
+  const [isLogin, setIsLogin] = useState(params.mode === 'login' || isDeleteMode);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(prefillEmail);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // --- NUCLEAR GOOGLE CONFIG ---
-  // By removing useProxy: true and redirectUri, we force Expo Go 
-  // to use a Native Redirect which bypasses the "White Screen" proxy issue.
+  // --- GOOGLE CONFIG ---
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     iosClientId: "204716304779-266i58dfvid6mg70reivvtdqqrpv2v9p.apps.googleusercontent.com",
     webClientId: "204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com",
@@ -56,11 +56,26 @@ export default function AuthScreen() {
     if (response?.type === 'success') {
       const { id_token } = response.params;
       handleGoogleSignIn(id_token);
-    } else if (response?.type === 'error') {
-      console.error("Auth Session Error:", response.error);
-      Alert.alert("Google Sign-In Error", "Failed to connect to Google.");
     }
   }, [response]);
+
+  const executeAccountDeletion = async (firebaseUser: any) => {
+    try {
+      if (firebaseUser.email) {
+        await apiService.deleteUser(firebaseUser.email);
+      }
+      await deleteUser(firebaseUser);
+      setUser(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Account Deleted", "Your account has been permanently removed.");
+      router.replace('/welcome');
+    } catch (error: any) {
+      console.error("Deletion Error:", error);
+      Alert.alert("Deletion Failed", error.message || "Could not delete account.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleSignIn = async (idToken: string) => {
     setLoading(true);
@@ -68,56 +83,38 @@ export default function AuthScreen() {
       const credential = GoogleAuthProvider.credential(idToken);
       const userCredential = await signInWithCredential(auth, credential);
       
-      const firebaseUser = userCredential.user;
-      const userName = firebaseUser.displayName || 'Google User';
-      const userEmail = firebaseUser.email || '';
+      if (isDeleteMode) {
+        await executeAccountDeletion(userCredential.user);
+        return;
+      }
 
-      await syncUserWithBackend(
-        firebaseUser, 
-        'google',
-        userName,
-        userEmail
-      );
+      const firebaseUser = userCredential.user;
+      await syncUserWithBackend(firebaseUser, 'google', firebaseUser.displayName || 'Google User', firebaseUser.email || '');
     } catch (error: any) {
-      console.error("Google Login Error:", error);
-      Alert.alert("Login Failed", error.message);
       setLoading(false);
+      Alert.alert("Login Failed", error.message);
     }
   };
 
   const handleAppleLogin = async () => {
     try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      setLoading(true);
-      const displayName = credential.fullName?.givenName 
-        ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim() 
-        : "Apple User";
-
-      const appleUserMock = {
-        uid: credential.user,
-        email: credential.email,
-        displayName: displayName
-      };
-
-      await syncUserWithBackend(
-        appleUserMock, 
-        'apple', 
-        displayName, 
-        credential.email || ''
-      );
-
-    } catch (e: any) {
-      if (e.code !== 'ERR_CANCELED') {
-        Alert.alert('Apple Login Failed', e.message);
-      }
-      setLoading(false);
-    }
+        const credential = await AppleAuthentication.signInAsync({
+          requestedScopes: [
+            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          ],
+        });
+        setLoading(true);
+        if (isDeleteMode) {
+            Alert.alert("Not Supported", "Please use Email/Password to delete account for now.");
+            setLoading(false);
+            return;
+        }
+        
+        const displayName = credential.fullName?.givenName ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}` : "Apple User";
+        const appleUserMock = { uid: credential.user, email: credential.email, displayName };
+        await syncUserWithBackend(appleUserMock, 'apple', displayName, credential.email || '');
+    } catch(e) { setLoading(false); }
   };
 
   const handleSubmit = async () => {
@@ -137,7 +134,12 @@ export default function AuthScreen() {
           await updateProfile(auth.currentUser, { displayName: name });
         }
       }
-      await syncUserWithBackend(userCredential.user, 'email');
+
+      if (isDeleteMode) {
+        await executeAccountDeletion(userCredential.user);
+      } else {
+        await syncUserWithBackend(userCredential.user, 'email');
+      }
     } catch (error: any) {
       Alert.alert('Authentication Failed', error.message);
       setLoading(false);
@@ -146,27 +148,34 @@ export default function AuthScreen() {
 
   const syncUserWithBackend = async (firebaseUser: any, provider: string, nameOverride?: string, emailOverride?: string) => {
     try {
-      const backendUser = await apiService.syncUser({
-        email: emailOverride || firebaseUser.email,
-        socialId: firebaseUser.uid || firebaseUser.socialId,
-        name: nameOverride || firebaseUser.displayName || name || 'Operative',
-        provider: provider,
-        onboardingData: onboardingData
-      });
-
-      setUser(backendUser);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      if (backendUser.onboardingData || onboardingData) {
-        router.replace('/home');
-      } else {
-        router.replace('/ghost-hours');
-      }
+        const backendUser = await apiService.syncUser({
+            email: emailOverride || firebaseUser.email,
+            socialId: firebaseUser.uid || firebaseUser.socialId,
+            name: nameOverride || firebaseUser.displayName || name || 'Operative',
+            provider: provider,
+            onboardingData: onboardingData
+        });
+        setUser(backendUser);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (backendUser.onboardingData || onboardingData) {
+            router.replace('/home');
+        } else {
+            router.replace('/ghost-hours');
+        }
     } catch (error) {
-      console.error("Backend Sync Error:", error);
-      Alert.alert("Sync Error", "Logged in, but failed to connect to the backend server.");
+        console.error("Backend Sync Error:", error);
+        Alert.alert("Sync Error", "Logged in, but failed to connect to the backend.");
     } finally {
-      setLoading(false);
+        setLoading(false);
+    }
+  };
+
+  // Safe navigation back to Edit Profile with correct transition
+  const handleCancelDelete = () => {
+    if (router.canGoBack()) {
+      router.back(); // Slides back to right
+    } else {
+      router.replace('/edit-profile'); 
     }
   };
 
@@ -190,14 +199,26 @@ export default function AuthScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.headerSection}>
-            <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
-            <Text style={styles.subtitle}>
-              {isLogin ? 'Sign in to access your dashboard.' : 'Create an account to save your productivity plan.'}
-            </Text>
+            {isDeleteMode ? (
+              <View style={{ alignItems: 'center' }}>
+                <AlertTriangle size={48} color={colors.error} style={{ marginBottom: 16 }} />
+                <Text style={[styles.title, { color: colors.error }]}>Confirm Deletion</Text>
+                <Text style={[styles.subtitle, { textAlign: 'center', color: colors.text }]}>
+                  Please log in again to permanently delete your account. This action cannot be undone.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text>
+                <Text style={styles.subtitle}>
+                  {isLogin ? 'Sign in to access your dashboard.' : 'Create an account to save your productivity plan.'}
+                </Text>
+              </>
+            )}
           </View>
 
           <View style={styles.form}>
-            {!isLogin && (
+            {!isLogin && !isDeleteMode && (
               <View style={styles.inputContainer}>
                 <User size={20} color={colors.textSecondary} style={styles.icon} />
                 <TextInput 
@@ -209,6 +230,7 @@ export default function AuthScreen() {
                 />
               </View>
             )}
+            
             <View style={styles.inputContainer}>
               <Mail size={20} color={colors.textSecondary} style={styles.icon} />
               <TextInput 
@@ -218,9 +240,10 @@ export default function AuthScreen() {
                 onChangeText={setEmail} 
                 autoCapitalize="none" 
                 keyboardType="email-address" 
-                placeholderTextColor={colors.textLight} 
+                placeholderTextColor={colors.textLight}
               />
             </View>
+
             <View style={styles.inputContainer}>
               <Lock size={20} color={colors.textSecondary} style={styles.icon} />
               <TextInput 
@@ -233,60 +256,78 @@ export default function AuthScreen() {
               />
             </View>
             
-            <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={loading}>
+            <TouchableOpacity 
+              style={[
+                styles.button, 
+                isDeleteMode ? { backgroundColor: colors.error, shadowColor: colors.error } : {}
+              ]} 
+              onPress={handleSubmit} 
+              disabled={loading}
+            >
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={styles.buttonText}>{isLogin ? 'Log In' : 'Complete Setup'}</Text>
-                  <ArrowRight size={20} color="#FFFFFF" />
+                  <Text style={styles.buttonText}>
+                    {isDeleteMode ? 'Delete Permanently' : (isLogin ? 'Log In' : 'Complete Setup')}
+                  </Text>
+                  {!isDeleteMode && <ArrowRight size={20} color="#FFFFFF" />}
+                  {isDeleteMode && <Trash2 size={20} color="#FFFFFF" />}
                 </>
               )}
             </TouchableOpacity>
           </View>
 
-          <View style={styles.footer}>
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
-              <View style={styles.dividerLine} />
-            </View>
-            
-            <View style={styles.socialButtonsContainer}>
-              {Platform.OS === 'ios' && (
-                <TouchableOpacity style={styles.appleCustomButton} onPress={handleAppleLogin}>
+          {!isDeleteMode && (
+            <View style={styles.footer}>
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or continue with</Text>
+                <View style={styles.dividerLine} />
+              </View>
+              
+              <View style={styles.socialButtonsContainer}>
+                {Platform.OS === 'ios' && (
+                  <TouchableOpacity style={styles.appleCustomButton} onPress={handleAppleLogin}>
+                    <View style={styles.iconContainer}>
+                      <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
+                        <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
+                      </Svg>
+                    </View>
+                    <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                  </TouchableOpacity>
+                )}
+                
+                <TouchableOpacity 
+                  style={[styles.googleButton, !request && { opacity: 0.5 }]} 
+                  onPress={() => promptAsync()} 
+                  disabled={!request}
+                >
                   <View style={styles.iconContainer}>
-                    <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
-                      <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
+                    <Svg width={24} height={24} viewBox="0 0 48 48">
+                      <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                      <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                      <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                      <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
                     </Svg>
                   </View>
-                  <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                  <Text style={styles.googleButtonText}>Continue with Google</Text>
                 </TouchableOpacity>
-              )}
+              </View>
               
-              <TouchableOpacity 
-                style={[styles.googleButton, !request && { opacity: 0.5 }]} 
-                onPress={() => promptAsync()} 
-                disabled={!request}
-              >
-                <View style={styles.iconContainer}>
-                  <Svg width={24} height={24} viewBox="0 0 48 48">
-                    <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-                    <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-                    <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-                    <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-                  </Svg>
-                </View>
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin(!isLogin)}>
+                <Text style={styles.switchText}>
+                  {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
+                </Text>
               </TouchableOpacity>
             </View>
-            
-            <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin(!isLogin)}>
-              <Text style={styles.switchText}>
-                {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
-              </Text>
+          )}
+
+          {isDeleteMode && (
+            <TouchableOpacity style={styles.switchButton} onPress={handleCancelDelete}>
+              <Text style={styles.switchText}>Cancel</Text>
             </TouchableOpacity>
-          </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -315,7 +356,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16 
   },
   icon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 16, color: colors.text },
+  input: { flex: 1, fontSize: 16, color: colors.text, height: '100%' },
   button: { 
     backgroundColor: colors.primary, 
     height: 56, 

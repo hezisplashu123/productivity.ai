@@ -8,12 +8,14 @@ import {
   ActivityIndicator, 
   Modal, 
   Switch,
-  Alert 
+  Alert,
+  Dimensions,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown, SlideInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { 
   ChevronLeft, 
   Settings, 
@@ -31,14 +33,29 @@ import {
   LogOut,
   ChevronRight,
   X,
-  Brain
+  Brain,
+  FileText,
+  ShieldCheck
 } from 'lucide-react-native';
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
-import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal'; // Import the modal
+import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal';
 
-// --- HELPER COMPONENTS ---
+const { height } = Dimensions.get('window');
+
+// --- STANDARD TIERS LOGIC FOR PROFILE ---
+const TIERS = [
+  { name: 'Recruit', min: 0, color: '#94A3B8' },
+  { name: 'Agent', min: 3, color: '#3B82F6' },
+  { name: 'Veteran', min: 7, color: '#8B5CF6' },
+  { name: 'Elite', min: 14, color: '#F59E0B' },
+  { name: 'Legend', min: 30, color: '#EF4444' },
+];
+
+const getTier = (streak: number) => {
+  return [...TIERS].reverse().find(t => streak >= t.min) || TIERS[0];
+};
 
 const MissionHistoryCard = ({ goal, delay, onPress }: { goal: any, delay: number, onPress: () => void }) => {
   const totalTasks = goal.tasks ? goal.tasks.length : 0;
@@ -96,8 +113,10 @@ const StatBox = ({ label, value, icon: Icon, delay }: any) => (
   </Animated.View>
 );
 
-const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding }: any) => {
+const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditProfile }: any) => {
   const [notifications, setNotifications] = useState(true);
+
+  const openLegal = (url: string) => Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open link."));
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -142,7 +161,7 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding }: any) =>
           <View style={styles.settingGroup}>
             <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
             
-            <TouchableOpacity style={styles.settingRow}>
+            <TouchableOpacity style={styles.settingRow} onPress={onEditProfile}>
               <View style={styles.settingRowLeft}>
                 <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
                   <User size={20} color={colors.text} />
@@ -162,6 +181,30 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding }: any) =>
             </TouchableOpacity>
           </View>
 
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>LEGAL</Text>
+            
+            <TouchableOpacity style={styles.settingRow} onPress={() => openLegal('https://example.com/terms')}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
+                  <FileText size={20} color={colors.textSecondary} />
+                </View>
+                <Text style={styles.settingText}>Terms of Service</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.settingRow} onPress={() => openLegal('https://example.com/privacy')}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
+                  <ShieldCheck size={20} color={colors.textSecondary} />
+                </View>
+                <Text style={styles.settingText}>Privacy Policy</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.versionContainer}>
             <Text style={styles.versionText}>Productivity Ops v1.0.3</Text>
           </View>
@@ -171,8 +214,6 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding }: any) =>
   );
 };
 
-// --- MAIN COMPONENT ---
-
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, goals, setUser } = useApp();
@@ -180,33 +221,32 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
   
-  // State for the selected goal to view in the modal
   const [viewingHistoryGoal, setViewingHistoryGoal] = useState<any>(null);
 
-  // Filter for archived/completed goals
   const archivedGoals = useMemo(() => {
     return goals.filter(g => g.status === 'archived').sort((a, b) => {
       const dateA = new Date(a.completedAt || a.createdAt).getTime();
       const dateB = new Date(b.completedAt || b.createdAt).getTime();
-      return dateB - dateA; // Newest first
+      return dateB - dateA;
     });
   }, [goals]);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (user?.email) {
-        try {
-          const data = await apiService.getUserProfile(user.email);
-          setProfileData(data);
-        } catch (error) {
-          console.error("Failed to load profile", error);
-        } finally {
-          setLoading(false);
-        }
-      } else {
+  const fetchProfile = async () => {
+    if (user?.email) {
+      try {
+        const data = await apiService.getUserProfile(user.email);
+        setProfileData(data);
+      } catch (error) {
+        console.error("Failed to load profile", error);
+      } finally {
         setLoading(false);
       }
-    };
+    } else {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchProfile();
   }, [user]);
 
@@ -230,7 +270,11 @@ export default function ProfileScreen() {
     router.push('/onboarding');
   };
 
-  // Calculate stats for the modal
+  const handleEditProfileOpen = () => {
+    setSettingsVisible(false);
+    router.push('/edit-profile');
+  };
+
   const getGoalStats = (goal: any) => {
     if (!goal) return { totalTime: 0, taskCount: 0 };
     const tasks = goal.tasks || [];
@@ -239,14 +283,24 @@ export default function ProfileScreen() {
     return { totalTime, taskCount };
   };
 
-  // Helper for icons based on archetype
   const getArchetypeIcon = () => {
     const arch = profileData?.onboardingData?.focusWindow;
     if (arch === 'night-owl' || arch === 'late_night') return Moon;
     if (arch === 'early-bird' || arch === 'early_morning') return Sunrise;
-    return Coffee; // Default
+    return Coffee;
   };
   const ArchetypeIcon = getArchetypeIcon();
+
+  const rank = getTier(profileData?.stats?.streak || 0);
+
+  // SAFE NAVIGATION HANDLER
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/home');
+    }
+  };
 
   if (loading) {
     return (
@@ -263,7 +317,7 @@ export default function ProfileScreen() {
         
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+          <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
             <ChevronLeft size={28} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Operative Profile</Text>
@@ -287,8 +341,8 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.identityText}>
               <Text style={styles.userName}>{profileData?.name || "Unknown Agent"}</Text>
-              <Text style={styles.userLevel}>
-                Level {profileData?.stats?.level || 1} Strategist
+              <Text style={[styles.userLevel, { color: rank.color }]}>
+                {rank.name} Class Operative
               </Text>
             </View>
             <View style={styles.archetypeBadge}>
@@ -362,6 +416,7 @@ export default function ProfileScreen() {
           onClose={() => setSettingsVisible(false)}
           onLogout={handleLogout}
           onRedoOnboarding={handleRedoOnboarding}
+          onEditProfile={handleEditProfileOpen}
         />
 
         {/* History Modal */}
@@ -394,7 +449,7 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 24, fontWeight: 'bold', color: '#FFF' },
   identityText: { flex: 1 },
   userName: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  userLevel: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
+  userLevel: { fontSize: 14, fontWeight: '700' },
   archetypeBadge: { backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   archetypeText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'capitalize' },
   

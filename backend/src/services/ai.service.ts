@@ -252,13 +252,15 @@ export const generateActionPlan = async (goal: string, userProfile: any, clarifi
 
 /**
  * 🧠 STEP 2 (VARIANT): THE COACH (Progressive Difficulty)
+ * Updated to support history-aware progression.
  */
 export const generateDailyPlan = async (
   goal: string, 
   userProfile: any, 
   dayNumber: number, 
   totalDays: number, 
-  dailyMinutes: number = 45
+  dailyMinutes: number = 45,
+  recentHistory: any[] = [] // [{ day: 1, title: '...' }]
 ) => {
   const onboarding = userProfile.onboardingData || {};
   
@@ -278,6 +280,11 @@ export const generateDailyPlan = async (
     phaseInstruction = "PHASE: FINAL POLISH/TAPER. Focus on synthesizing results, reviewing work, and finishing strong.";
   }
 
+  // Format history for context
+  const historyString = recentHistory.length > 0 
+    ? `PAST TASKS (DO NOT REPEAT): ${JSON.stringify(recentHistory)}` 
+    : "PAST TASKS: None (Day 1). Start from basics.";
+
   const systemPrompt = `
     You are an expert Long-Term Performance Coach.
     ${identityPrompt}
@@ -287,13 +294,18 @@ export const generateDailyPlan = async (
     MAIN GOAL: "${goal}"
     CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
     TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
+    ${historyString}
     
     ${phaseInstruction}
 
     RULES:
     1. **ACTION BIAS:** Focus on OUTPUT. Avoid "Review goals" or "Plan the day". Give them the actual work.
     2. **STRICT CONTEXT:** All tasks MUST contribute directly to the MAIN GOAL.
-    3. **PROGRESSIVE DIFFICULTY:** Adjust the complexity of tasks based on the current PHASE.
+    3. **PROGRESSIVE DIFFICULTY (CRITICAL):** 
+       - Look at the "PAST TASKS". 
+       - Today's tasks must be HARDER or MORE ADVANCED than previous days. 
+       - Do NOT repeat tasks from history unless it's strictly necessary for practice.
+       - If yesterday was "Research", today must be "Drafting" or "Building".
     
     4. **ADAPTIVE RESOLUTION (THE "ANCHOR TASK" RULE):**
        - **Simple Tasks:** Brief, direct descriptions.

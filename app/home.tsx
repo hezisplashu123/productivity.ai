@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus, Bell } from 'lucide-react-native';
+import { Plus, Users } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 
 // Components
@@ -18,14 +18,12 @@ import { useApp } from '../src/context/AppContext';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { goals, tasks, archiveGoal, triggerTestNotification } = useApp();
+  const { goals, tasks, archiveGoal, pendingRequestsCount } = useApp();
   
   const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
 
   const reactorGoals = useMemo(() => {
     if (!Array.isArray(goals)) return [];
-    
-    // Filter out archived goals
     const visibleGoals = goals.filter(g => g.status !== 'archived');
 
     return visibleGoals.map(goal => {
@@ -33,36 +31,26 @@ export default function HomeScreen() {
       const totalTime = goalTasks.reduce((sum, t) => sum + (t.duration || 0), 0);
       const displayTitle = (goal.title || 'Untitled Mission').split(' ').slice(0, 2).join(' ');
 
-      // --- LOGIC UPDATE: Determine if goal is TRULY complete (Gold Status) ---
       let isFullyComplete = false;
       const tasksCompletedCount = goalTasks.filter(t => t.status === 'completed').length;
       const totalTasksCount = goalTasks.length;
       const allTasksDone = totalTasksCount > 0 && tasksCompletedCount === totalTasksCount;
 
       if (goal.type === 'journey') {
-        // For Journey: Must be Last Day AND Tasks Done (OR status manually set to completed)
         if (goal.status === 'completed') {
-            isFullyComplete = true; // Manually marked early
+            isFullyComplete = true;
         } else if (goal.startDate && goal.targetDate) {
             const start = new Date(goal.startDate).getTime();
             const target = new Date(goal.targetDate).getTime();
             const now = Date.now();
-            
-            // Calculate Current Day (1-based)
             const diffTime = Math.max(0, now - start);
             const currentDay = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-            
-            // Calculate Total Days
             const totalDuration = Math.abs(target - start);
             const totalDays = Math.ceil(totalDuration / (1000 * 60 * 60 * 24));
-
-            // Is it the last day (or past it)?
             const isLastDay = currentDay >= totalDays;
-            
             isFullyComplete = isLastDay && allTasksDone;
         }
       } else {
-        // For Project: 100% Tasks = Complete
         isFullyComplete = allTasksDone;
       }
 
@@ -71,8 +59,8 @@ export default function HomeScreen() {
         title: displayTitle,
         color: '#FF4500', 
         totalTime,
-        type: goal.type as 'project' | 'journey', // Pass type to component
-        isFullyComplete: isFullyComplete, // Pass calculated complete status
+        type: goal.type as 'project' | 'journey',
+        isFullyComplete: isFullyComplete,
         subTasks: goalTasks.map(t => ({
           id: t.id,
           title: t.title || 'Untitled Task',
@@ -97,7 +85,6 @@ export default function HomeScreen() {
   const { dayName, dateNum } = formatDate();
 
   const handleGoalPress = (goal: TaskGoal) => {
-    // Check the calculated flag instead of just checking tasks
     if (goal.isFullyComplete) {
       setCelebrationGoal(goal);
     } else {
@@ -118,15 +105,6 @@ export default function HomeScreen() {
       <ErrorBoundary name="HomeScreen">
         <SafeAreaView style={styles.container} edges={['top']}>
           
-          <TouchableOpacity
-            style={styles.testButton}
-            onPress={() => triggerTestNotification()}
-            activeOpacity={0.7}
-          >
-            <Bell size={14} color="#FFF" style={{ marginRight: 6 }} />
-            <Text style={styles.testButtonText}>TEST SIGNAL</Text>
-          </TouchableOpacity>
-
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={styles.dateBox}>
@@ -135,7 +113,20 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <AnimatedStreakFlame onPress={() => router.push('/leaderboard')} />
+            {/* HEADER RIGHT: FRIENDS + FLAME */}
+            <View style={styles.headerRight}>
+              <TouchableOpacity 
+                style={styles.socialButton} 
+                onPress={() => router.push('/social')}
+                activeOpacity={0.7}
+              >
+                <Users size={22} color={colors.text} />
+                {pendingRequestsCount > 0 && (
+                  <View style={styles.badge} />
+                )}
+              </TouchableOpacity>
+              <AnimatedStreakFlame onPress={() => router.push('/leaderboard')} />
+            </View>
           </View>
 
           <ScrollView 
@@ -191,29 +182,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#FFFFFF' },
   container: { flex: 1 },
   
-  testButton: {
-    position: 'absolute',
-    top: 70, 
-    right: 20,
-    zIndex: 999,
-    backgroundColor: '#EF4444', 
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  testButtonText: {
-    color: 'white',
-    fontWeight: '800',
-    fontSize: 10,
-    letterSpacing: 0.5,
-  },
-
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -225,6 +193,34 @@ const styles = StyleSheet.create({
   dayLabel: { fontSize: 11, fontWeight: '800', color: '#BDBDBD', letterSpacing: 1.5 },
   dateLabel: { fontSize: 24, fontWeight: '900', color: '#1A1A1A', marginTop: 2 },
   
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  socialButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative'
+  },
+  badge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+    borderWidth: 1,
+    borderColor: '#FFF'
+  },
+
   scrollContent: { paddingHorizontal: 24, paddingBottom: 150 },
   sectionHeader: {
     fontSize: 14,
