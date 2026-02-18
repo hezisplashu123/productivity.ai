@@ -5,4 +5,4 @@
 // 4. Paste that number below inside the quotes
 
 
-export const API_BASE_URL = `https://emile-actiniform-omer.ngrok-free.dev`;
+export const API_BASE_URL = `https://prodai-missions.duckdns.org`;
