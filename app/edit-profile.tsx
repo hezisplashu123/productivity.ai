@@ -30,7 +30,7 @@ import * as Haptics from 'expo-haptics';
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
-import { auth, updateProfile } from '../src/config/firebase';
+import { auth, updateProfile, sendPasswordResetEmail } from '../src/config/firebase';
 import { updatePassword, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 
 export default function EditProfileScreen() {
@@ -51,28 +51,24 @@ export default function EditProfileScreen() {
   const [currentPasswordError, setCurrentPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
 
-  // Check Firebase providers to see if user has a password set (even if they are Social auth originally)
+  // Check Firebase providers to see if user has a password set
   const [hasPasswordProvider, setHasPasswordProvider] = useState(false);
 
   useEffect(() => {
     if (auth.currentUser) {
-      // Check if 'password' is in the provider list
       const providers = auth.currentUser.providerData.map(p => p.providerId);
       setHasPasswordProvider(providers.includes('password'));
     }
   }, []);
 
-  // Determine if we should treat them as a password user (show Current Password field)
   const isPasswordUser = user?.provider === 'email' || hasPasswordProvider;
 
-  // Determine if there are unsaved changes
   const hasChanges = useMemo(() => {
     const nameChanged = name !== (user?.name || '');
     const passwordChanged = newPassword.length > 0;
     return nameChanged || passwordChanged;
   }, [name, user?.name, newPassword]);
 
-  // Robust back navigation
   const handleBack = () => {
     if (router.canGoBack()) {
       router.back();
@@ -81,8 +77,21 @@ export default function EditProfileScreen() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!user?.email) return;
+    try {
+      setIsLoading(true);
+      await sendPasswordResetEmail(auth, user.email);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Success", "Password reset email sent. Log out and reset your password to continue.");
+    } catch (e) {
+      Alert.alert("Error", "Could not send reset email.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSave = async () => {
-    // Reset errors initially
     setPasswordError('');
     setCurrentPasswordError('');
     setConfirmPasswordError('');
@@ -92,12 +101,11 @@ export default function EditProfileScreen() {
       return;
     }
 
-    // Inline Password Validation
     if (newPassword) {
       if (newPassword.length < 6) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         setPasswordError("Password must be at least 6 characters.");
-        return; // Stop execution
+        return; 
       }
       if (newPassword !== confirmPassword) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -107,21 +115,16 @@ export default function EditProfileScreen() {
     }
     
     setIsLoading(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     try {
-      // 1. Update Backend Profile
       await apiService.updateUser(user?.email || '', { name });
       
-      // 2. Update Firebase Profile
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, { displayName: name });
       }
 
-      // 3. Handle Password Update
       if (newPassword) {
         if (auth.currentUser) {
-          // If they already have a password, they MUST re-auth with it
           if (isPasswordUser) {
             if (!currentPassword) {
               setCurrentPasswordError("Required to change password.");
@@ -133,25 +136,23 @@ export default function EditProfileScreen() {
               await reauthenticateWithCredential(auth.currentUser, credential);
             } catch (authErr: any) {
               console.error("Re-auth Error:", authErr);
+              // FIXED: Handling generic invalid-credential error
               if (authErr.code === 'auth/invalid-credential' || authErr.code === 'auth/wrong-password') {
                 setCurrentPasswordError("Incorrect current password.");
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                 setIsLoading(false);
                 return;
               }
-              throw authErr; // Re-throw if it's something else
+              throw authErr;
             }
           }
-          
-          // Update (or set) the password
           await updatePassword(auth.currentUser, newPassword);
           Alert.alert("Success", "Profile and password updated successfully.");
         }
       }
 
-      // 4. Update Local State
       setUser({ ...user!, name });
-      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       handleBack();
     } catch (error: any) {
       console.error("Save Error:", error);
@@ -176,12 +177,11 @@ export default function EditProfileScreen() {
           text: "Proceed to Login", 
           style: "destructive", 
           onPress: () => {
-            // Use PUSH instead of replace/dismiss to maintain stack for sliding back
             router.push({
               pathname: '/auth',
               params: { 
                 mode: 'delete_reauth', 
-                email: user?.email // Pass email to prefill
+                email: user?.email 
               }
             });
           } 
@@ -195,7 +195,6 @@ export default function EditProfileScreen() {
       <StatusBar style="dark" />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
             <ChevronLeft size={24} color={colors.text} />
@@ -217,7 +216,6 @@ export default function EditProfileScreen() {
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
               <View style={styles.form}>
                 
-                {/* PUBLIC INFO */}
                 <Text style={styles.sectionTitle}>PUBLIC INFO</Text>
                 
                 <View style={styles.inputGroup}>
@@ -234,14 +232,12 @@ export default function EditProfileScreen() {
                   </View>
                 </View>
 
-                {/* PRIVATE INFO */}
                 <Text style={styles.sectionTitle}>PRIVATE DETAILS</Text>
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>EMAIL ADDRESS</Text>
                   <View style={[styles.inputWrapper, styles.readOnlyInput]}>
                     <Mail size={20} color={colors.textLight} style={styles.inputIcon} />
-                    {/* Centered Email Text via Disabled Input */}
                     <TextInput
                       style={[styles.textInput, { color: colors.textLight }]}
                       value={user?.email}
@@ -251,7 +247,6 @@ export default function EditProfileScreen() {
                   <Text style={styles.helperText}>Email cannot be changed.</Text>
                 </View>
 
-                {/* SECURITY SECTION */}
                 <View style={styles.divider} />
                 
                 <View style={styles.passwordHeader}>
@@ -260,7 +255,6 @@ export default function EditProfileScreen() {
                 </View>
 
                 <View style={styles.passwordSection}>
-                  {/* Current Password Field - Visible if user has a password set */}
                   {isPasswordUser && (
                     <View style={styles.inputGroup}>
                       <Text style={[styles.inputLabel, currentPasswordError ? { color: colors.error } : null]}>
@@ -284,11 +278,18 @@ export default function EditProfileScreen() {
                         />
                       </View>
                       {currentPasswordError ? (
-                        <View style={styles.inlineErrorContainer}>
+                        <View style={styles.errorHighlightBox}>
                           <AlertCircle size={14} color={colors.error} />
                           <Text style={styles.inlineErrorText}>{currentPasswordError}</Text>
                         </View>
-                      ) : null}
+                      ) : (
+                        <TouchableOpacity 
+                          onPress={handleForgotPassword}
+                          style={styles.centeredForgotBtn}
+                        >
+                          <Text style={styles.forgotPasswordText}>Forgot Current Password?</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   )}
 
@@ -306,16 +307,15 @@ export default function EditProfileScreen() {
                         value={newPassword}
                         onChangeText={(text) => {
                           setNewPassword(text);
-                          if (passwordError) setPasswordError(''); // Clear error on type
+                          if (passwordError) setPasswordError('');
                         }}
                         placeholder={isPasswordUser ? "Enter new password" : "Set new password"}
                         placeholderTextColor={colors.textLight}
                         secureTextEntry
                       />
                     </View>
-                    {/* Inline Error Message */}
                     {passwordError ? (
-                      <View style={styles.inlineErrorContainer}>
+                      <View style={styles.errorHighlightBox}>
                         <AlertCircle size={14} color={colors.error} />
                         <Text style={styles.inlineErrorText}>{passwordError}</Text>
                       </View>
@@ -344,7 +344,7 @@ export default function EditProfileScreen() {
                       />
                     </View>
                     {confirmPasswordError ? (
-                      <View style={styles.inlineErrorContainer}>
+                      <View style={styles.errorHighlightBox}>
                         <AlertCircle size={14} color={colors.error} />
                         <Text style={styles.inlineErrorText}>{confirmPasswordError}</Text>
                       </View>
@@ -352,7 +352,6 @@ export default function EditProfileScreen() {
                   </View>
                 </View>
 
-                {/* SAVE BUTTON */}
                 <View style={styles.saveButtonContainer}>
                   <TouchableOpacity 
                     style={[
@@ -374,7 +373,6 @@ export default function EditProfileScreen() {
                   </TouchableOpacity>
                 </View>
 
-                {/* DANGER ZONE */}
                 <View style={styles.divider} />
                 <Text style={[styles.inputLabel, { color: colors.error, marginBottom: 12 }]}>DANGER ZONE</Text>
                 
@@ -383,7 +381,6 @@ export default function EditProfileScreen() {
                   <Text style={styles.deleteButtonText}>Delete Account</Text>
                 </TouchableOpacity>
 
-                {/* Bottom Padding */}
                 <View style={{ height: 40 }} />
               </View>
             </TouchableWithoutFeedback>
@@ -435,18 +432,32 @@ const styles = StyleSheet.create({
   readOnlyInput: { backgroundColor: '#F3F4F6', borderColor: '#E5E7EB', shadowOpacity: 0 },
   helperText: { fontSize: 12, color: colors.textLight, marginLeft: 4 },
   
-  // Inline Error Styles
-  inlineErrorContainer: {
+  errorHighlightBox: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
     marginTop: 4,
-    marginLeft: 4,
-    gap: 6,
   },
   inlineErrorText: {
     color: colors.error,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
+    flex: 1,
+  },
+
+  centeredForgotBtn: {
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '700',
   },
 
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 8 },
@@ -454,7 +465,6 @@ const styles = StyleSheet.create({
   passwordHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: -8 },
   passwordSection: { gap: 16 },
   
-  // Save Button Styles
   saveButtonContainer: {
     marginTop: 24,
     marginBottom: 8,
@@ -473,7 +483,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   saveButtonDisabled: {
-    backgroundColor: '#E5E7EB', // Lighter grey background
+    backgroundColor: '#E5E7EB', 
     shadowOpacity: 0,
     elevation: 0,
     borderWidth: 1,
@@ -485,7 +495,7 @@ const styles = StyleSheet.create({
     fontWeight: '700' 
   },
   saveButtonTextDisabled: {
-    color: '#9CA3AF' // Darker grey text for better readability
+    color: '#9CA3AF' 
   },
 
   deleteButton: { 

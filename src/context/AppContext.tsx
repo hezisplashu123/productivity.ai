@@ -5,6 +5,8 @@ import * as Notifications from 'expo-notifications';
 import { NotificationService } from '../services/notificationService';
 import { TacticalHUD } from '../components/TacticalHUD';
 import * as Haptics from 'expo-haptics';
+import { auth } from '../config/firebase'; 
+import { onAuthStateChanged, signOut } from 'firebase/auth'; // Import signOut
 
 interface User {
   id: string;
@@ -17,11 +19,13 @@ interface User {
 
 interface AppContextType {
   user: User | null;
+  isLoading: boolean;
   setUser: (user: User | null) => void;
+  logout: () => Promise<void>; // Added logout function
   goals: Goal[];
   tasks: Task[];
   currentGoal: Goal | null;
-  pendingRequestsCount: number; // NEW
+  pendingRequestsCount: number;
   addGoal: (title: string, type?: string, targetDate?: Date, dailyMinutes?: number) => Promise<Goal | null>; 
   updateGoal: (goalId: string, updates: Partial<Goal>) => void;
   deleteGoal: (goalId: string) => void;
@@ -47,10 +51,11 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true); 
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
-  const [pendingRequestsCount, setPendingRequestsCount] = useState(0); // NEW
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   const [hudState, setHudState] = useState({
     visible: false,
@@ -62,11 +67,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
 
+  // --- AUTO LOGIN LOGIC ---
+  useEffect(() => {
+    console.log("🔄 AppContext: Initializing Auth Listener...");
+    
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser || !firebaseUser.email) {
+        console.log("ℹ️ No Firebase user detected.");
+        setUser(null);
+        setGoals([]);
+        setTasks([]);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("🔥 Auth State Changed. Checking backend for:", firebaseUser.email);
+      
+      try {
+        const profile = await apiService.getUserProfile(firebaseUser.email);
+        console.log("✅ Backend Profile Found:", profile.id);
+        
+        setUser({
+          id: profile.id,
+          email: profile.email,
+          name: profile.name,
+          onboardingData: profile.onboardingData,
+          currentStreak: profile.currentStreak,
+          lastActiveDate: profile.lastActiveDate
+        });
+
+        setGoals(profile.goals || []);
+        const allTasks: Task[] = [];
+        if (profile.goals) {
+          profile.goals.forEach((g: any) => {
+            if (g.tasks) allTasks.push(...g.tasks);
+          });
+        }
+        setTasks(allTasks);
+
+        if (profile.id) {
+          const requests = await apiService.getFriendRequests(profile.id);
+          setPendingRequestsCount(requests.length);
+        }
+      } catch (error: any) {
+        const errorMessage = error?.message || String(error);
+        if (errorMessage.includes('User not found') || errorMessage.includes('404')) {
+          console.log("⚠️ New user signup detected (Backend sync pending).");
+        } else {
+          console.error("❌ Auto-login Error:", errorMessage);
+          setUser(null);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // --- LOGOUT FUNCTION (CRITICAL FIX) ---
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth); // This wipes the session from the phone
+      setUser(null);
+      setGoals([]);
+      setTasks([]);
+      console.log("🔒 Logged out successfully");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  }, []);
+
   // --- STREAK MONITORING ---
   useEffect(() => {
     const checkStreakStatus = async () => {
       if (!user) return;
-      
       const today = new Date().toISOString().split('T')[0];
       const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate).toISOString().split('T')[0] : '';
 
@@ -78,8 +153,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    checkStreakStatus();
-  }, [user, tasks]); 
+    if (!isLoading) {
+        checkStreakStatus();
+    }
+  }, [user, tasks, isLoading]); 
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -88,7 +165,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await NotificationService.scheduleFocusReminder(user.onboardingData.focusWindow);
       }
     };
-    setupNotifications();
+    if (user) setupNotifications();
 
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       const { title, body, data } = notification.request.content;
@@ -134,7 +211,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastActiveDate: profile.lastActiveDate 
       } : null);
 
-      // NEW: Fetch pending requests
       if (profile.id) {
         const requests = await apiService.getFriendRequests(profile.id);
         setPendingRequestsCount(requests.length);
@@ -143,15 +219,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e: any) {
       console.error("Data Sync Error:", e.message);
       if (e.message && (e.message.includes('User not found') || e.message.includes('404'))) {
-        console.log("⚠️ User mismatch detected. Logging out.");
         setUser(null);
       }
     }
   }, [user?.email]); 
-
-  useEffect(() => {
-    if (user?.email) refreshData();
-  }, [user?.email, refreshData]);
 
   // AI & Goals
   const analyzeGoal = useCallback(async (goal: string, clarification: string = "", question: string = "") => {
@@ -278,8 +349,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         user, setUser,
+        logout, // Exposed to UI
+        isLoading, 
         goals, tasks, currentGoal,
-        pendingRequestsCount, // NEW
+        pendingRequestsCount, 
         addGoal, updateGoal, deleteGoal, archiveGoal,
         addTasks, overrideTasks, completeTask,
         toggleSubTask, updateTask, reportTaskIssue,

@@ -14254,13 +14254,69 @@ backend/.env
 </file>
 
 <file path="app/index.tsx">
-import React from 'react';
+import React, { useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { Redirect } from 'expo-router';
+import { useApp } from '../src/context/AppContext';
+import { lightColors as colors } from '../src/constants/colors';
+import { Brain } from 'lucide-react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withTiming, 
+  Easing 
+} from 'react-native-reanimated';
 
 export default function IndexScreen() {
-  // Redirect to the Welcome screen for public release
+  const { user, isLoading } = useApp();
+  const rotation = useSharedValue(0);
+
+  useEffect(() => {
+    // Continuous slow rotation (3 seconds per full turn)
+    rotation.value = withRepeat(
+      withTiming(360, {
+        duration: 3000,
+        easing: Easing.linear,
+      }),
+      -1 // Infinite loop
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ rotateZ: `${rotation.value}deg` }],
+    };
+  });
+
+  // 1. Show Animated Brain while loading
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <Animated.View style={animatedStyle}>
+          <Brain size={48} color={colors.primary} />
+        </Animated.View>
+      </View>
+    );
+  }
+
+  // 2. If user exists, go straight to Home
+  if (user) {
+    return <Redirect href="/home" />;
+  }
+
+  // 3. Otherwise, go to Welcome screen
   return <Redirect href="/welcome" />;
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+});
 </file>
 
 <file path="backend/src/prisma/seed.ts">
@@ -14984,7 +15040,7 @@ const styles = StyleSheet.create({
 </file>
 
 <file path="src/config/firebase.ts">
-import { initializeApp, getApp, getApps } from 'firebase/app';
+import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
 import { 
   initializeAuth, 
   getReactNativePersistence, 
@@ -14993,11 +15049,13 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   updateProfile,
-  getAuth
+  getAuth,
+  deleteUser,
+  sendPasswordResetEmail,
+  Auth
 } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Your existing config
 const firebaseConfig = {
   apiKey: "AIzaSyAw7dKdWkr7WBO_BUG8EFqLOYw-wr0n2Z8",
   authDomain: "hesi-ai.firebaseapp.com",
@@ -15007,23 +15065,21 @@ const firebaseConfig = {
   appId: "1:204716304779:web:b9876e929e0a60a717a78e"
 };
 
-// Initialize App
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+let app: FirebaseApp;
+let auth: Auth;
 
-// Initialize Auth with Persistence
-let auth;
 if (getApps().length > 0) {
-  try {
-    auth = getAuth(app);
-  } catch {
-    // initialize below if getAuth fails
-  }
+  app = getApp();
+} else {
+  app = initializeApp(firebaseConfig);
 }
 
-if (!auth) {
+try {
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage)
   });
+} catch (e) {
+  auth = getAuth(app);
 }
 
 export { 
@@ -15032,7 +15088,9 @@ export {
   signInWithCredential, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
-  updateProfile 
+  updateProfile,
+  deleteUser,
+  sendPasswordResetEmail
 };
 </file>
 
@@ -15549,17 +15607,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="src/config/api.ts">
-// ⚠️ IMPORTANT:
-// 1. Open your Command Prompt (cmd.exe)
-// 2. Type 'ipconfig' and hit Enter
-// 3. Find "IPv4 Address" (it looks like 192.168.1.5 or 10.0.0.14)
-// 4. Paste that number below inside the quotes
-
-
-export const API_BASE_URL = `https://emile-actiniform-omer.ngrok-free.dev`;
-</file>
-
 <file path="app/_layout.tsx">
 import { Stack } from 'expo-router';
 import { AppProvider } from '../src/context/AppContext';
@@ -15635,9 +15682,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Dimensions,
 } from 'react-native';
+// FIX: Use SafeAreaView from context, not react-native
+import { SafeAreaView } from 'react-native-safe-area-context'; 
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { MotiView } from 'moti';
@@ -15828,7 +15876,6 @@ export default function WelcomeScreen() {
   };
 
   const handleLogin = () => {
-    // Navigate to Auth screen with login mode parameter
     router.push({
       pathname: '/auth',
       params: { mode: 'login' }
@@ -17503,6 +17550,17 @@ const styles = StyleSheet.create({
 export default TaskReactorCircle;
 </file>
 
+<file path="src/config/api.ts">
+// ⚠️ IMPORTANT:
+// 1. Open your Command Prompt (cmd.exe)
+// 2. Type 'ipconfig' and hit Enter
+// 3. Find "IPv4 Address" (it looks like 192.168.1.5 or 10.0.0.14)
+// 4. Paste that number below inside the quotes
+
+
+export const API_BASE_URL = `https://prodai-missions.duckdns.org`;
+</file>
+
 <file path="src/types/index.ts">
 export interface Goal {
   id: string;
@@ -18585,7 +18643,8 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditPro
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, goals, setUser } = useApp();
+  // Destructure logout here
+  const { user, goals, logout } = useApp();
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -18625,9 +18684,10 @@ export default function ProfileScreen() {
       { 
         text: "Log Out", 
         style: "destructive", 
-        onPress: () => {
+        onPress: async () => {
           setSettingsVisible(false);
-          setUser(null);
+          // Use the real logout function to clear persistence
+          await logout();
           router.replace('/auth');
         }
       }
@@ -19422,7 +19482,7 @@ import { StatusBar } from 'expo-status-bar';
 import { apiService } from '../src/services/api';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
-import { ArrowRight, Lock, Mail, User, AlertTriangle, Trash2 } from 'lucide-react-native';
+import { ArrowRight, Lock, Mail, User, AlertTriangle, Trash2, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg'; 
 import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
@@ -19437,7 +19497,8 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile,
-  deleteUser 
+  deleteUser,
+  sendPasswordResetEmail 
 } from '../src/config/firebase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -19459,6 +19520,11 @@ export default function AuthScreen() {
   const [email, setEmail] = useState(prefillEmail);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // --- ERROR STATES ---
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
 
   // --- GOOGLE CONFIG ---
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
@@ -19531,17 +19597,83 @@ export default function AuthScreen() {
     } catch(e) { setLoading(false); }
   };
 
-  const handleSubmit = async () => {
-    if (!email || !password || (!isLogin && !name)) {
-      Alert.alert('Missing Fields', 'Please fill in all fields.');
+  // --- FORGOT PASSWORD HANDLER ---
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setEmailError("Enter your email first.");
       return;
     }
+    
+    // Clear previous errors
+    setEmailError('');
+    setPasswordError('');
+    
+    try {
+      setLoading(true);
+      await sendPasswordResetEmail(auth, email);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        "Reset Link Sent", 
+        `Check ${email} for a link to reset your password.`
+      );
+      setFailedAttempts(0); // Reset attempts on successful send
+    } catch (error: any) {
+      console.error(error);
+      if (error.code === 'auth/invalid-email') {
+        setEmailError("Invalid email address.");
+      } else if (error.code === 'auth/user-not-found') {
+        setEmailError("No account found with this email.");
+      } else {
+        setEmailError("Failed to send reset link. Try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    // 1. Clear previous errors
+    setEmailError('');
+    setPasswordError('');
+
+    // 2. Validate Inputs
+    let hasError = false;
+    if (!email.trim()) {
+      setEmailError('Email is required.');
+      hasError = true;
+    } else if (!email.includes('@')) {
+      setEmailError('Please enter a valid email.');
+      hasError = true;
+    }
+
+    if (!password) {
+      setPasswordError('Password is required.');
+      hasError = true;
+    } else if (!isLogin && password.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      hasError = true;
+    }
+
+    if (!isLogin && !name.trim()) {
+      // Basic alert for name since it's less critical, or add nameError state if desired
+      Alert.alert('Missing Info', 'Please enter your name.');
+      return;
+    }
+
+    if (hasError) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
     setLoading(true);
     Haptics.selectionAsync();
+
     try {
       let userCredential;
       if (isLogin) {
         userCredential = await signInWithEmailAndPassword(auth, email, password);
+        // Reset failed attempts on success
+        setFailedAttempts(0); 
       } else {
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
         if (auth.currentUser) {
@@ -19555,8 +19687,30 @@ export default function AuthScreen() {
         await syncUserWithBackend(userCredential.user, 'email');
       }
     } catch (error: any) {
-      Alert.alert('Authentication Failed', error.message);
       setLoading(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      
+      // --- INLINE ERROR MAPPING ---
+      console.log("Auth Error Code:", error.code);
+      
+      if (error.code === 'auth/invalid-email') {
+        setEmailError('Invalid email format.');
+      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        // Security best practice: don't reveal if it's email or password, but often for UX we flag both or password
+        setEmailError('Incorrect email or password.');
+        setPasswordError('Incorrect email or password.');
+        setFailedAttempts(prev => prev + 1);
+      } else if (error.code === 'auth/wrong-password') {
+        setPasswordError('Incorrect password.');
+        setFailedAttempts(prev => prev + 1);
+      } else if (error.code === 'auth/email-already-in-use') {
+        setEmailError('This email is already registered. Log in instead?');
+      } else if (error.code === 'auth/weak-password') {
+        setPasswordError('Password is too weak.');
+      } else {
+        // Fallback for unknown errors
+        setPasswordError(error.message || 'Authentication failed.');
+      }
     }
   };
 
@@ -19584,10 +19738,9 @@ export default function AuthScreen() {
     }
   };
 
-  // Safe navigation back to Edit Profile with correct transition
   const handleCancelDelete = () => {
     if (router.canGoBack()) {
-      router.back(); // Slides back to right
+      router.back(); 
     } else {
       router.replace('/edit-profile'); 
     }
@@ -19633,42 +19786,78 @@ export default function AuthScreen() {
 
           <View style={styles.form}>
             {!isLogin && !isDeleteMode && (
-              <View style={styles.inputContainer}>
-                <User size={20} color={colors.textSecondary} style={styles.icon} />
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="Full Name" 
-                  value={name} 
-                  onChangeText={setName} 
-                  placeholderTextColor={colors.textLight} 
-                />
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputContainer}>
+                  <User size={20} color={colors.textSecondary} style={styles.icon} />
+                  <TextInput 
+                    style={styles.input} 
+                    placeholder="Full Name" 
+                    value={name} 
+                    onChangeText={setName} 
+                    placeholderTextColor={colors.textLight} 
+                  />
+                </View>
               </View>
             )}
             
-            <View style={styles.inputContainer}>
-              <Mail size={20} color={colors.textSecondary} style={styles.icon} />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Email Address" 
-                value={email} 
-                onChangeText={setEmail} 
-                autoCapitalize="none" 
-                keyboardType="email-address" 
-                placeholderTextColor={colors.textLight}
-              />
+            <View style={styles.inputWrapper}>
+              <View style={[styles.inputContainer, emailError ? styles.inputError : null]}>
+                <Mail size={20} color={emailError ? colors.error : colors.textSecondary} style={styles.icon} />
+                <TextInput 
+                  style={styles.input} 
+                  placeholder="Email Address" 
+                  value={email} 
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (emailError) setEmailError('');
+                  }} 
+                  autoCapitalize="none" 
+                  keyboardType="email-address" 
+                  placeholderTextColor={colors.textLight}
+                />
+              </View>
+              {emailError ? (
+                <View style={styles.errorRow}>
+                  <AlertCircle size={12} color={colors.error} />
+                  <Text style={styles.errorText}>{emailError}</Text>
+                </View>
+              ) : null}
             </View>
 
-            <View style={styles.inputContainer}>
-              <Lock size={20} color={colors.textSecondary} style={styles.icon} />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Password" 
-                value={password} 
-                onChangeText={setPassword} 
-                secureTextEntry 
-                placeholderTextColor={colors.textLight} 
-              />
+            <View style={styles.inputWrapper}>
+              <View style={[styles.inputContainer, passwordError ? styles.inputError : null]}>
+                <Lock size={20} color={passwordError ? colors.error : colors.textSecondary} style={styles.icon} />
+                <TextInput 
+                  style={styles.input} 
+                  placeholder="Password" 
+                  value={password} 
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (passwordError) setPasswordError('');
+                  }} 
+                  secureTextEntry 
+                  placeholderTextColor={colors.textLight} 
+                />
+              </View>
+              {passwordError ? (
+                <View style={styles.errorRow}>
+                  <AlertCircle size={12} color={colors.error} />
+                  <Text style={styles.errorText}>{passwordError}</Text>
+                </View>
+              ) : null}
             </View>
+
+            {/* FORGOT PASSWORD LINK (Shows if Login mode and either explicitly called or failures > 0) */}
+            {isLogin && !isDeleteMode && (
+              <View style={styles.forgotPasswordContainer}>
+                {failedAttempts >= 3 && (
+                  <Text style={styles.troubleText}>Having trouble? </Text>
+                )}
+                <TouchableOpacity onPress={handleForgotPassword}>
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             
             <TouchableOpacity 
               style={[
@@ -19729,7 +19918,13 @@ export default function AuthScreen() {
                 </TouchableOpacity>
               </View>
               
-              <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin(!isLogin)}>
+              <TouchableOpacity style={styles.switchButton} onPress={() => {
+                setIsLogin(!isLogin);
+                // Clear errors on switch
+                setEmailError('');
+                setPasswordError('');
+                setFailedAttempts(0);
+              }}>
                 <Text style={styles.switchText}>
                   {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
                 </Text>
@@ -19758,7 +19953,9 @@ const styles = StyleSheet.create({
   headerSection: { marginBottom: 32 },
   title: { fontSize: 32, fontWeight: '700', color: colors.text, marginBottom: 8 },
   subtitle: { fontSize: 16, color: colors.textSecondary },
+  
   form: { gap: 16 },
+  inputWrapper: { gap: 4 },
   inputContainer: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -19769,8 +19966,41 @@ const styles = StyleSheet.create({
     height: 56, 
     paddingHorizontal: 16 
   },
+  inputError: {
+    borderColor: colors.error,
+    backgroundColor: '#FEF2F2'
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 4,
+  },
+  errorText: {
+    fontSize: 12,
+    color: colors.error,
+    fontWeight: '500',
+  },
   icon: { marginRight: 12 },
   input: { flex: 1, fontSize: 16, color: colors.text, height: '100%' },
+  
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: -8,
+    marginBottom: 4,
+  },
+  troubleText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  forgotPasswordText: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+
   button: { 
     backgroundColor: colors.primary, 
     height: 56, 
@@ -23201,6 +23431,8 @@ import * as Notifications from 'expo-notifications';
 import { NotificationService } from '../services/notificationService';
 import { TacticalHUD } from '../components/TacticalHUD';
 import * as Haptics from 'expo-haptics';
+import { auth } from '../config/firebase'; 
+import { onAuthStateChanged, signOut } from 'firebase/auth'; // Import signOut
 
 interface User {
   id: string;
@@ -23213,11 +23445,13 @@ interface User {
 
 interface AppContextType {
   user: User | null;
+  isLoading: boolean;
   setUser: (user: User | null) => void;
+  logout: () => Promise<void>; // Added logout function
   goals: Goal[];
   tasks: Task[];
   currentGoal: Goal | null;
-  pendingRequestsCount: number; // NEW
+  pendingRequestsCount: number;
   addGoal: (title: string, type?: string, targetDate?: Date, dailyMinutes?: number) => Promise<Goal | null>; 
   updateGoal: (goalId: string, updates: Partial<Goal>) => void;
   deleteGoal: (goalId: string) => void;
@@ -23243,10 +23477,11 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true); 
   const [goals, setGoals] = useState<Goal[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
-  const [pendingRequestsCount, setPendingRequestsCount] = useState(0); // NEW
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   const [hudState, setHudState] = useState({
     visible: false,
@@ -23258,11 +23493,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
 
+  // --- AUTO LOGIN LOGIC ---
+  useEffect(() => {
+    console.log("🔄 AppContext: Initializing Auth Listener...");
+    
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser || !firebaseUser.email) {
+        console.log("ℹ️ No Firebase user detected.");
+        setUser(null);
+        setGoals([]);
+        setTasks([]);
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("🔥 Auth State Changed. Checking backend for:", firebaseUser.email);
+      
+      try {
+        const profile = await apiService.getUserProfile(firebaseUser.email);
+        console.log("✅ Backend Profile Found:", profile.id);
+        
+        setUser({
+          id: profile.id,
+          email: profile.email,
+          name: profile.name,
+          onboardingData: profile.onboardingData,
+          currentStreak: profile.currentStreak,
+          lastActiveDate: profile.lastActiveDate
+        });
+
+        setGoals(profile.goals || []);
+        const allTasks: Task[] = [];
+        if (profile.goals) {
+          profile.goals.forEach((g: any) => {
+            if (g.tasks) allTasks.push(...g.tasks);
+          });
+        }
+        setTasks(allTasks);
+
+        if (profile.id) {
+          const requests = await apiService.getFriendRequests(profile.id);
+          setPendingRequestsCount(requests.length);
+        }
+      } catch (error: any) {
+        const errorMessage = error?.message || String(error);
+        if (errorMessage.includes('User not found') || errorMessage.includes('404')) {
+          console.log("⚠️ New user signup detected (Backend sync pending).");
+        } else {
+          console.error("❌ Auto-login Error:", errorMessage);
+          setUser(null);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // --- LOGOUT FUNCTION (CRITICAL FIX) ---
+  const logout = useCallback(async () => {
+    try {
+      await signOut(auth); // This wipes the session from the phone
+      setUser(null);
+      setGoals([]);
+      setTasks([]);
+      console.log("🔒 Logged out successfully");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  }, []);
+
   // --- STREAK MONITORING ---
   useEffect(() => {
     const checkStreakStatus = async () => {
       if (!user) return;
-      
       const today = new Date().toISOString().split('T')[0];
       const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate).toISOString().split('T')[0] : '';
 
@@ -23274,8 +23579,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    checkStreakStatus();
-  }, [user, tasks]); 
+    if (!isLoading) {
+        checkStreakStatus();
+    }
+  }, [user, tasks, isLoading]); 
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -23284,7 +23591,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await NotificationService.scheduleFocusReminder(user.onboardingData.focusWindow);
       }
     };
-    setupNotifications();
+    if (user) setupNotifications();
 
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       const { title, body, data } = notification.request.content;
@@ -23330,7 +23637,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastActiveDate: profile.lastActiveDate 
       } : null);
 
-      // NEW: Fetch pending requests
       if (profile.id) {
         const requests = await apiService.getFriendRequests(profile.id);
         setPendingRequestsCount(requests.length);
@@ -23339,15 +23645,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e: any) {
       console.error("Data Sync Error:", e.message);
       if (e.message && (e.message.includes('User not found') || e.message.includes('404'))) {
-        console.log("⚠️ User mismatch detected. Logging out.");
         setUser(null);
       }
     }
   }, [user?.email]); 
-
-  useEffect(() => {
-    if (user?.email) refreshData();
-  }, [user?.email, refreshData]);
 
   // AI & Goals
   const analyzeGoal = useCallback(async (goal: string, clarification: string = "", question: string = "") => {
@@ -23474,8 +23775,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         user, setUser,
+        logout, // Exposed to UI
+        isLoading, 
         goals, tasks, currentGoal,
-        pendingRequestsCount, // NEW
+        pendingRequestsCount, 
         addGoal, updateGoal, deleteGoal, archiveGoal,
         addTasks, overrideTasks, completeTask,
         toggleSubTask, updateTask, reportTaskIssue,

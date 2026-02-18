@@ -20,6 +20,7 @@ export default function RootLayout() {
             <Stack.Screen name="leaderboard" />
             <Stack.Screen name="goal-input" />
             <Stack.Screen name="profile" />
+            <Stack.Screen name="verify-email" />
             
             {/* Focus Session - Uses Fade for "Mode Entry" feel */}
             <Stack.Screen 

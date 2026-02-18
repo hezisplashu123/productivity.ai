@@ -4,9 +4,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Dimensions,
 } from 'react-native';
+// FIX: Use SafeAreaView from context, not react-native
+import { SafeAreaView } from 'react-native-safe-area-context'; 
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { MotiView } from 'moti';
@@ -197,7 +198,6 @@ export default function WelcomeScreen() {
   };
 
   const handleLogin = () => {
-    // Navigate to Auth screen with login mode parameter
     router.push({
       pathname: '/auth',
       params: { mode: 'login' }

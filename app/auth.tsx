@@ -8,7 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { apiService } from '../src/services/api';
 import { useApp } from '../src/context/AppContext';
 import { lightColors as colors } from '../src/constants/colors';
-import { ArrowRight, Lock, Mail, User, AlertTriangle, Trash2 } from 'lucide-react-native';
+import { ArrowRight, Lock, Mail, User, AlertTriangle, Trash2, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg'; 
 import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
@@ -23,7 +23,9 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile,
-  deleteUser 
+  deleteUser,
+  sendPasswordResetEmail,
+  sendEmailVerification // IMPORTED
 } from '../src/config/firebase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -45,6 +47,10 @@ export default function AuthScreen() {
   const [email, setEmail] = useState(prefillEmail);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // --- ERROR STATES ---
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   // --- GOOGLE CONFIG ---
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
@@ -89,6 +95,7 @@ export default function AuthScreen() {
       }
 
       const firebaseUser = userCredential.user;
+      // Google users are verified by default
       await syncUserWithBackend(firebaseUser, 'google', firebaseUser.displayName || 'Google User', firebaseUser.email || '');
     } catch (error: any) {
       setLoading(false);
@@ -113,36 +120,129 @@ export default function AuthScreen() {
         
         const displayName = credential.fullName?.givenName ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}` : "Apple User";
         const appleUserMock = { uid: credential.user, email: credential.email, displayName };
+        // Apple users are verified by default
         await syncUserWithBackend(appleUserMock, 'apple', displayName, credential.email || '');
     } catch(e) { setLoading(false); }
   };
 
-  const handleSubmit = async () => {
-    if (!email || !password || (!isLogin && !name)) {
-      Alert.alert('Missing Fields', 'Please fill in all fields.');
+  const handleForgotPassword = async () => {
+    const targetEmail = email.trim();
+    if (!targetEmail) {
+      setEmailError("Enter your email first.");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       return;
     }
+    
+    setEmailError('');
+    setPasswordError('');
+    
+    try {
+      setLoading(true);
+      await sendPasswordResetEmail(auth, targetEmail);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Reset Link Sent", `Check ${targetEmail} for a link.`);
+    } catch (error: any) {
+      if (error.code === 'auth/invalid-email') {
+        setEmailError("Invalid email address.");
+      } else if (error.code === 'auth/user-not-found') {
+        setEmailError("No account found with this email.");
+      } else {
+        setEmailError("Failed to send reset link. Try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setEmailError('');
+    setPasswordError('');
+
+    let hasError = false;
+    if (!email.trim()) {
+      setEmailError('Email is required.');
+      hasError = true;
+    } else if (!email.includes('@')) {
+      setEmailError('Please enter a valid email.');
+      hasError = true;
+    }
+
+    if (!password) {
+      setPasswordError('Password is required.');
+      hasError = true;
+    } else if (!isLogin && password.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      hasError = true;
+    }
+
+    if (!isLogin && !name.trim()) {
+      Alert.alert('Missing Info', 'Please enter your name.');
+      return;
+    }
+
+    if (hasError) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
     setLoading(true);
     Haptics.selectionAsync();
+
     try {
       let userCredential;
       if (isLogin) {
+        // LOGIN FLOW
         userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        if (isDeleteMode) {
+          await executeAccountDeletion(userCredential.user);
+        } else {
+          // If logging in, check verification status
+          if (!userCredential.user.emailVerified) {
+            setLoading(false);
+            // Redirect to verification screen instead of logging in
+            router.push({
+              pathname: '/verify-email',
+              params: { email, name, onboardingData: JSON.stringify(onboardingData) }
+            });
+            return;
+          }
+          await syncUserWithBackend(userCredential.user, 'email');
+        }
       } else {
+        // SIGN UP FLOW
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
         if (auth.currentUser) {
           await updateProfile(auth.currentUser, { displayName: name });
+          // SEND VERIFICATION EMAIL
+          await sendEmailVerification(auth.currentUser);
         }
-      }
 
-      if (isDeleteMode) {
-        await executeAccountDeletion(userCredential.user);
-      } else {
-        await syncUserWithBackend(userCredential.user, 'email');
+        setLoading(false);
+        // Navigate to Verification Screen
+        router.push({
+          pathname: '/verify-email',
+          params: { email, name, onboardingData: JSON.stringify(onboardingData) }
+        });
       }
     } catch (error: any) {
-      Alert.alert('Authentication Failed', error.message);
       setLoading(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      
+      if (error.code === 'auth/invalid-email') {
+        setEmailError('Invalid email format.');
+      } else if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        setPasswordError('Incorrect email or password.');
+      } else if (error.code === 'auth/wrong-password') {
+        setPasswordError('Incorrect password.');
+      } else if (error.code === 'auth/email-already-in-use') {
+        setEmailError('This email is already registered.');
+      } else if (error.code === 'auth/weak-password') {
+        setPasswordError('Password is too weak.');
+      } else {
+        setPasswordError('Authentication failed. Please try again.');
+      }
     }
   };
 
@@ -170,10 +270,9 @@ export default function AuthScreen() {
     }
   };
 
-  // Safe navigation back to Edit Profile with correct transition
   const handleCancelDelete = () => {
     if (router.canGoBack()) {
-      router.back(); // Slides back to right
+      router.back(); 
     } else {
       router.replace('/edit-profile'); 
     }
@@ -219,42 +318,74 @@ export default function AuthScreen() {
 
           <View style={styles.form}>
             {!isLogin && !isDeleteMode && (
-              <View style={styles.inputContainer}>
-                <User size={20} color={colors.textSecondary} style={styles.icon} />
-                <TextInput 
-                  style={styles.input} 
-                  placeholder="Full Name" 
-                  value={name} 
-                  onChangeText={setName} 
-                  placeholderTextColor={colors.textLight} 
-                />
+              <View style={styles.inputWrapper}>
+                <View style={styles.inputContainer}>
+                  <User size={20} color={colors.textSecondary} style={styles.icon} />
+                  <TextInput 
+                    style={styles.input} 
+                    placeholder="Full Name" 
+                    value={name} 
+                    onChangeText={setName} 
+                    placeholderTextColor={colors.textLight} 
+                  />
+                </View>
               </View>
             )}
             
-            <View style={styles.inputContainer}>
-              <Mail size={20} color={colors.textSecondary} style={styles.icon} />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Email Address" 
-                value={email} 
-                onChangeText={setEmail} 
-                autoCapitalize="none" 
-                keyboardType="email-address" 
-                placeholderTextColor={colors.textLight}
-              />
+            <View style={styles.inputWrapper}>
+              <View style={[styles.inputContainer, emailError ? styles.inputError : null]}>
+                <Mail size={20} color={emailError ? colors.error : colors.textSecondary} style={styles.icon} />
+                <TextInput 
+                  style={styles.input} 
+                  placeholder="Email Address" 
+                  value={email} 
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (emailError) setEmailError('');
+                  }} 
+                  autoCapitalize="none" 
+                  keyboardType="email-address" 
+                  placeholderTextColor={colors.textLight}
+                />
+              </View>
+              {emailError ? (
+                <View style={styles.errorHighlightBox}>
+                  <AlertCircle size={14} color={colors.error} />
+                  <Text style={styles.errorText}>{emailError}</Text>
+                </View>
+              ) : null}
             </View>
 
-            <View style={styles.inputContainer}>
-              <Lock size={20} color={colors.textSecondary} style={styles.icon} />
-              <TextInput 
-                style={styles.input} 
-                placeholder="Password" 
-                value={password} 
-                onChangeText={setPassword} 
-                secureTextEntry 
-                placeholderTextColor={colors.textLight} 
-              />
+            <View style={styles.inputWrapper}>
+              <View style={[styles.inputContainer, passwordError ? styles.inputError : null]}>
+                <Lock size={20} color={passwordError ? colors.error : colors.textSecondary} style={styles.icon} />
+                <TextInput 
+                  style={styles.input} 
+                  placeholder="Password" 
+                  value={password} 
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (passwordError) setPasswordError('');
+                  }} 
+                  secureTextEntry 
+                  placeholderTextColor={colors.textLight} 
+                />
+              </View>
+              {passwordError ? (
+                <View style={styles.errorHighlightBox}>
+                  <AlertCircle size={14} color={colors.error} />
+                  <Text style={styles.errorText}>{passwordError}</Text>
+                </View>
+              ) : null}
             </View>
+
+            {isLogin && !isDeleteMode && (
+              <View style={styles.forgotPasswordContainer}>
+                <TouchableOpacity onPress={handleForgotPassword}>
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             
             <TouchableOpacity 
               style={[
@@ -315,7 +446,11 @@ export default function AuthScreen() {
                 </TouchableOpacity>
               </View>
               
-              <TouchableOpacity style={styles.switchButton} onPress={() => setIsLogin(!isLogin)}>
+              <TouchableOpacity style={styles.switchButton} onPress={() => {
+                setIsLogin(!isLogin);
+                setEmailError('');
+                setPasswordError('');
+              }}>
                 <Text style={styles.switchText}>
                   {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
                 </Text>
@@ -344,7 +479,9 @@ const styles = StyleSheet.create({
   headerSection: { marginBottom: 32 },
   title: { fontSize: 32, fontWeight: '700', color: colors.text, marginBottom: 8 },
   subtitle: { fontSize: 16, color: colors.textSecondary },
+  
   form: { gap: 16 },
+  inputWrapper: { gap: 4 },
   inputContainer: { 
     flexDirection: 'row', 
     alignItems: 'center', 
@@ -355,8 +492,42 @@ const styles = StyleSheet.create({
     height: 56, 
     paddingHorizontal: 16 
   },
+  inputError: {
+    borderColor: colors.error,
+  },
+  errorHighlightBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+    marginTop: 4,
+  },
+  errorText: {
+    fontSize: 13,
+    color: colors.error,
+    fontWeight: '600',
+    flex: 1,
+  },
   icon: { marginRight: 12 },
   input: { flex: 1, fontSize: 16, color: colors.text, height: '100%' },
+  
+  forgotPasswordContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -4,
+    marginBottom: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '700',
+    padding: 4,
+  },
+
   button: { 
     backgroundColor: colors.primary, 
     height: 56, 

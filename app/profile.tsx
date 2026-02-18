@@ -216,7 +216,8 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditPro
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, goals, setUser } = useApp();
+  // Destructure logout here
+  const { user, goals, logout } = useApp();
   const [profileData, setProfileData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -256,9 +257,10 @@ export default function ProfileScreen() {
       { 
         text: "Log Out", 
         style: "destructive", 
-        onPress: () => {
+        onPress: async () => {
           setSettingsVisible(false);
-          setUser(null);
+          // Use the real logout function to clear persistence
+          await logout();
           router.replace('/auth');
         }
       }
