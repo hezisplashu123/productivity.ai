@@ -85,5 +85,20 @@ export const storage = {
       return null;
     }
   },
-};
 
+  // --- NEW: SECURITY METHOD ---
+  // Completely wipes user-specific data from the device
+  async clearAllUserData(): Promise<void> {
+    try {
+      await AsyncStorage.multiRemove([
+        HABIT_PROFILER_COMPLETE_KEY,
+        ONBOARDING_COMPLETE_KEY,
+        ONBOARDING_DATA_KEY,
+        HABIT_PROFILE_DATA_KEY
+      ]);
+      console.log('🔒 Secure storage cleared');
+    } catch (error) {
+      console.error('Error clearing user data:', error);
+    }
+  }
+};

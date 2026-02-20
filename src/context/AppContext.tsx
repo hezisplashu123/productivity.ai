@@ -6,7 +6,8 @@ import { NotificationService } from '../services/notificationService';
 import { TacticalHUD } from '../components/TacticalHUD';
 import * as Haptics from 'expo-haptics';
 import { auth } from '../config/firebase'; 
-import { onAuthStateChanged, signOut } from 'firebase/auth'; // Import signOut
+import { onAuthStateChanged, signOut } from 'firebase/auth'; 
+import { storage } from '../utils/storage'; // Import storage utility
 
 interface User {
   id: string;
@@ -21,7 +22,7 @@ interface AppContextType {
   user: User | null;
   isLoading: boolean;
   setUser: (user: User | null) => void;
-  logout: () => Promise<void>; // Added logout function
+  logout: () => Promise<void>; 
   goals: Goal[];
   tasks: Task[];
   currentGoal: Goal | null;
@@ -67,25 +68,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
 
-  // --- AUTO LOGIN LOGIC ---
+  // --- AUTO LOGIN SECURITY ---
   useEffect(() => {
-    console.log("🔄 AppContext: Initializing Auth Listener...");
+    console.log("🔒 AppContext: Monitoring Auth Session...");
     
+    // This listener verifies the Token stored securely on the device by Firebase
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // 1. If no valid session token exists on this device
       if (!firebaseUser || !firebaseUser.email) {
-        console.log("ℹ️ No Firebase user detected.");
+        console.log("ℹ️ No active session on this device.");
+        
+        // Wipe Context State immediately
         setUser(null);
         setGoals([]);
         setTasks([]);
+        setCurrentGoal(null);
         setIsLoading(false);
         return;
       }
 
-      console.log("🔥 Auth State Changed. Checking backend for:", firebaseUser.email);
+      console.log("🔐 Valid Session Found for:", firebaseUser.email);
       
+      // 2. Fetch specific data for THIS user only
       try {
         const profile = await apiService.getUserProfile(firebaseUser.email);
-        console.log("✅ Backend Profile Found:", profile.id);
+        console.log("✅ Identity Verified. Loading profile:", profile.id);
         
         setUser({
           id: profile.id,
@@ -111,11 +118,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (error: any) {
         const errorMessage = error?.message || String(error);
+        // If the token is valid but backend has no user (rare edge case), force logout
         if (errorMessage.includes('User not found') || errorMessage.includes('404')) {
-          console.log("⚠️ New user signup detected (Backend sync pending).");
+          console.log("⚠️ Token valid but user missing in DB. Signing out.");
+          await signOut(auth);
+          setUser(null);
         } else {
           console.error("❌ Auto-login Error:", errorMessage);
-          setUser(null);
         }
       } finally {
         setIsLoading(false);
@@ -125,14 +134,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return unsubscribe;
   }, []);
 
-  // --- LOGOUT FUNCTION (CRITICAL FIX) ---
+  // --- SECURE LOGOUT ---
   const logout = useCallback(async () => {
     try {
-      await signOut(auth); // This wipes the session from the phone
+      // 1. Revoke the token on this device
+      await signOut(auth); 
+      
+      // 2. Clear Application State
       setUser(null);
       setGoals([]);
       setTasks([]);
-      console.log("🔒 Logged out successfully");
+      setCurrentGoal(null);
+      setPendingRequestsCount(0);
+
+      // 3. Wipe Local Storage (Prevent data leaks to next user on same phone)
+      await storage.clearAllUserData();
+      
+      console.log("🔒 Secure Logout Complete. Device cleared.");
     } catch (error) {
       console.error("Logout failed:", error);
     }

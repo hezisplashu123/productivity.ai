@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Alert, Dimensions, ScrollView, Switch, Linking } from 'react-native';
 import Animated, { FadeIn, ZoomIn, FadeOut } from 'react-native-reanimated';
-import { X, UserPlus, UserCheck, Flag, Zap, Clock, Trophy, Moon, Sunrise, Coffee } from 'lucide-react-native';
+import { X, UserPlus, UserCheck, Flag, Zap, Clock, Trophy, Moon, Sunrise, Coffee, Bell, Brain, User, LogOut, FileText, ShieldCheck, ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { apiService } from '../services/api';
 import { lightColors as colors } from '../constants/colors';
@@ -21,6 +21,117 @@ const getArchetypeIcon = (arch: string) => {
   return Coffee;
 };
 
+// --- SETTINGS MODAL COMPONENT ---
+const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditProfile }: any) => {
+  const [notifications, setNotifications] = useState(true);
+
+  const openLegal = (url: string) => Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open link."));
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={styles.settingsContainer}>
+        <View style={styles.settingsHeader}>
+          <Text style={styles.settingsTitle}>Settings</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <X size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.settingsContent}>
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>PREFERENCES</Text>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#EEF2FF' }]}>
+                  <Bell size={20} color="#4F46E5" />
+                </View>
+                <Text style={styles.settingText}>Push Notifications</Text>
+              </View>
+              <Switch 
+                value={notifications} 
+                onValueChange={setNotifications}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+
+            {/* Redo Onboarding Option */}
+            <TouchableOpacity style={styles.settingRow} onPress={onRedoOnboarding}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
+                  <Brain size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.settingText}>Update Operative Profile</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
+            
+            <TouchableOpacity style={styles.settingRow} onPress={onEditProfile}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
+                  <User size={20} color={colors.text} />
+                </View>
+                <Text style={styles.settingText}>Edit Profile</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.settingRow} onPress={onLogout}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
+                  <LogOut size={20} color={colors.error} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>LEGAL</Text>
+            
+            <TouchableOpacity 
+              style={styles.settingRow} 
+              onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vRWHAlFYsD7whJGjq5uAUm7bWFS9YgqofzaIOFR-GCIflrtgiW4kkTNrA42cCp7ng0jo3Lh-J_pCT1d/pub')}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
+                  <FileText size={20} color={colors.textSecondary} />
+                </View>
+                <Text style={styles.settingText}>Terms of Service</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.settingRow} 
+              onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vTOwIb-0iHE2b5HNT8tLRPIXNVPCmqlGJtmpplqdEIABPM6X56e5jw2oW6E_IpTrky00fJVosTo-zLB/pub')}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
+                  <ShieldCheck size={20} color={colors.textSecondary} />
+                </View>
+                <Text style={styles.settingText}>Privacy Policy</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>ProdAI v1.0.3</Text>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+};
+
+export { SettingsModal }; // Export for use in Profile screen
+
+// --- MAIN USER PROFILE MODAL ---
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, userId, onClose }) => {
   const { user: currentUser } = useApp();
   const [profile, setProfile] = useState<any>(null);
@@ -244,7 +355,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
     borderWidth: 4,
-    borderColor: '#FFF3CD' // Light orange/yellow ring
+    borderColor: '#FFF3CD'
   },
   avatarText: { 
     fontSize: 32, 
@@ -363,5 +474,20 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     borderWidth: 1, 
     borderColor: '#E5E7EB' 
-  }
+  },
+
+  // Settings Modal specific styles
+  settingsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
+  settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border },
+  settingsTitle: { fontSize: 18, fontWeight: '700' },
+  closeBtn: { padding: 4 },
+  settingsContent: { padding: 24 },
+  settingGroup: { marginBottom: 32 },
+  settingGroupTitle: { fontSize: 12, fontWeight: '800', color: colors.textLight, marginBottom: 12, marginLeft: 4 },
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+  settingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  settingIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  settingText: { fontSize: 16, fontWeight: '600', color: colors.text },
+  versionContainer: { alignItems: 'center', marginTop: 20 },
+  versionText: { color: colors.textLight, fontSize: 12 },
 });
