@@ -8,7 +8,6 @@ import {
   AppState, 
   Switch,
   Alert,
-  Platform,
   Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,15 +33,12 @@ import {
   ScanFace,
   ShieldAlert,
   Lock,
-  ExternalLink
+  ExternalLink,
+  Smartphone
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
 import { SessionDebrief } from '../src/components/SessionDebrief';
-
-// --- IMPORT NATIVE MODULE ---
-import * as ScreenTime from '../modules/screen-time-control';
 
 const MOVEMENT_THRESHOLD = 0.15; 
 
@@ -60,9 +56,8 @@ export default function FocusSessionScreen() {
   const [timeLeft, setTimeLeft] = useState((Number(duration) || 25) * 60);
   const [isActive, setIsActive] = useState(false);
   const [sessionState, setSessionState] = useState<'focus' | 'paused' | 'compromised'>('focus');
-  const [phoneRequired, setPhoneRequired] = useState(false); 
+  const [phoneRequired, setPhoneRequired] = useState(false); // True = Flexible (No sensors), False = Strict (Sensors)
   const [showDebrief, setShowDebrief] = useState(false); 
-  const [isLocked, setIsLocked] = useState(false); // Track if Screen Time API is active
   
   // --- ANIMATIONS ---
   const pulse = useSharedValue(1);
@@ -74,53 +69,14 @@ export default function FocusSessionScreen() {
 
   // --- 1. HANDLERS ---
 
-  const handleStartMission = async () => {
-    // If phone is NOT required, lock it using Native Module
-    if (!phoneRequired) {
-      try {
-        // 1. Request Authorization (iOS will show popup, Android returns true)
-        const authorized = await ScreenTime.requestAuthorization();
-        
-        if (authorized) {
-          // 2. Engage Lock
-          await ScreenTime.startRestriction();
-          setIsLocked(true);
-          console.log("🔒 Native Lock Engaged");
-        } else {
-          Alert.alert(
-            "Permission Required", 
-            "To use Hard Mode, please allow Screen Time / Admin access when prompted."
-          );
-          return; // Stop if they refused permissions
-        }
-      } catch (e) {
-        console.error("Lock Error:", e);
-        // Fallback: let them proceed without lock if error
-      }
-    } else {
-      console.log("⚠️ Soft Mode: Screen Time Controls bypassed");
-    }
-
+  const handleStartMission = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setIsSetup(false);
     setIsActive(true);
   };
 
-  const unlockDevice = async () => {
-    if (isLocked) {
-      try {
-        await ScreenTime.stopRestriction();
-        setIsLocked(false);
-        console.log("🔓 Native Lock Released");
-      } catch (e) {
-        console.error("Unlock Error:", e);
-      }
-    }
-  };
-
-  const handleTimerEnd = async () => {
+  const handleTimerEnd = () => {
     setIsActive(false);
-    await unlockDevice();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowDebrief(true);
   };
@@ -147,7 +103,7 @@ export default function FocusSessionScreen() {
     router.back();
   };
 
-  const handleAbort = async () => {
+  const handleAbort = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       "Abort Mission?",
@@ -157,8 +113,7 @@ export default function FocusSessionScreen() {
         { 
           text: "I Give Up", 
           style: "destructive", 
-          onPress: async () => {
-            await unlockDevice();
+          onPress: () => {
             router.back();
           } 
         }
@@ -177,9 +132,10 @@ export default function FocusSessionScreen() {
   // App State Monitoring
   useEffect(() => {
     const appStateSub = AppState.addEventListener('change', nextAppState => {
+      // If setup or phone is REQUIRED (Flexible Mode), ignore backgrounding
       if (isSetup || phoneRequired) return; 
       
-      // If user manages to leave app while locked (or hard mode enabled), trigger compromise
+      // If Strict Mode: User leaves app -> Compromised
       if (appState.current.match(/active/) && nextAppState.match(/inactive|background/)) {
         triggerCompromised();
       }
@@ -191,6 +147,7 @@ export default function FocusSessionScreen() {
   // Accelerometer Monitoring
   useEffect(() => {
     const enableSensors = async () => {
+      // If setup or phone is REQUIRED (Flexible Mode), disable sensors
       if (isSetup || phoneRequired || !isActive || sessionState !== 'focus') {
         if (subscription.current) {
           subscription.current.remove();
@@ -198,6 +155,8 @@ export default function FocusSessionScreen() {
         }
         return;
       }
+
+      // Strict Mode: Enable Movement Detection
       Accelerometer.setUpdateInterval(500); 
       let lastData = { x: 0, y: 0, z: 0 };
       subscription.current = Accelerometer.addListener(data => {
@@ -275,31 +234,26 @@ export default function FocusSessionScreen() {
             <View style={styles.configCard}>
               <View style={styles.configHeader}>
                 {phoneRequired ? 
-                  <SmartphoneNfc size={24} color="#10B981" /> : 
+                  <Smartphone size={24} color="#10B981" /> : 
                   <Lock size={24} color="#F59E0B" /> 
                 }
-                <Text style={styles.configTitle}>Distraction Block</Text>
+                <Text style={styles.configTitle}>I need to use my phone</Text>
                 <Switch 
-                  value={!phoneRequired} 
-                  onValueChange={(val) => { setPhoneRequired(!val); Haptics.selectionAsync(); }}
-                  trackColor={{ false: "#333", true: "rgba(245, 158, 11, 0.3)" }}
-                  thumbColor={!phoneRequired ? "#10B981" : "#F59E0B"}
+                  value={phoneRequired} 
+                  onValueChange={(val) => { setPhoneRequired(val); Haptics.selectionAsync(); }}
+                  trackColor={{ false: "#333", true: "rgba(16, 185, 129, 0.3)" }}
+                  thumbColor={phoneRequired ? "#10B981" : "#F59E0B"}
                 />
               </View>
-              <Text style={styles.configDescription}>
-                {!phoneRequired 
-                  ? "HARD MODE: App Pinning/Screen Time & Sensors Active." 
-                  : "SOFT MODE: Sensors disabled for phone use."}
-              </Text>
               
-              <View style={[styles.warningBox, { borderColor: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
-                <Text style={[styles.warningTitle, { color: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
-                  {!phoneRequired ? 'HARD LOCK ENABLED' : 'SOFT LOCK ONLY'}
+              <View style={[styles.warningBox, { borderColor: phoneRequired ? '#10B981' : '#F59E0B' }]}>
+                <Text style={[styles.warningTitle, { color: phoneRequired ? '#10B981' : '#F59E0B' }]}>
+                  {phoneRequired ? 'FLEXIBLE MODE' : 'STRICT SENSOR MODE'}
                 </Text>
                 <Text style={styles.warningText}>
-                  {!phoneRequired 
-                    ? 'Do not leave the app. Do not move the phone.' 
-                    : 'Background tracking only. You can use other apps.'}
+                  {phoneRequired 
+                    ? 'Sensors disabled. You can leave the app.' 
+                    : 'Movement & App Switching will stop the timer.'}
                 </Text>
               </View>
             </View>
@@ -329,7 +283,7 @@ export default function FocusSessionScreen() {
             <View style={[styles.dot, { backgroundColor: sessionState === 'focus' ? '#10B981' : sessionState === 'compromised' ? '#EF4444' : '#F59E0B' }]} />
             <Text style={styles.statusText}>
               {sessionState === 'focus' 
-                ? (isLocked ? 'SYSTEM LOCKED' : phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') 
+                ? (phoneRequired ? 'FLEXIBLE FOCUS' : 'STRICT SENSORS ACTIVE') 
                 : sessionState === 'compromised' ? 'BREACH DETECTED' : 'PAUSED'}
             </Text>
           </View>
@@ -340,7 +294,7 @@ export default function FocusSessionScreen() {
           <View style={styles.compromisedContainer}>
             <ShieldAlert size={64} color="#EF4444" style={{ marginBottom: 20 }} />
             <Text style={styles.compromisedTitle}>MISSION COMPROMISED</Text>
-            <Text style={styles.compromisedSubtitle}>Movement or distraction detected.</Text>
+            <Text style={styles.compromisedSubtitle}>Movement or app switching detected.</Text>
             <TouchableOpacity style={styles.resumeBtn} onPress={handleResume}>
               <Text style={styles.resumeText}>I'M BACK ON TASK</Text>
             </TouchableOpacity>

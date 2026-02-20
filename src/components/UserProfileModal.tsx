@@ -93,6 +93,7 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditPro
           <View style={styles.settingGroup}>
             <Text style={styles.settingGroupTitle}>LEGAL</Text>
             
+            {/* TERMS OF SERVICE LINK - UPDATED */}
             <TouchableOpacity 
               style={styles.settingRow} 
               onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vRWHAlFYsD7whJGjq5uAUm7bWFS9YgqofzaIOFR-GCIflrtgiW4kkTNrA42cCp7ng0jo3Lh-J_pCT1d/pub')}
@@ -106,6 +107,7 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditPro
               <ChevronRight size={20} color={colors.textLight} />
             </TouchableOpacity>
 
+            {/* PRIVACY POLICY LINK - UPDATED */}
             <TouchableOpacity 
               style={styles.settingRow} 
               onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vTOwIb-0iHE2b5HNT8tLRPIXNVPCmqlGJtmpplqdEIABPM6X56e5jw2oW6E_IpTrky00fJVosTo-zLB/pub')}
