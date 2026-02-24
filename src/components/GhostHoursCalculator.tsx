@@ -379,7 +379,7 @@ const Screen3Input: React.FC<{
       style={styles.screen}
     >
       <View style={styles.inputContainer}>
-        <Text style={styles.inputTitle}>How many hours are you typically 'at your desk'?</Text>
+        <Text style={styles.inputTitle}>How many hours are you typically     'at your desk'?</Text>
         <Text style={styles.hoursDisplay}>{workHours.toFixed(1)} hours</Text>
         <LinearSlider
           value={(workHours - 4) / 8}

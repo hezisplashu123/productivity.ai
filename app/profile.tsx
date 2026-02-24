@@ -267,7 +267,12 @@ export default function ProfileScreen() {
           setSettingsVisible(false);
           // Use the real logout function to clear persistence
           await logout();
-          router.replace('/auth');
+          
+          // Clear navigation stack to prevent swipe-back
+          if (router.canGoBack()) {
+            router.dismissAll();
+          }
+          router.replace('/welcome');
         }
       }
     ]);

@@ -74,6 +74,11 @@ export default function AuthScreen() {
       setUser(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Account Deleted", "Your account has been permanently removed.");
+      
+      // Clear navigation stack to prevent back navigation
+      if (router.canGoBack()) {
+        router.dismissAll();
+      }
       router.replace('/welcome');
     } catch (error: any) {
       console.error("Deletion Error:", error);

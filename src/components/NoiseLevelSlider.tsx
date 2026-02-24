@@ -24,25 +24,25 @@ const getFeedbackText = (value: number): { text: string; label: string; color: s
   if (percentage <= 20) {
     return { 
       label: 'Deep Work Haven',
-      text: 'I work in total silence. Zero interruptions.',
+      text: 'Total isolation. Zero interruptions.',
       color: '#10B981' 
     };
   } else if (percentage <= 50) {
     return { 
       label: 'Flow Friendly',
-      text: 'I get a few emails/slacks, but mostly focus.',
+      text: 'Occasional interruptions, but mostly steady.',
       color: '#34D399' 
     };
   } else if (percentage <= 80) {
     return { 
-      label: 'The Modern Worker', 
-      text: 'Constant pings. It\'s hard to find a rhythm.',
+      label: 'Fragmented Focus', 
+      text: 'Frequent distractions. Hard to maintain flow.',
       color: '#F59E0B' 
     };
   } else {
     return { 
       label: 'Survival Mode', 
-      text: 'It\'s chaos. I\'m fighting for every minute.',
+      text: 'Pure chaos. Fighting for every minute.',
       color: '#EF4444' 
     };
   }

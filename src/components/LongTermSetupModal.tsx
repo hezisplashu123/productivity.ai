@@ -127,7 +127,7 @@ export const LongTermSetupModal = ({
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.secondaryBtn} onPress={onCancel}>
-              <Text style={styles.secondaryText}>Switch to Single Project</Text>
+              <Text style={styles.secondaryText}>Is this a short term task?</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.primaryBtn} onPress={handleConfirm}>

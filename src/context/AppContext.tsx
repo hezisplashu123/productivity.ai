@@ -7,7 +7,23 @@ import { TacticalHUD } from '../components/TacticalHUD';
 import * as Haptics from 'expo-haptics';
 import { auth } from '../config/firebase'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth'; 
-import { storage } from '../utils/storage'; // Import storage utility
+import { storage } from '../utils/storage';
+import { Platform } from 'react-native';
+
+// Safe Import Pattern for RevenueCat
+let Purchases: any;
+let LOG_LEVEL: any;
+try {
+  const rc = require('react-native-purchases');
+  Purchases = rc.default;
+  LOG_LEVEL = rc.LOG_LEVEL;
+} catch (e) {
+  console.warn("RevenueCat module not found");
+}
+
+// ⚠️ MAKE SURE THIS IS YOUR LIVE PUBLIC KEY FROM REVENUECAT DASHBOARD
+const REVENUECAT_API_KEY = 'appl_YOUR_ACTUAL_REVENUECAT_PUBLIC_KEY_HERE'; 
+const ENTITLEMENT_ID = 'Prodai Pro';
 
 interface User {
   id: string;
@@ -21,6 +37,7 @@ interface User {
 interface AppContextType {
   user: User | null;
   isLoading: boolean;
+  isPro: boolean;
   setUser: (user: User | null) => void;
   logout: () => Promise<void>; 
   goals: Goal[];
@@ -46,6 +63,9 @@ interface AppContextType {
   getAiQuestion: (goalText: string) => Promise<string | null>;
   analyzeGoal: (goal: string, clarification?: string, question?: string) => Promise<any>; 
   triggerTestNotification: () => void;
+  restorePurchases: () => Promise<void>;
+  purchasePackage: (pack: any) => Promise<void>;
+  packages: any[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -57,6 +77,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  
+  // Subscription State
+  const [isPro, setIsPro] = useState(false);
+  const [packages, setPackages] = useState<any[]>([]);
 
   const [hudState, setHudState] = useState({
     visible: false,
@@ -68,17 +92,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
 
+  // --- INITIALIZE REVENUECAT ---
+  useEffect(() => {
+    const initPurchases = async () => {
+      if (!Purchases) return;
+
+      try {
+        if (Platform.OS === 'android' || Platform.OS === 'ios') {
+          // Use DEBUG log level only for dev builds; Apple prefers cleaner logs, but verbose is okay for beta
+          await Purchases.setLogLevel(LOG_LEVEL.DEBUG); 
+          await Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+          
+          try {
+            const offerings = await Purchases.getOfferings();
+            if (offerings.current && offerings.current.availablePackages.length !== 0) {
+              setPackages(offerings.current.availablePackages);
+            }
+          } catch (e) {
+            console.log("RC: Error fetching offerings", e);
+          }
+
+          try {
+            const customerInfo = await Purchases.getCustomerInfo();
+            if (typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== "undefined") {
+              setIsPro(true);
+            }
+          } catch (e) {
+            console.log("RC: Error fetching customer info", e);
+          }
+        }
+      } catch (e) {
+        console.log("❌ RevenueCat Init Error", e);
+      }
+    };
+    initPurchases();
+  }, []);
+
   // --- AUTO LOGIN SECURITY ---
   useEffect(() => {
-    console.log("🔒 AppContext: Monitoring Auth Session...");
-    
-    // This listener verifies the Token stored securely on the device by Firebase
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      // 1. If no valid session token exists on this device
       if (!firebaseUser || !firebaseUser.email) {
-        console.log("ℹ️ No active session on this device.");
-        
-        // Wipe Context State immediately
         setUser(null);
         setGoals([]);
         setTasks([]);
@@ -87,12 +140,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
-      console.log("🔐 Valid Session Found for:", firebaseUser.email);
-      
-      // 2. Fetch specific data for THIS user only
       try {
-        const profile = await apiService.getUserProfile(firebaseUser.email);
-        console.log("✅ Identity Verified. Loading profile:", profile.id);
+        // Sync RevenueCat User ID
+        if (Purchases && (Platform.OS === 'android' || Platform.OS === 'ios')) {
+          await Purchases.logIn(firebaseUser.uid);
+        }
+
+        let profile;
+        try {
+          profile = await apiService.getUserProfile(firebaseUser.email);
+        } catch (error: any) {
+          // Self-healing logic
+          if (error?.message?.includes('User not found') || error?.message?.includes('404')) {
+            profile = await apiService.syncUser({
+              email: firebaseUser.email,
+              socialId: firebaseUser.uid,
+              name: firebaseUser.displayName || 'Operative',
+              provider: firebaseUser.providerData[0]?.providerId || 'email'
+            });
+          } else {
+            throw error;
+          }
+        }
         
         setUser({
           id: profile.id,
@@ -117,15 +186,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setPendingRequestsCount(requests.length);
         }
       } catch (error: any) {
-        const errorMessage = error?.message || String(error);
-        // If the token is valid but backend has no user (rare edge case), force logout
-        if (errorMessage.includes('User not found') || errorMessage.includes('404')) {
-          console.log("⚠️ Token valid but user missing in DB. Signing out.");
-          await signOut(auth);
-          setUser(null);
-        } else {
-          console.error("❌ Auto-login Error:", errorMessage);
-        }
+        console.error("Critical Auth Sync Error:", error);
+        await signOut(auth);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -134,29 +197,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return unsubscribe;
   }, []);
 
-  // --- SECURE LOGOUT ---
+  // --- REAL PURCHASE METHODS (NO MOCKS) ---
+  const purchasePackage = async (pack: any) => {
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pack);
+      if (typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== "undefined") {
+        setIsPro(true);
+        setHudState({ visible: true, title: 'Welcome', message: 'Upgrade Successful', type: 'success' });
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        setHudState({ visible: true, title: 'Error', message: e.message, type: 'warning' });
+      }
+    }
+  };
+
+  const restorePurchases = async () => {
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      if (typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== "undefined") {
+        setIsPro(true);
+        setHudState({ visible: true, title: 'Success', message: 'Premium access restored.', type: 'success' });
+      } else {
+        setHudState({ visible: true, title: 'No Subscription', message: 'No active subscription found.', type: 'info' });
+      }
+    } catch (e: any) {
+      setHudState({ visible: true, title: 'Error', message: e.message, type: 'warning' });
+    }
+  };
+
   const logout = useCallback(async () => {
     try {
-      // 1. Revoke the token on this device
       await signOut(auth); 
-      
-      // 2. Clear Application State
+      if (Purchases && (Platform.OS === 'android' || Platform.OS === 'ios')) {
+        await Purchases.logOut();
+      }
       setUser(null);
       setGoals([]);
       setTasks([]);
       setCurrentGoal(null);
       setPendingRequestsCount(0);
-
-      // 3. Wipe Local Storage (Prevent data leaks to next user on same phone)
+      setIsPro(false);
       await storage.clearAllUserData();
-      
-      console.log("🔒 Secure Logout Complete. Device cleared.");
     } catch (error) {
       console.error("Logout failed:", error);
     }
   }, []);
 
-  // --- STREAK MONITORING ---
+  // ... (Keep existing streak monitoring, notification setup, api wrappers unchanged) ...
+  // (Paste the rest of the file logic here exactly as it was, just ensure useMocks is gone)
+  
   useEffect(() => {
     const checkStreakStatus = async () => {
       if (!user) return;
@@ -187,7 +277,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       const { title, body, data } = notification.request.content;
-      
       let hudType: 'info' | 'warning' | 'success' = 'info';
       if (data?.type === 'streak_rescue') hudType = 'warning';
       
@@ -222,27 +311,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
       setTasks(allTasks);
-      
       setUser(prev => prev ? { 
         ...prev, 
         currentStreak: profile.currentStreak,
         lastActiveDate: profile.lastActiveDate 
       } : null);
-
       if (profile.id) {
         const requests = await apiService.getFriendRequests(profile.id);
         setPendingRequestsCount(requests.length);
       }
-
     } catch (e: any) {
-      console.error("Data Sync Error:", e.message);
       if (e.message && (e.message.includes('User not found') || e.message.includes('404'))) {
         setUser(null);
       }
     }
   }, [user?.email]); 
 
-  // AI & Goals
   const analyzeGoal = useCallback(async (goal: string, clarification: string = "", question: string = "") => {
     return await apiService.analyzeGoal(goal, clarification, question);
   }, []);
@@ -253,7 +337,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const response = await apiService.getClarifyingQuestion(user.email, goalText);
       return response.question;
     } catch (e) {
-      console.error("AI Question Error:", e);
       return null;
     }
   }, [user]);
@@ -264,7 +347,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const response = await apiService.generateAiPlan(user.email, goalText, clarification, dailyMinutes);
       return response.tasks;
     } catch (e) {
-      console.error("AI Generation Error:", e);
       return null;
     }
   }, [user]);
@@ -292,7 +374,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentGoal(newGoal);
       return newGoal;
     } catch (e) {
-      console.error("Add Goal Error", e);
       return null;
     }
   }, [user]);
@@ -366,18 +447,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        user, setUser,
-        logout, // Exposed to UI
-        isLoading, 
-        goals, tasks, currentGoal,
-        pendingRequestsCount, 
+        user, setUser, logout, isLoading, isPro, 
+        goals, tasks, currentGoal, pendingRequestsCount, 
         addGoal, updateGoal, deleteGoal, archiveGoal,
         addTasks, overrideTasks, completeTask,
         toggleSubTask, updateTask, reportTaskIssue,
         setCurrentGoal, rateProductivity,
         refreshData, saveOnboarding,
         generatePlan, generateDailyPlan, getAiQuestion, analyzeGoal,
-        triggerTestNotification
+        triggerTestNotification, restorePurchases, purchasePackage, packages
       }}
     >
       {children}

@@ -57,6 +57,7 @@ app/index.tsx
 app/leaderboard.tsx
 app/lock-screen.tsx
 app/onboarding.tsx
+app/paywall.tsx
 app/profile.tsx
 app/social.tsx
 app/verify-email.tsx
@@ -177,6 +178,483 @@ tsconfig.json
 
 <files>
 This section contains the contents of the repository's files.
+
+<file path="app/paywall.tsx">
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  ScrollView, 
+  Dimensions, 
+  ActivityIndicator, 
+  Alert
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
+import Animated, { 
+  FadeInDown, 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withTiming, 
+  withSequence 
+} from 'react-native-reanimated';
+import { X, Star, ShieldCheck, Zap, Lock, Brain } from 'lucide-react-native';
+import { lightColors as colors } from '../src/constants/colors';
+import * as Haptics from 'expo-haptics';
+import { useApp } from '../src/context/AppContext';
+
+// --- NEW PRODUCT IDS ---
+const MONTHLY_PRODUCT_ID = 'hb_pro_monthly';
+const YEARLY_PRODUCT_ID = 'hb_pro_yearly';
+
+const BENEFITS = [
+  { icon: Zap, text: "Save 15+ hours every week" },
+  { icon: Brain, text: "Scientifically proven focus methods" },
+  { icon: Lock, text: "Advanced AI Task Breakdown" },
+  { icon: Star, text: "Unlimited Projects & Journeys" },
+];
+
+export default function PaywallScreen() {
+  const router = useRouter();
+  const { purchasePackage, restorePurchases, packages, isPro } = useApp();
+  const [selectedPlan, setSelectedPlan] = useState<'yearly' | 'monthly'>('yearly');
+  const [isPurchasing, setIsPurchasing] = useState(false);
+
+  // Animation for the "Best Value" tag
+  const pulse = useSharedValue(1);
+
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(1.1, { duration: 500 }), 
+        withTiming(1, { duration: 500 })
+      ), 
+      -1, 
+      true
+    );
+  }, []);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }]
+  }));
+
+  const handlePurchase = async () => {
+    setIsPurchasing(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    try {
+      // 1. Find the correct package from RevenueCat
+      let packageToBuy;
+      
+      if (packages.length > 0) {
+        packageToBuy = packages.find(
+          (p) => p.product.identifier === (selectedPlan === 'yearly' ? YEARLY_PRODUCT_ID : MONTHLY_PRODUCT_ID)
+        );
+      }
+
+      // 2. Attempt Purchase
+      if (packageToBuy) {
+        await purchasePackage(packageToBuy);
+      } else {
+        // Fallback for Development (Simulate success if no API key set)
+        console.log(`[DEV] Mock Purchase: ${selectedPlan === 'yearly' ? YEARLY_PRODUCT_ID : MONTHLY_PRODUCT_ID}`);
+        setTimeout(() => {
+           Alert.alert(
+             "Developer Mode", 
+             "Simulating purchase success. In production, this connects to the App Store.",
+             [{ text: "OK", onPress: () => router.replace('/home') }]
+           );
+        }, 1000);
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert("Error", e.message);
+      }
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setIsPurchasing(true);
+    await restorePurchases();
+    setIsPurchasing(false);
+  };
+
+  // If user becomes Pro while on this screen (e.g. restore success), redirect
+  useEffect(() => {
+    if (isPro) {
+      router.replace('/home');
+    }
+  }, [isPro]);
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="light" />
+      
+      {/* Background Header */}
+      <View style={styles.headerBackground}>
+        <View style={styles.headerOverlay} />
+        <Text style={styles.headerEmoji}>🚀</Text>
+      </View>
+
+      <SafeAreaView style={{ flex: 1 }}>
+        {/* Nav Bar */}
+        <View style={styles.navBar}>
+          <TouchableOpacity 
+            onPress={() => router.back()} 
+            style={styles.closeBtn}
+            hitSlop={{top: 20, bottom: 20, left: 20, right: 20}}
+          >
+            <X size={24} color="rgba(255,255,255,0.6)" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleRestore}>
+            <Text style={styles.restoreText}>Restore</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <Animated.View entering={FadeInDown.delay(100).springify()}>
+            <Text style={styles.title}>Unlock Your{"\n"}Full Potential</Text>
+          </Animated.View>
+
+          <View style={styles.benefitsContainer}>
+            {BENEFITS.map((benefit, index) => (
+              <Animated.View 
+                key={index} 
+                entering={FadeInDown.delay(200 + (index * 100)).springify()} 
+                style={styles.benefitRow}
+              >
+                <View style={styles.iconBg}>
+                  <benefit.icon size={20} color={colors.primary} fill={colors.primary} />
+                </View>
+                <Text style={styles.benefitText}>{benefit.text}</Text>
+              </Animated.View>
+            ))}
+          </View>
+
+          <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.plansContainer}>
+            
+            {/* YEARLY PLAN */}
+            <TouchableOpacity 
+              style={[
+                styles.planCard, 
+                selectedPlan === 'yearly' && styles.selectedPlanCard
+              ]}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setSelectedPlan('yearly');
+              }}
+              activeOpacity={0.9}
+            >
+              <Animated.View style={[styles.bestValueBadge, pulseStyle]}>
+                <Text style={styles.bestValueText}>BEST VALUE</Text>
+              </Animated.View>
+              
+              <View style={styles.planRow}>
+                <View style={styles.radioButton}>
+                  {selectedPlan === 'yearly' && <View style={styles.radioInner} />}
+                </View>
+                <View style={{flex: 1}}>
+                  <Text style={styles.planTitle}>Yearly Access</Text>
+                  <Text style={styles.planSubtitle}>First 3 days free, then $35.99/year</Text>
+                </View>
+                <View style={{alignItems: 'flex-end'}}>
+                  <Text style={styles.priceText}>$2.99</Text>
+                  <Text style={styles.perMonthText}>/ month</Text>
+                </View>
+              </View>
+              {selectedPlan === 'yearly' && (
+                <View style={styles.savingsContainer}>
+                  <Text style={styles.savingsText}>You save 25% vs monthly</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* MONTHLY PLAN */}
+            <TouchableOpacity 
+              style={[
+                styles.planCard, 
+                selectedPlan === 'monthly' && styles.selectedPlanCard
+              ]}
+              onPress={() => {
+                Haptics.selectionAsync();
+                setSelectedPlan('monthly');
+              }}
+              activeOpacity={0.9}
+            >
+              <View style={styles.planRow}>
+                <View style={styles.radioButton}>
+                  {selectedPlan === 'monthly' && <View style={styles.radioInner} />}
+                </View>
+                <View style={{flex: 1}}>
+                  <Text style={styles.planTitle}>Monthly Access</Text>
+                  <Text style={styles.planSubtitle}>Billed monthly</Text>
+                </View>
+                <View style={{alignItems: 'flex-end'}}>
+                  <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                    <Text style={styles.strikethrough}>$4.99</Text>
+                    <Text style={styles.priceText}> $3.99</Text>
+                  </View>
+                  <Text style={styles.perMonthText}>/ month</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+
+          </Animated.View>
+
+          {/* Trial Explanation */}
+          <View style={styles.trialInfo}>
+            <ShieldCheck size={16} color="rgba(255,255,255,0.5)" />
+            <Text style={styles.trialText}>
+              {selectedPlan === 'yearly' 
+                ? "3-Day Free Trial. Cancel anytime in settings. No charge until trial ends."
+                : "Cancel anytime in settings."}
+            </Text>
+          </View>
+
+        </ScrollView>
+
+        {/* Sticky Footer */}
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={styles.ctaButton} 
+            onPress={handlePurchase}
+            disabled={isPurchasing}
+          >
+            {isPurchasing ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={styles.ctaText}>
+                {selectedPlan === 'yearly' ? 'Start 3-Day Free Trial' : 'Continue'}
+              </Text>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.footerTerms}>
+            By continuing, you agree to our Terms of Service and Privacy Policy. Subscription auto-renews unless canceled.
+          </Text>
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0F172A', // Dark Slate Blue / Black
+  },
+  headerBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 400,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0F172A',
+    opacity: 0.85,
+  },
+  headerEmoji: {
+    fontSize: 120,
+    opacity: 0.2,
+    transform: [{ translateY: -40 }]
+  },
+  navBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  closeBtn: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  restoreText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  content: {
+    paddingHorizontal: 24,
+    paddingBottom: 100,
+  },
+  title: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 20,
+    marginBottom: 40,
+    lineHeight: 44,
+  },
+  benefitsContainer: {
+    marginBottom: 40,
+    gap: 20,
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  iconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  benefitText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  plansContainer: {
+    gap: 16,
+  },
+  planCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    position: 'relative',
+  },
+  selectedPlanCard: {
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+  },
+  bestValueBadge: {
+    position: 'absolute',
+    top: -12,
+    right: 20,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  bestValueText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#000',
+  },
+  planRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+  },
+  planTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  planSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  priceText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  strikethrough: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.4)',
+    textDecorationLine: 'line-through',
+  },
+  perMonthText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+  },
+  savingsContainer: {
+    marginTop: 12,
+    marginLeft: 40,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  savingsText: {
+    fontSize: 12,
+    color: '#34D399',
+    fontWeight: '700',
+  },
+  trialInfo: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 8,
+    paddingHorizontal: 20,
+  },
+  trialText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    flex: 1,
+  },
+  footer: {
+    padding: 24,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#0F172A',
+  },
+  ctaButton: {
+    backgroundColor: colors.primary,
+    width: '100%',
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  ctaText: {
+    color: '#000000',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  footerTerms: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.3)',
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+});
+</file>
 
 <file path=".easignore">
 node_modules/
@@ -12421,25 +12899,25 @@ const getFeedbackText = (value: number): { text: string; label: string; color: s
   if (percentage <= 20) {
     return { 
       label: 'Deep Work Haven',
-      text: 'I work in total silence. Zero interruptions.',
+      text: 'Total isolation. Zero interruptions.',
       color: '#10B981' 
     };
   } else if (percentage <= 50) {
     return { 
       label: 'Flow Friendly',
-      text: 'I get a few emails/slacks, but mostly focus.',
+      text: 'Occasional interruptions, but mostly steady.',
       color: '#34D399' 
     };
   } else if (percentage <= 80) {
     return { 
-      label: 'The Modern Worker', 
-      text: 'Constant pings. It\'s hard to find a rhythm.',
+      label: 'Fragmented Focus', 
+      text: 'Frequent distractions. Hard to maintain flow.',
       color: '#F59E0B' 
     };
   } else {
     return { 
       label: 'Survival Mode', 
-      text: 'It\'s chaos. I\'m fighting for every minute.',
+      text: 'Pure chaos. Fighting for every minute.',
       color: '#EF4444' 
     };
   }
@@ -12834,13 +13312,37 @@ export const ScaleButton: React.FC<ScaleButtonProps> = ({
 
 <file path="src/components/SessionDebrief.tsx">
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Dimensions, 
+  TextInput, 
+  KeyboardAvoidingView, 
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
+  ScrollView
+} from 'react-native';
 import Animated, { FadeIn, SlideInDown, SlideInUp } from 'react-native-reanimated';
-import { Check, X, Clock, ArrowRight, Plus, Minus, Target, AlertCircle } from 'lucide-react-native';
+import { 
+  Check, 
+  Clock, 
+  ArrowRight, 
+  Plus, 
+  Minus, 
+  Target, 
+  Smartphone, 
+  Hourglass, 
+  Battery, 
+  HelpCircle,
+  MessageSquare
+} from 'lucide-react-native';
 import { lightColors as colors } from '../constants/colors';
 import * as Haptics from 'expo-haptics';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 interface SessionData {
   completed: boolean;
@@ -12854,22 +13356,23 @@ interface SessionDebriefProps {
 }
 
 const FRICTION_POINTS = [
-  { id: 'distraction', label: 'Distractions', icon: '🔔' },
-  { id: 'estimation', label: 'Bad Estimate', icon: '⏱️' },
-  { id: 'energy', label: 'Low Energy', icon: '🔋' },
-  { id: 'blocked', label: 'Blocked', icon: '🚧' },
+  { id: 'distraction', label: 'Distracted', Icon: Smartphone },
+  { id: 'estimation', label: 'Ran Out of Time', Icon: Hourglass },
+  { id: 'energy', label: 'Low Energy', Icon: Battery },
+  { id: 'stuck', label: 'Got Stuck', Icon: HelpCircle },
 ];
 
 export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onComplete }) => {
   const [step, setStep] = useState<'outcome' | 'analysis' | 'recovery'>('outcome');
   const [friction, setFriction] = useState<string | null>(null);
+  const [customReason, setCustomReason] = useState('');
   const [addedTime, setAddedTime] = useState(15);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   if (!visible) return null;
 
   const handleSuccess = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // Slight delay for animation before closing
     setTimeout(() => {
         onComplete({ completed: true });
     }, 300);
@@ -12881,9 +13384,26 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
   };
 
   const handleFrictionSelect = (id: string) => {
+    if (isTransitioning) return;
+    
     Haptics.selectionAsync();
     setFriction(id);
-    setTimeout(() => setStep('recovery'), 250);
+    setCustomReason(''); // Clear custom text if picking a preset
+    setIsTransitioning(true);
+
+    // Slower animation (800ms) with orange highlight before moving
+    setTimeout(() => {
+      setStep('recovery');
+      setIsTransitioning(false);
+    }, 800);
+  };
+
+  const handleCustomSubmit = () => {
+    if (customReason.trim().length > 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setFriction('other');
+      setStep('recovery');
+    }
   };
 
   const adjustTime = (delta: number) => {
@@ -12893,9 +13413,11 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
 
   const handleExtension = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const finalReason = (friction === 'other' || customReason) ? customReason : (friction || 'unknown');
+
     onComplete({ 
         completed: false, 
-        distraction: friction || 'unknown',
+        distraction: finalReason,
         addedMinutes: addedTime
     });
   };
@@ -12903,17 +13425,16 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
   // --- RENDER STEPS ---
 
   const renderOutcome = () => (
-    <View style={styles.contentContainer}>
+    <View style={styles.centerContent}>
       <Animated.View entering={SlideInDown.delay(100).springify()} style={styles.iconHeader}>
         <View style={styles.badgeContainer}>
             <Target size={16} color={colors.primary} />
             <Text style={styles.badgeText}>MISSION REPORT</Text>
         </View>
-        <Text style={styles.mainQuestion}>Did you secure the objective?</Text>
+        <Text style={styles.mainQuestion}>Did you finish the task?</Text>
       </Animated.View>
 
       <View style={styles.cardContainer}>
-        {/* Success Card */}
         <Animated.View entering={SlideInUp.delay(200).springify()} style={{ width: '100%' }}>
             <TouchableOpacity 
                 style={styles.successCard} 
@@ -12924,14 +13445,13 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
                     <Check size={28} color="#FFFFFF" strokeWidth={3} />
                 </View>
                 <View style={styles.cardTextContent}>
-                    <Text style={styles.successTitle}>OBJECTIVE COMPLETE</Text>
-                    <Text style={styles.successSubtitle}>Task finished successfully.</Text>
+                    <Text style={styles.successTitle}>YES</Text>
+                    <Text style={styles.successSubtitle}>Objective secure. Mark as done.</Text>
                 </View>
                 <ArrowRight size={20} color="#15803D" />
             </TouchableOpacity>
         </Animated.View>
 
-        {/* Fail Card */}
         <Animated.View entering={SlideInUp.delay(300).springify()} style={{ width: '100%' }}>
             <TouchableOpacity 
                 style={styles.failCard} 
@@ -12943,7 +13463,7 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
                 </View>
                 <View style={styles.cardTextContent}>
                     <Text style={styles.failTitle}>NOT YET</Text>
-                    <Text style={styles.failSubtitle}>I need more time or got blocked.</Text>
+                    <Text style={styles.failSubtitle}>I need more time.</Text>
                 </View>
             </TouchableOpacity>
         </Animated.View>
@@ -12952,63 +13472,138 @@ export const SessionDebrief: React.FC<SessionDebriefProps> = ({ visible, onCompl
   );
 
   const renderAnalysis = () => (
-    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
-      <Text style={styles.headerTitle}>DEBRIEF</Text>
-      <Text style={styles.headerSubtitle}>What was the primary obstacle?</Text>
+    <View style={styles.centerContent}>
+      <Animated.View entering={SlideInDown} style={{ width: '100%', alignItems: 'center' }}>
+        <Text style={styles.headerTitle}>DEBRIEF</Text>
+        <Text style={styles.headerSubtitle}>What slowed you down?</Text>
 
-      <View style={styles.grid}>
-        {FRICTION_POINTS.map((item) => (
-            <TouchableOpacity 
-                key={item.id}
-                style={[styles.gridItem, friction === item.id && styles.gridItemSelected]}
-                onPress={() => handleFrictionSelect(item.id)}
-                activeOpacity={0.7}
-            >
-                <Text style={styles.gridIcon}>{item.icon}</Text>
-                <Text style={[styles.gridLabel, friction === item.id && styles.gridLabelSelected]}>
-                    {item.label}
-                </Text>
-            </TouchableOpacity>
-        ))}
-      </View>
-    </Animated.View>
+        {/* Grid of 4 Options */}
+        <View style={styles.grid}>
+          {FRICTION_POINTS.map((item) => {
+              const isSelected = friction === item.id;
+              return (
+                  <TouchableOpacity 
+                      key={item.id}
+                      style={[
+                        styles.gridItem, 
+                        isSelected && styles.gridItemSelected
+                      ]}
+                      onPress={() => handleFrictionSelect(item.id)}
+                      activeOpacity={0.7}
+                      disabled={isTransitioning}
+                  >
+                      <View style={[
+                        styles.iconCircle, 
+                        isSelected && { backgroundColor: 'rgba(255,255,255,0.4)' }
+                      ]}>
+                          <item.Icon 
+                              size={28} 
+                              color={isSelected ? '#7c2d12' : colors.textSecondary} 
+                              strokeWidth={2}
+                          />
+                      </View>
+                      <Text 
+                        style={[
+                          styles.gridLabel, 
+                          isSelected && { color: '#7c2d12', fontWeight: '700' }
+                        ]}
+                        numberOfLines={2}
+                      >
+                          {item.label}
+                      </Text>
+                  </TouchableOpacity>
+              );
+          })}
+        </View>
+
+        {/* "OR" Separator */}
+        <View style={styles.separator}>
+          <View style={styles.line} />
+          <Text style={styles.separatorText}>OR</Text>
+          <View style={styles.line} />
+        </View>
+
+        {/* Custom Text Input */}
+        <View style={styles.customInputContainer}>
+          <MessageSquare size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.textInput}
+            placeholder="Type what happened..."
+            placeholderTextColor={colors.textSecondary}
+            value={customReason}
+            onChangeText={(text) => {
+              setCustomReason(text);
+              if (friction) setFriction(null);
+            }}
+            returnKeyType="done"
+            onSubmitEditing={handleCustomSubmit}
+          />
+          
+          {/* Confirm Button */}
+          {customReason.trim().length > 0 && (
+            <Animated.View entering={FadeIn}>
+              <TouchableOpacity 
+                style={styles.miniConfirmBtn} 
+                onPress={handleCustomSubmit}
+              >
+                <ArrowRight size={16} color="#FFF" />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+        </View>
+      </Animated.View>
+    </View>
   );
 
   const renderRecovery = () => (
-    <Animated.View entering={SlideInDown} style={styles.contentContainer}>
-      <Text style={styles.headerTitle}>RECOVERY PROTOCOL</Text>
-      <Text style={styles.headerSubtitle}>How much more time do you need?</Text>
+    <View style={styles.centerContent}>
+      <Animated.View entering={SlideInDown} style={{ width: '100%', alignItems: 'center' }}>
+        <Text style={styles.headerTitle}>RECOVERY PROTOCOL</Text>
+        <Text style={styles.headerSubtitle}>How much more time do you need?</Text>
 
-      <View style={styles.timeControl}>
-        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(-5)}>
-            <Minus size={24} color={colors.text} />
-        </TouchableOpacity>
-        <View style={styles.timeDisplay}>
-            <Text style={styles.timeValue}>{addedTime}</Text>
-            <Text style={styles.timeUnit}>MINUTES</Text>
+        <View style={styles.timeControl}>
+          <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(-5)}>
+              <Minus size={24} color={colors.text} />
+          </TouchableOpacity>
+          <View style={styles.timeDisplay}>
+              <Text style={styles.timeValue}>{addedTime}</Text>
+              <Text style={styles.timeUnit}>MINUTES</Text>
+          </View>
+          <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(5)}>
+              <Plus size={24} color={colors.text} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.timeBtn} onPress={() => adjustTime(5)}>
-            <Plus size={24} color={colors.text} />
-        </TouchableOpacity>
-      </View>
 
-      <TouchableOpacity style={styles.confirmBtn} onPress={handleExtension}>
-        <Text style={styles.confirmText}>UPDATE MISSION PARAMETERS</Text>
-        <ArrowRight size={20} color="#FFFFFF" />
-      </TouchableOpacity>
-    </Animated.View>
+        <TouchableOpacity style={styles.confirmBtn} onPress={handleExtension}>
+          <Text style={styles.confirmText}>UPDATE MISSION PARAMETERS</Text>
+          <ArrowRight size={20} color="#FFFFFF" />
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 
   return (
     <View style={styles.container}>
-      {/* White Background Fade In */}
-      <Animated.View entering={FadeIn.duration(300)} style={styles.whiteBackground} />
-      
-      <View style={styles.safeArea}>
-        {step === 'outcome' && renderOutcome()}
-        {step === 'analysis' && renderAnalysis()}
-        {step === 'recovery' && renderRecovery()}
-      </View>
+      {/* 1. Full Screen White Background (Static Layer) */}
+      <View style={styles.whiteBackground} />
+
+      {/* 2. Keyboard Aware Layer (Content moves up, background stays solid) */}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardContainer}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent} 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {step === 'outcome' && renderOutcome()}
+            {step === 'analysis' && renderAnalysis()}
+            {step === 'recovery' && renderRecovery()}
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -13017,64 +13612,49 @@ const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 999,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   whiteBackground: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#FFFFFF', // Clean white sheet
+    backgroundColor: '#FFFFFF', // Ensures no see-through when keyboard opens
+    zIndex: 0,
   },
-  safeArea: {
-    width: '100%',
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+  keyboardContainer: {
     flex: 1,
+    zIndex: 1,
   },
-  contentContainer: {
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  centerContent: {
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 400, // Helps centering
   },
   
-  // --- Header Styles ---
-  iconHeader: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
+  // Header Styles
+  iconHeader: { alignItems: 'center', marginBottom: 40 },
   badgeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)', // Light orange pill
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     marginBottom: 16,
     gap: 6,
   },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 1,
-  },
-  mainQuestion: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.text,
-    textAlign: 'center',
-    lineHeight: 34,
-  },
+  badgeText: { fontSize: 12, fontWeight: '800', color: colors.primary, letterSpacing: 1 },
+  mainQuestion: { fontSize: 28, fontWeight: '800', color: colors.text, textAlign: 'center', lineHeight: 34 },
 
-  // --- Card Styles (New) ---
-  cardContainer: {
-    width: '100%',
-    gap: 16,
-  },
+  // Card Styles
+  cardContainer: { width: '100%', gap: 16 },
   successCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4', // Very light green
+    backgroundColor: '#F0FDF4',
     borderWidth: 1,
     borderColor: '#DCFCE7',
     padding: 20,
@@ -13089,31 +13669,19 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#16A34A', // Green
+    backgroundColor: '#16A34A',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
-  cardTextContent: {
-    flex: 1,
-  },
-  successTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#14532D', // Dark green text
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  successSubtitle: {
-    fontSize: 14,
-    color: '#15803D',
-    fontWeight: '500',
-  },
+  cardTextContent: { flex: 1 },
+  successTitle: { fontSize: 16, fontWeight: '800', color: '#14532D', letterSpacing: 0.5, marginBottom: 2 },
+  successSubtitle: { fontSize: 14, color: '#15803D', fontWeight: '500' },
 
   failCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB', // Light Gray
+    backgroundColor: '#F9FAFB',
     borderWidth: 1,
     borderColor: '#F3F4F6',
     padding: 20,
@@ -13130,44 +13698,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 16,
   },
-  failTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text,
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  failSubtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
+  failTitle: { fontSize: 16, fontWeight: '800', color: colors.text, letterSpacing: 0.5, marginBottom: 2 },
+  failSubtitle: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
 
-  // --- Reuse existing styles for other steps ---
-  headerTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 2,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  headerSubtitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: 40,
-  },
+  // Debrief Header
+  headerTitle: { fontSize: 12, fontWeight: '800', color: colors.primary, letterSpacing: 2, marginBottom: 8, textTransform: 'uppercase' },
+  headerSubtitle: { fontSize: 24, fontWeight: '700', color: colors.text, textAlign: 'center', marginBottom: 32 },
+  
+  // Grid Styles
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
     justifyContent: 'center',
+    width: '100%',
   },
   gridItem: {
-    width: '47%',
-    aspectRatio: 1.2,
+    width: '47%', 
+    height: 120, // Fixed height for consistency
+    padding: 12,
     backgroundColor: '#F9FAFB',
     borderRadius: 20,
     justifyContent: 'center',
@@ -13177,20 +13726,73 @@ const styles = StyleSheet.create({
   },
   gridItemSelected: {
     borderColor: colors.primary,
-    backgroundColor: '#FFFBEB',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)', // Orange opacity background
   },
-  gridIcon: {
-    fontSize: 32,
-    marginBottom: 8,
+  iconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   gridLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.text,
+    textAlign: 'center',
+    width: '100%',
   },
-  gridLabelSelected: {
-    color: colors.primaryDark,
+  gridLabelSelected: { color: colors.primaryDark },
+
+  // Separator
+  separator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginVertical: 20,
+    paddingHorizontal: 10
   },
+  line: { flex: 1, height: 1, backgroundColor: '#E5E7EB' },
+  separatorText: { marginHorizontal: 10, color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+
+  // Custom Input Box
+  customInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    height: 56,
+  },
+  textInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: colors.text,
+    height: '100%',
+  },
+  miniConfirmBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+
+  // Recovery Time Control
   timeControl: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -13207,20 +13809,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  timeDisplay: {
-    alignItems: 'center',
-  },
-  timeValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  timeUnit: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    letterSpacing: 1,
-  },
+  timeDisplay: { alignItems: 'center' },
+  timeValue: { fontSize: 48, fontWeight: '800', color: colors.text },
+  timeUnit: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, letterSpacing: 1 },
+  
   confirmBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -13235,12 +13827,7 @@ const styles = StyleSheet.create({
     elevation: 5,
     gap: 8,
   },
-  confirmText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  confirmText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
 });
 </file>
 
@@ -13800,504 +14387,6 @@ const styles = StyleSheet.create({
     top: 10,
     right: 10,
   }
-});
-</file>
-
-<file path="src/components/UserProfileModal.tsx">
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Alert, Dimensions, ScrollView, Switch, Linking } from 'react-native';
-import Animated, { FadeIn, ZoomIn, FadeOut } from 'react-native-reanimated';
-import { X, UserPlus, UserCheck, Flag, Zap, Clock, Trophy, Moon, Sunrise, Coffee, Bell, Brain, User, LogOut, FileText, ShieldCheck, ChevronRight } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-import { apiService } from '../services/api';
-import { lightColors as colors } from '../constants/colors';
-import { useApp } from '../context/AppContext';
-
-const { width } = Dimensions.get('window');
-
-interface UserProfileModalProps {
-  visible: boolean;
-  userId: string | null;
-  onClose: () => void;
-}
-
-const getArchetypeIcon = (arch: string) => {
-  if (arch === 'night-owl' || arch === 'late_night') return Moon;
-  if (arch === 'early-bird' || arch === 'early_morning') return Sunrise;
-  return Coffee;
-};
-
-// --- SETTINGS MODAL COMPONENT ---
-const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditProfile }: any) => {
-  const [notifications, setNotifications] = useState(true);
-
-  const openLegal = (url: string) => Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open link."));
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.settingsContainer}>
-        <View style={styles.settingsHeader}>
-          <Text style={styles.settingsTitle}>Settings</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <X size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.settingsContent}>
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>PREFERENCES</Text>
-            
-            <View style={styles.settingRow}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#EEF2FF' }]}>
-                  <Bell size={20} color="#4F46E5" />
-                </View>
-                <Text style={styles.settingText}>Push Notifications</Text>
-              </View>
-              <Switch 
-                value={notifications} 
-                onValueChange={setNotifications}
-                trackColor={{ false: colors.border, true: colors.primary }}
-              />
-            </View>
-
-            {/* Redo Onboarding Option */}
-            <TouchableOpacity style={styles.settingRow} onPress={onRedoOnboarding}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
-                  <Brain size={20} color={colors.primary} />
-                </View>
-                <Text style={styles.settingText}>Update Operative Profile</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
-            
-            <TouchableOpacity style={styles.settingRow} onPress={onEditProfile}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
-                  <User size={20} color={colors.text} />
-                </View>
-                <Text style={styles.settingText}>Edit Profile</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingRow} onPress={onLogout}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
-                  <LogOut size={20} color={colors.error} />
-                </View>
-                <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>LEGAL</Text>
-            
-            {/* TERMS OF SERVICE LINK - UPDATED */}
-            <TouchableOpacity 
-              style={styles.settingRow} 
-              onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vRWHAlFYsD7whJGjq5uAUm7bWFS9YgqofzaIOFR-GCIflrtgiW4kkTNrA42cCp7ng0jo3Lh-J_pCT1d/pub')}
-            >
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
-                  <FileText size={20} color={colors.textSecondary} />
-                </View>
-                <Text style={styles.settingText}>Terms of Service</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-
-            {/* PRIVACY POLICY LINK - UPDATED */}
-            <TouchableOpacity 
-              style={styles.settingRow} 
-              onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vTOwIb-0iHE2b5HNT8tLRPIXNVPCmqlGJtmpplqdEIABPM6X56e5jw2oW6E_IpTrky00fJVosTo-zLB/pub')}
-            >
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
-                  <ShieldCheck size={20} color={colors.textSecondary} />
-                </View>
-                <Text style={styles.settingText}>Privacy Policy</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>ProdAI v1.0.3</Text>
-          </View>
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-};
-
-export { SettingsModal }; // Export for use in Profile screen
-
-// --- MAIN USER PROFILE MODAL ---
-export const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, userId, onClose }) => {
-  const { user: currentUser } = useApp();
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followLoading, setFollowLoading] = useState(false);
-
-  useEffect(() => {
-    if (visible && userId && currentUser) {
-      loadProfile();
-    }
-  }, [visible, userId]);
-
-  const loadProfile = async () => {
-    setLoading(true);
-    try {
-      if (!userId || !currentUser) return;
-      const data = await apiService.getPublicProfile(userId, currentUser.id);
-      setProfile(data);
-      setIsFollowing(data.isFollowing);
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Could not load operative data.");
-      onClose();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleFollow = async () => {
-    if (!currentUser || !userId) return;
-    setFollowLoading(true);
-    Haptics.selectionAsync();
-    try {
-      await apiService.toggleFollow(currentUser.id, userId);
-      setIsFollowing(prev => !prev);
-    } catch (error) {
-      Alert.alert("Error", "Action failed.");
-    } finally {
-      setFollowLoading(false);
-    }
-  };
-
-  const handleReport = () => {
-    Alert.alert(
-      "Report Operative",
-      "Is this user violating community protocols?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Report as Spam",
-          onPress: () => submitReport("Spam"),
-          style: "destructive"
-        },
-        {
-          text: "Report for Abuse",
-          onPress: () => submitReport("Abuse"),
-          style: "destructive"
-        }
-      ]
-    );
-  };
-
-  const submitReport = async (reason: string) => {
-    if (!currentUser || !userId) return;
-    try {
-      await apiService.reportUser(currentUser.id, userId, reason);
-      Alert.alert("Report Sent", "Command HQ has received your report.");
-      onClose();
-    } catch (e) {
-      Alert.alert("Error", "Could not send report.");
-    }
-  };
-
-  if (!visible) return null;
-
-  const ArchetypeIcon = profile?.habits?.focusWindow ? getArchetypeIcon(profile.habits.focusWindow) : Coffee;
-  const isMe = currentUser?.id === userId;
-
-  return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.backdrop}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
-        </Animated.View>
-
-        {/* CENTERED POPUP CARD */}
-        <Animated.View entering={ZoomIn.duration(250).springify()} style={styles.card}>
-          
-          {loading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator color={colors.primary} size="large" />
-            </View>
-          ) : (
-            <>
-              {/* Header Profile Section */}
-              <View style={styles.headerSection}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{profile?.name?.[0]}</Text>
-                </View>
-                <Text style={styles.name}>{profile?.name}</Text>
-                <Text style={styles.subtext}>Operative • {profile?.followersCount || 0} Allies</Text>
-                
-                <TouchableOpacity onPress={onClose} style={styles.absoluteCloseBtn}>
-                  <X size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* DNA / Habits Pill */}
-              {profile?.habits?.focusWindow && (
-                <View style={styles.dnaBox}>
-                  <ArchetypeIcon size={14} color={colors.primary} />
-                  <Text style={styles.dnaText}>
-                    OPERATING WINDOW: {profile.habits.focusWindow.replace('-', ' ').toUpperCase()}
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.divider} />
-
-              {/* Stats Grid */}
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statVal}>{profile?.streak}</Text>
-                  <Text style={styles.statLabel}>STREAK</Text>
-                </View>
-                <View style={styles.verticalLine} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statVal}>{profile?.stats?.hoursFocused}</Text>
-                  <Text style={styles.statLabel}>HOURS</Text>
-                </View>
-                <View style={styles.verticalLine} />
-                <View style={styles.statItem}>
-                  <Text style={styles.statVal}>{profile?.stats?.tasksCrushed}</Text>
-                  <Text style={styles.statLabel}>TASKS</Text>
-                </View>
-              </View>
-
-              {/* Actions */}
-              {!isMe && (
-                <View style={styles.actions}>
-                  <TouchableOpacity 
-                    style={[styles.btn, isFollowing ? styles.followingBtn : styles.followBtn]} 
-                    onPress={handleToggleFollow}
-                    disabled={followLoading}
-                  >
-                    {followLoading ? (
-                      <ActivityIndicator color={isFollowing ? colors.text : "#FFF"} size="small" />
-                    ) : (
-                      <>
-                        {isFollowing ? <UserCheck size={18} color={colors.text} /> : <UserPlus size={18} color="#FFF" />}
-                        <Text style={[styles.btnText, isFollowing && styles.followingText]}>
-                          {isFollowing ? "FOLLOWING" : "ADD TO SQUAD"}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.reportBtn} onPress={handleReport}>
-                    <Flag size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </>
-          )}
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-};
-
-const styles = StyleSheet.create({
-  overlay: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    zIndex: 999 
-  },
-  backdrop: { 
-    ...StyleSheet.absoluteFillObject, 
-    backgroundColor: 'rgba(0,0,0,0.6)' 
-  },
-  card: { 
-    width: width * 0.85,
-    backgroundColor: '#FFFFFF', 
-    borderRadius: 24, 
-    padding: 24, 
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10
-  },
-  loadingBox: { 
-    height: 200, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    width: '100%' 
-  },
-  
-  headerSection: {
-    alignItems: 'center',
-    marginBottom: 16,
-    width: '100%'
-  },
-  absoluteCloseBtn: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    padding: 8,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 20
-  },
-  avatar: { 
-    width: 80, 
-    height: 80, 
-    borderRadius: 40, 
-    backgroundColor: colors.primary, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    marginBottom: 12,
-    borderWidth: 4,
-    borderColor: '#FFF3CD'
-  },
-  avatarText: { 
-    fontSize: 32, 
-    fontWeight: '800', 
-    color: '#FFF' 
-  },
-  name: { 
-    fontSize: 22, 
-    fontWeight: '800', 
-    color: colors.text,
-    textAlign: 'center'
-  },
-  subtext: { 
-    fontSize: 14, 
-    color: colors.textSecondary, 
-    marginTop: 4,
-    fontWeight: '500'
-  },
-
-  dnaBox: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 8, 
-    backgroundColor: '#F0F9FF', 
-    paddingVertical: 8, 
-    paddingHorizontal: 16, 
-    borderRadius: 20, 
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#E0F2FE'
-  },
-  dnaText: { 
-    fontSize: 11, 
-    fontWeight: '700', 
-    color: '#0284C7', 
-    letterSpacing: 0.5 
-  },
-
-  divider: {
-    height: 1,
-    width: '100%',
-    backgroundColor: '#F3F4F6',
-    marginBottom: 20
-  },
-
-  statsRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 24,
-    paddingHorizontal: 10
-  },
-  statItem: { 
-    alignItems: 'center',
-    flex: 1
-  },
-  verticalLine: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#E5E7EB'
-  },
-  statVal: { 
-    fontSize: 20, 
-    fontWeight: '900', 
-    color: colors.text 
-  },
-  statLabel: { 
-    fontSize: 10, 
-    fontWeight: '700', 
-    color: colors.textSecondary, 
-    marginTop: 4,
-    letterSpacing: 1
-  },
-
-  actions: { 
-    flexDirection: 'row', 
-    gap: 12,
-    width: '100%'
-  },
-  btn: { 
-    flex: 1, 
-    height: 50, 
-    borderRadius: 16, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    gap: 8 
-  },
-  followBtn: { 
-    backgroundColor: colors.primary, 
-    shadowColor: colors.primary, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 8, 
-    elevation: 4 
-  },
-  followingBtn: { 
-    backgroundColor: '#F3F4F6', 
-    borderWidth: 1, 
-    borderColor: '#E5E7EB' 
-  },
-  btnText: { 
-    fontWeight: '700', 
-    color: '#FFF', 
-    fontSize: 14 
-  },
-  followingText: { 
-    color: colors.text 
-  },
-  reportBtn: { 
-    width: 50, 
-    height: 50, 
-    borderRadius: 16, 
-    backgroundColor: '#FFF', 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    borderWidth: 1, 
-    borderColor: '#E5E7EB' 
-  },
-
-  // Settings Modal specific styles
-  settingsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
-  settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border },
-  settingsTitle: { fontSize: 18, fontWeight: '700' },
-  closeBtn: { padding: 4 },
-  settingsContent: { padding: 24 },
-  settingGroup: { marginBottom: 32 },
-  settingGroupTitle: { fontSize: 12, fontWeight: '800', color: colors.textLight, marginBottom: 12, marginLeft: 4 },
-  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
-  settingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  settingIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  settingText: { fontSize: 16, fontWeight: '600', color: colors.text },
-  versionContainer: { alignItems: 'center', marginTop: 20 },
-  versionText: { color: colors.textLight, fontSize: 12 },
 });
 </file>
 
@@ -15088,7 +15177,7 @@ export const LongTermSetupModal = ({
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.secondaryBtn} onPress={onCancel}>
-              <Text style={styles.secondaryText}>Switch to Single Project</Text>
+              <Text style={styles.secondaryText}>Is this a short term task?</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.primaryBtn} onPress={handleConfirm}>
@@ -15444,6 +15533,504 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '600',
   },
+});
+</file>
+
+<file path="src/components/UserProfileModal.tsx">
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, Alert, Dimensions, ScrollView, Switch, Linking } from 'react-native';
+import Animated, { FadeIn, ZoomIn, FadeOut } from 'react-native-reanimated';
+import { X, UserPlus, UserCheck, Flag, Zap, Clock, Trophy, Moon, Sunrise, Coffee, Bell, Brain, User, LogOut, FileText, ShieldCheck, ChevronRight } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { apiService } from '../services/api';
+import { lightColors as colors } from '../constants/colors';
+import { useApp } from '../context/AppContext';
+
+const { width } = Dimensions.get('window');
+
+interface UserProfileModalProps {
+  visible: boolean;
+  userId: string | null;
+  onClose: () => void;
+}
+
+const getArchetypeIcon = (arch: string) => {
+  if (arch === 'night-owl' || arch === 'late_night') return Moon;
+  if (arch === 'early-bird' || arch === 'early_morning') return Sunrise;
+  return Coffee;
+};
+
+// --- SETTINGS MODAL COMPONENT ---
+const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditProfile }: any) => {
+  const [notifications, setNotifications] = useState(true);
+
+  const openLegal = (url: string) => Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open link."));
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={styles.settingsContainer}>
+        <View style={styles.settingsHeader}>
+          <Text style={styles.settingsTitle}>Settings</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <X size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.settingsContent}>
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>PREFERENCES</Text>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#EEF2FF' }]}>
+                  <Bell size={20} color="#4F46E5" />
+                </View>
+                <Text style={styles.settingText}>Push Notifications</Text>
+              </View>
+              <Switch 
+                value={notifications} 
+                onValueChange={setNotifications}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+
+            {/* Redo Onboarding Option */}
+            <TouchableOpacity style={styles.settingRow} onPress={onRedoOnboarding}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
+                  <Brain size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.settingText}>Update Operative Profile</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
+            
+            <TouchableOpacity style={styles.settingRow} onPress={onEditProfile}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
+                  <User size={20} color={colors.text} />
+                </View>
+                <Text style={styles.settingText}>Edit Profile</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.settingRow} onPress={onLogout}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
+                  <LogOut size={20} color={colors.error} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>LEGAL</Text>
+            
+            {/* TERMS OF SERVICE LINK - UPDATED */}
+            <TouchableOpacity 
+              style={styles.settingRow} 
+              onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vRWHAlFYsD7whJGjq5uAUm7bWFS9YgqofzaIOFR-GCIflrtgiW4kkTNrA42cCp7ng0jo3Lh-J_pCT1d/pub')}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
+                  <FileText size={20} color={colors.textSecondary} />
+                </View>
+                <Text style={styles.settingText}>Terms of Service</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+
+            {/* PRIVACY POLICY LINK - UPDATED */}
+            <TouchableOpacity 
+              style={styles.settingRow} 
+              onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vTOwIb-0iHE2b5HNT8tLRPIXNVPCmqlGJtmpplqdEIABPM6X56e5jw2oW6E_IpTrky00fJVosTo-zLB/pub')}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
+                  <ShieldCheck size={20} color={colors.textSecondary} />
+                </View>
+                <Text style={styles.settingText}>Privacy Policy</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>ProdAI v1.0.3</Text>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+};
+
+export { SettingsModal }; // Export for use in Profile screen
+
+// --- MAIN USER PROFILE MODAL ---
+export const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, userId, onClose }) => {
+  const { user: currentUser } = useApp();
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  useEffect(() => {
+    if (visible && userId && currentUser) {
+      loadProfile();
+    }
+  }, [visible, userId]);
+
+  const loadProfile = async () => {
+    setLoading(true);
+    try {
+      if (!userId || !currentUser) return;
+      const data = await apiService.getPublicProfile(userId, currentUser.id);
+      setProfile(data);
+      setIsFollowing(data.isFollowing);
+    } catch (error) {
+      console.error(error);
+      Alert.alert("Error", "Could not load operative data.");
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleFollow = async () => {
+    if (!currentUser || !userId) return;
+    setFollowLoading(true);
+    Haptics.selectionAsync();
+    try {
+      await apiService.toggleFollow(currentUser.id, userId);
+      setIsFollowing(prev => !prev);
+    } catch (error) {
+      Alert.alert("Error", "Action failed.");
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const handleReport = () => {
+    Alert.alert(
+      "Report Operative",
+      "Is this user violating community protocols?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Report as Spam",
+          onPress: () => submitReport("Spam"),
+          style: "destructive"
+        },
+        {
+          text: "Report for Abuse",
+          onPress: () => submitReport("Abuse"),
+          style: "destructive"
+        }
+      ]
+    );
+  };
+
+  const submitReport = async (reason: string) => {
+    if (!currentUser || !userId) return;
+    try {
+      await apiService.reportUser(currentUser.id, userId, reason);
+      Alert.alert("Report Sent", "Command HQ has received your report.");
+      onClose();
+    } catch (e) {
+      Alert.alert("Error", "Could not send report.");
+    }
+  };
+
+  if (!visible) return null;
+
+  const ArchetypeIcon = profile?.habits?.focusWindow ? getArchetypeIcon(profile.habits.focusWindow) : Coffee;
+  const isMe = currentUser?.id === userId;
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.backdrop}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+        </Animated.View>
+
+        {/* CENTERED POPUP CARD */}
+        <Animated.View entering={ZoomIn.duration(250).springify()} style={styles.card}>
+          
+          {loading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator color={colors.primary} size="large" />
+            </View>
+          ) : (
+            <>
+              {/* Header Profile Section */}
+              <View style={styles.headerSection}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{profile?.name?.[0]}</Text>
+                </View>
+                <Text style={styles.name}>{profile?.name}</Text>
+                <Text style={styles.subtext}>Operative • {profile?.followersCount || 0} Allies</Text>
+                
+                <TouchableOpacity onPress={onClose} style={styles.absoluteCloseBtn}>
+                  <X size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* DNA / Habits Pill */}
+              {profile?.habits?.focusWindow && (
+                <View style={styles.dnaBox}>
+                  <ArchetypeIcon size={14} color={colors.primary} />
+                  <Text style={styles.dnaText}>
+                    OPERATING WINDOW: {profile.habits.focusWindow.replace('-', ' ').toUpperCase()}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.divider} />
+
+              {/* Stats Grid */}
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Text style={styles.statVal}>{profile?.streak}</Text>
+                  <Text style={styles.statLabel}>STREAK</Text>
+                </View>
+                <View style={styles.verticalLine} />
+                <View style={styles.statItem}>
+                  <Text style={styles.statVal}>{profile?.stats?.hoursFocused}</Text>
+                  <Text style={styles.statLabel}>HOURS</Text>
+                </View>
+                <View style={styles.verticalLine} />
+                <View style={styles.statItem}>
+                  <Text style={styles.statVal}>{profile?.stats?.tasksCrushed}</Text>
+                  <Text style={styles.statLabel}>TASKS</Text>
+                </View>
+              </View>
+
+              {/* Actions */}
+              {!isMe && (
+                <View style={styles.actions}>
+                  <TouchableOpacity 
+                    style={[styles.btn, isFollowing ? styles.followingBtn : styles.followBtn]} 
+                    onPress={handleToggleFollow}
+                    disabled={followLoading}
+                  >
+                    {followLoading ? (
+                      <ActivityIndicator color={isFollowing ? colors.text : "#FFF"} size="small" />
+                    ) : (
+                      <>
+                        {isFollowing ? <UserCheck size={18} color={colors.text} /> : <UserPlus size={18} color="#FFF" />}
+                        <Text style={[styles.btnText, isFollowing && styles.followingText]}>
+                          {isFollowing ? "FOLLOWING" : "ADD TO SQUAD"}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.reportBtn} onPress={handleReport}>
+                    <Flag size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
+          )}
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    zIndex: 999 
+  },
+  backdrop: { 
+    ...StyleSheet.absoluteFillObject, 
+    backgroundColor: 'rgba(0,0,0,0.6)' 
+  },
+  card: { 
+    width: width * 0.85,
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 24, 
+    padding: 24, 
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10
+  },
+  loadingBox: { 
+    height: 200, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    width: '100%' 
+  },
+  
+  headerSection: {
+    alignItems: 'center',
+    marginBottom: 16,
+    width: '100%'
+  },
+  absoluteCloseBtn: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    padding: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20
+  },
+  avatar: { 
+    width: 80, 
+    height: 80, 
+    borderRadius: 40, 
+    backgroundColor: colors.primary, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    marginBottom: 12,
+    borderWidth: 4,
+    borderColor: '#FFF3CD'
+  },
+  avatarText: { 
+    fontSize: 32, 
+    fontWeight: '800', 
+    color: '#FFF' 
+  },
+  name: { 
+    fontSize: 22, 
+    fontWeight: '800', 
+    color: colors.text,
+    textAlign: 'center'
+  },
+  subtext: { 
+    fontSize: 14, 
+    color: colors.textSecondary, 
+    marginTop: 4,
+    fontWeight: '500'
+  },
+
+  dnaBox: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 8, 
+    backgroundColor: '#F0F9FF', 
+    paddingVertical: 8, 
+    paddingHorizontal: 16, 
+    borderRadius: 20, 
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E0F2FE'
+  },
+  dnaText: { 
+    fontSize: 11, 
+    fontWeight: '700', 
+    color: '#0284C7', 
+    letterSpacing: 0.5 
+  },
+
+  divider: {
+    height: 1,
+    width: '100%',
+    backgroundColor: '#F3F4F6',
+    marginBottom: 20
+  },
+
+  statsRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 24,
+    paddingHorizontal: 10
+  },
+  statItem: { 
+    alignItems: 'center',
+    flex: 1
+  },
+  verticalLine: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#E5E7EB'
+  },
+  statVal: { 
+    fontSize: 20, 
+    fontWeight: '900', 
+    color: colors.text 
+  },
+  statLabel: { 
+    fontSize: 10, 
+    fontWeight: '700', 
+    color: colors.textSecondary, 
+    marginTop: 4,
+    letterSpacing: 1
+  },
+
+  actions: { 
+    flexDirection: 'row', 
+    gap: 12,
+    width: '100%'
+  },
+  btn: { 
+    flex: 1, 
+    height: 50, 
+    borderRadius: 16, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    gap: 8 
+  },
+  followBtn: { 
+    backgroundColor: colors.primary, 
+    shadowColor: colors.primary, 
+    shadowOpacity: 0.3, 
+    shadowRadius: 8, 
+    elevation: 4 
+  },
+  followingBtn: { 
+    backgroundColor: '#F3F4F6', 
+    borderWidth: 1, 
+    borderColor: '#E5E7EB' 
+  },
+  btnText: { 
+    fontWeight: '700', 
+    color: '#FFF', 
+    fontSize: 14 
+  },
+  followingText: { 
+    color: colors.text 
+  },
+  reportBtn: { 
+    width: 50, 
+    height: 50, 
+    borderRadius: 16, 
+    backgroundColor: '#FFF', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    borderWidth: 1, 
+    borderColor: '#E5E7EB' 
+  },
+
+  // Settings Modal specific styles
+  settingsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
+  settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border },
+  settingsTitle: { fontSize: 18, fontWeight: '700' },
+  closeBtn: { padding: 4 },
+  settingsContent: { padding: 24 },
+  settingGroup: { marginBottom: 32 },
+  settingGroupTitle: { fontSize: 12, fontWeight: '800', color: colors.textLight, marginBottom: 12, marginLeft: 4 },
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+  settingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  settingIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  settingText: { fontSize: 16, fontWeight: '600', color: colors.text },
+  versionContainer: { alignItems: 'center', marginTop: 20 },
+  versionText: { color: colors.textLight, fontSize: 12 },
 });
 </file>
 
@@ -16491,7 +17078,7 @@ const Screen3Input: React.FC<{
       style={styles.screen}
     >
       <View style={styles.inputContainer}>
-        <Text style={styles.inputTitle}>How many hours are you typically 'at your desk'?</Text>
+        <Text style={styles.inputTitle}>How many hours are you typically     'at your desk'?</Text>
         <Text style={styles.hoursDisplay}>{workHours.toFixed(1)} hours</Text>
         <LinearSlider
           value={(workHours - 4) / 8}
@@ -17547,493 +18134,97 @@ export interface ProductivityRating {
 </file>
 
 <file path="app/_layout.tsx">
-import { Stack } from 'expo-router';
-import { AppProvider } from '../src/context/AppContext';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useEffect } from 'react';
+
+function RootStack() {
+  const { user, isLoading, isPro } = useApp();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Wait for the app to finish checking if a user is logged in
+    if (isLoading) return;
+
+    const currentScreen = segments[0];
+
+    // 1. Define screens that ANYONE can see (even without an account)
+    // We must include the entire onboarding flow here
+    const isAllowedGuestScreen = 
+      currentScreen === 'welcome' || 
+      currentScreen === 'auth' || 
+      currentScreen === 'verify-email' || 
+      currentScreen === 'ghost-hours' || 
+      currentScreen === 'onboarding' || 
+      currentScreen === 'habit-profiler';
+
+    const isPaywall = currentScreen === 'paywall';
+
+    // LOGIC 1: If not logged in and trying to access a "Member Only" area (like home)
+    if (!user && !isAllowedGuestScreen) {
+      router.replace('/welcome');
+      return;
+    }
+
+    // LOGIC 2: If logged in, but haven't paid/started trial yet
+    // Redirect to paywall unless they are already there or in the verification process
+    if (user && !isPro && !isPaywall && currentScreen !== 'verify-email') {
+      router.replace('/paywall');
+      return;
+    }
+
+    // LOGIC 3: If logged in AND is a Pro member
+    // Prevent them from seeing the paywall or welcome screens again
+    if (user && isPro && (currentScreen === 'welcome' || isPaywall)) {
+      router.replace('/home');
+    }
+  }, [user, isLoading, isPro, segments]);
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: '#FFFFFF' }, 
+        animation: 'slide_from_right', 
+      }}
+    >
+      <Stack.Screen name="index" />
+      <Stack.Screen name="welcome" />
+      <Stack.Screen name="ghost-hours" />
+      <Stack.Screen name="onboarding" />
+      <Stack.Screen name="auth" />
+      <Stack.Screen name="paywall" options={{ animation: 'fade_from_bottom' }} /> 
+      <Stack.Screen name="home" />
+      <Stack.Screen name="goal-detail" />
+      <Stack.Screen name="leaderboard" />
+      <Stack.Screen name="goal-input" />
+      <Stack.Screen name="profile" />
+      <Stack.Screen name="verify-email" />
+      <Stack.Screen 
+        name="focus-session" 
+        options={{ 
+          animation: 'fade',
+          gestureEnabled: false 
+        }} 
+      />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AppProvider>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: '#FFFFFF' }, 
-              animation: 'slide_from_right', // Default slide animation
-            }}
-          >
-            <Stack.Screen name="home" />
-            <Stack.Screen name="goal-detail" />
-            <Stack.Screen name="leaderboard" />
-            <Stack.Screen name="goal-input" />
-            <Stack.Screen name="profile" />
-            <Stack.Screen name="verify-email" />
-            
-            {/* Focus Session - Uses Fade for "Mode Entry" feel */}
-            <Stack.Screen 
-              name="focus-session" 
-              options={{ 
-                animation: 'fade',
-                gestureEnabled: false // Prevent swipe back to enforce the "lock"
-              }} 
-            />
-          </Stack>
+          <RootStack />
         </AppProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
 }
-</file>
-
-<file path="app/focus-session.tsx">
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Dimensions, 
-  AppState, 
-  Switch,
-  Alert,
-  Platform,
-  Linking
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useKeepAwake } from 'expo-keep-awake'; 
-import { Accelerometer } from 'expo-sensors';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withTiming, 
-  withRepeat, 
-  withSequence,
-  interpolateColor
-} from 'react-native-reanimated';
-import { MotiView } from 'moti';
-import { 
-  X, 
-  Pause, 
-  Play, 
-  Check, 
-  SmartphoneNfc, 
-  ScanFace,
-  ShieldAlert,
-  Lock,
-  ExternalLink
-} from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-import { lightColors as colors } from '../src/constants/colors';
-import { useApp } from '../src/context/AppContext';
-import { SessionDebrief } from '../src/components/SessionDebrief';
-
-// --- IMPORT NATIVE MODULE ---
-import * as ScreenTime from '../modules/screen-time-control';
-
-const MOVEMENT_THRESHOLD = 0.15; 
-
-export default function FocusSessionScreen() {
-  useKeepAwake(); // Prevents screen from sleeping
-  const router = useRouter();
-  const { taskId, duration } = useLocalSearchParams();
-  const { tasks, completeTask, updateTask } = useApp();
-  
-  // Find task data
-  const task = tasks.find(t => t.id === taskId) || { title: 'Deep Work Protocol', duration: Number(duration) || 25, link: undefined };
-
-  // --- STATE ---
-  const [isSetup, setIsSetup] = useState(true); // Setup phase
-  const [timeLeft, setTimeLeft] = useState((Number(duration) || 25) * 60);
-  const [isActive, setIsActive] = useState(false);
-  const [sessionState, setSessionState] = useState<'focus' | 'paused' | 'compromised'>('focus');
-  const [phoneRequired, setPhoneRequired] = useState(false); 
-  const [showDebrief, setShowDebrief] = useState(false); 
-  const [isLocked, setIsLocked] = useState(false); // Track if Screen Time API is active
-  
-  // --- ANIMATIONS ---
-  const pulse = useSharedValue(1);
-  const bgProgress = useSharedValue(0); // 0 = Black, 1 = Red (Compromised)
-
-  // --- REFS ---
-  const appState = useRef(AppState.currentState);
-  const subscription = useRef<any>(null);
-
-  // --- 1. HANDLERS ---
-
-  const handleStartMission = async () => {
-    // If phone is NOT required, lock it using Native Module
-    if (!phoneRequired) {
-      try {
-        // 1. Request Authorization (iOS will show popup, Android returns true)
-        const authorized = await ScreenTime.requestAuthorization();
-        
-        if (authorized) {
-          // 2. Engage Lock
-          await ScreenTime.startRestriction();
-          setIsLocked(true);
-          console.log("🔒 Native Lock Engaged");
-        } else {
-          Alert.alert(
-            "Permission Required", 
-            "To use Hard Mode, please allow Screen Time / Admin access when prompted."
-          );
-          return; // Stop if they refused permissions
-        }
-      } catch (e) {
-        console.error("Lock Error:", e);
-        // Fallback: let them proceed without lock if error
-      }
-    } else {
-      console.log("⚠️ Soft Mode: Screen Time Controls bypassed");
-    }
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setIsSetup(false);
-    setIsActive(true);
-  };
-
-  const unlockDevice = async () => {
-    if (isLocked) {
-      try {
-        await ScreenTime.stopRestriction();
-        setIsLocked(false);
-        console.log("🔓 Native Lock Released");
-      } catch (e) {
-        console.error("Unlock Error:", e);
-      }
-    }
-  };
-
-  const handleTimerEnd = async () => {
-    setIsActive(false);
-    await unlockDevice();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setShowDebrief(true);
-  };
-
-  const handleOpenLink = () => {
-    if (task.link?.url) {
-      Haptics.selectionAsync();
-      Linking.openURL(task.link.url);
-    }
-  };
-
-  // --- DEBRIEF LOGIC ---
-  const handleDebriefComplete = (data: { completed: boolean; distraction?: string; addedMinutes?: number }) => {
-    if (taskId) {
-      if (data.completed) {
-        completeTask(taskId as string);
-      } else if (data.addedMinutes) {
-        updateTask(taskId as string, {
-          duration: data.addedMinutes,
-          status: 'queued'
-        });
-      }
-    }
-    router.back();
-  };
-
-  const handleAbort = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      "Abort Mission?",
-      "Giving up now will break your streak.",
-      [
-        { text: "Stay Focused", style: "cancel" },
-        { 
-          text: "I Give Up", 
-          style: "destructive", 
-          onPress: async () => {
-            await unlockDevice();
-            router.back();
-          } 
-        }
-      ]
-    );
-  };
-
-  const handleResume = () => {
-    setSessionState('focus');
-    setIsActive(true);
-    bgProgress.value = withTiming(0, { duration: 500 });
-  };
-
-  // --- 2. SENSORS LOGIC ---
-
-  // App State Monitoring
-  useEffect(() => {
-    const appStateSub = AppState.addEventListener('change', nextAppState => {
-      if (isSetup || phoneRequired) return; 
-      
-      // If user manages to leave app while locked (or hard mode enabled), trigger compromise
-      if (appState.current.match(/active/) && nextAppState.match(/inactive|background/)) {
-        triggerCompromised();
-      }
-      appState.current = nextAppState;
-    });
-    return () => appStateSub.remove();
-  }, [phoneRequired, isSetup]);
-
-  // Accelerometer Monitoring
-  useEffect(() => {
-    const enableSensors = async () => {
-      if (isSetup || phoneRequired || !isActive || sessionState !== 'focus') {
-        if (subscription.current) {
-          subscription.current.remove();
-          subscription.current = null;
-        }
-        return;
-      }
-      Accelerometer.setUpdateInterval(500); 
-      let lastData = { x: 0, y: 0, z: 0 };
-      subscription.current = Accelerometer.addListener(data => {
-        const delta = Math.abs(data.x - lastData.x) + Math.abs(data.y - lastData.y) + Math.abs(data.z - lastData.z);
-        if (lastData.x !== 0 && delta > MOVEMENT_THRESHOLD) triggerCompromised();
-        lastData = data;
-      });
-    };
-    enableSensors();
-    return () => { if (subscription.current) subscription.current.remove(); };
-  }, [phoneRequired, isActive, sessionState, isSetup]);
-
-  const triggerCompromised = () => {
-    if (sessionState === 'compromised') return;
-    setSessionState('compromised');
-    setIsActive(false);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    bgProgress.value = withTiming(1, { duration: 300 });
-  };
-
-  // --- 3. TIMER LOGIC ---
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isActive && timeLeft > 0 && !isSetup) {
-      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-      pulse.value = withRepeat(
-        withSequence(withTiming(1.02, { duration: 1500 }), withTiming(1, { duration: 1500 })), 
-        -1, true
-      );
-    } else if (timeLeft <= 0 && !isSetup && isActive) {
-      handleTimerEnd();
-    } else if (timeLeft <= 0 && !isSetup) {
-      pulse.value = withTiming(1, { duration: 300 });
-    } else {
-      pulse.value = withTiming(1, { duration: 300 });
-    }
-    return () => clearInterval(interval);
-  }, [isActive, timeLeft, isSetup]);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Animated Styles
-  const containerStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(bgProgress.value, [0, 1], ['#000000', '#450a0a'])
-  }));
-
-  const timerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse.value }],
-    opacity: sessionState === 'compromised' ? 0.3 : 1,
-    color: interpolateColor(bgProgress.value, [0, 1], ['#FFFFFF', '#EF4444'])
-  }));
-
-  // --- RENDER SETUP ---
-  if (isSetup) {
-    return (
-      <View style={styles.container}>
-        <StatusBar style="light" />
-        <SafeAreaView style={styles.setupContainer}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={router.back} style={styles.closeBtn}>
-              <X size={24} color="rgba(255,255,255,0.4)" />
-            </TouchableOpacity>
-            <Text style={styles.setupHeaderTitle}>MISSION BRIEF</Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          <MotiView from={{ opacity: 0, translateY: 20 }} animate={{ opacity: 1, translateY: 0 }} style={styles.setupContent}>
-            <Text style={styles.setupTaskTitle} numberOfLines={2}>{task.title}</Text>
-            <Text style={styles.setupDuration}>{Math.floor(timeLeft / 60)} Minutes</Text>
-
-            <View style={styles.configCard}>
-              <View style={styles.configHeader}>
-                {phoneRequired ? 
-                  <SmartphoneNfc size={24} color="#10B981" /> : 
-                  <Lock size={24} color="#F59E0B" /> 
-                }
-                <Text style={styles.configTitle}>Distraction Block</Text>
-                <Switch 
-                  value={!phoneRequired} 
-                  onValueChange={(val) => { setPhoneRequired(!val); Haptics.selectionAsync(); }}
-                  trackColor={{ false: "#333", true: "rgba(245, 158, 11, 0.3)" }}
-                  thumbColor={!phoneRequired ? "#10B981" : "#F59E0B"}
-                />
-              </View>
-              <Text style={styles.configDescription}>
-                {!phoneRequired 
-                  ? "HARD MODE: App Pinning/Screen Time & Sensors Active." 
-                  : "SOFT MODE: Sensors disabled for phone use."}
-              </Text>
-              
-              <View style={[styles.warningBox, { borderColor: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
-                <Text style={[styles.warningTitle, { color: !phoneRequired ? '#F59E0B' : '#10B981' }]}>
-                  {!phoneRequired ? 'HARD LOCK ENABLED' : 'SOFT LOCK ONLY'}
-                </Text>
-                <Text style={styles.warningText}>
-                  {!phoneRequired 
-                    ? 'Do not leave the app. Do not move the phone.' 
-                    : 'Background tracking only. You can use other apps.'}
-                </Text>
-              </View>
-            </View>
-          </MotiView>
-
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.engageBtn} onPress={handleStartMission} activeOpacity={0.8}>
-              <ScanFace size={24} color="#000" style={{ marginRight: 8 }} />
-              <Text style={styles.engageText}>ENGAGE</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </View>
-    );
-  }
-
-  // --- RENDER ACTIVE SESSION ---
-  return (
-    <Animated.View style={[styles.container, containerStyle]}>
-      <StatusBar style="light" hidden={sessionState === 'focus'} />
-      <SafeAreaView style={{ flex: 1 }}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleAbort} style={styles.closeBtn}>
-            <X size={24} color="rgba(255,255,255,0.4)" />
-          </TouchableOpacity>
-          <View style={[styles.statusBadge, sessionState === 'compromised' ? styles.statusBadgeCompromised : null]}>
-            <View style={[styles.dot, { backgroundColor: sessionState === 'focus' ? '#10B981' : sessionState === 'compromised' ? '#EF4444' : '#F59E0B' }]} />
-            <Text style={styles.statusText}>
-              {sessionState === 'focus' 
-                ? (isLocked ? 'SYSTEM LOCKED' : phoneRequired ? 'SENTINEL (LITE)' : 'SENTINEL ACTIVE') 
-                : sessionState === 'compromised' ? 'BREACH DETECTED' : 'PAUSED'}
-            </Text>
-          </View>
-          <View style={{ width: 40 }} />
-        </View>
-
-        {sessionState === 'compromised' && (
-          <View style={styles.compromisedContainer}>
-            <ShieldAlert size={64} color="#EF4444" style={{ marginBottom: 20 }} />
-            <Text style={styles.compromisedTitle}>MISSION COMPROMISED</Text>
-            <Text style={styles.compromisedSubtitle}>Movement or distraction detected.</Text>
-            <TouchableOpacity style={styles.resumeBtn} onPress={handleResume}>
-              <Text style={styles.resumeText}>I'M BACK ON TASK</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.content}>
-          <View style={styles.taskContainer}>
-            <Text style={styles.taskLabel}>CURRENT OBJECTIVE</Text>
-            <Text style={styles.taskTitle} numberOfLines={3}>{task.title}</Text>
-            
-            {/* LINK BUTTON */}
-            {task.link && (
-                <TouchableOpacity 
-                    style={styles.linkButton} 
-                    onPress={handleOpenLink}
-                    activeOpacity={0.8}
-                >
-                    <ExternalLink size={16} color="#F59E0B" />
-                    <Text style={styles.linkText}>OPEN RESOURCE</Text>
-                </TouchableOpacity>
-            )}
-          </View>
-          <Animated.Text style={[styles.timer, timerStyle]}>{formatTime(timeLeft)}</Animated.Text>
-        </View>
-
-        <View style={styles.footer}>
-            {sessionState !== 'compromised' && (
-                <View style={styles.controls}>
-                <TouchableOpacity style={styles.controlBtn} onPress={() => setIsActive(!isActive)}>
-                    {isActive ? <Pause size={32} color="#FFFFFF" /> : <Play size={32} color="#FFFFFF" />}
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.controlBtn, styles.completeBtn]} onPress={handleTimerEnd}>
-                    <Check size={32} color="#000000" />
-                </TouchableOpacity>
-                </View>
-            )}
-        </View>
-      </SafeAreaView>
-
-      <SessionDebrief visible={showDebrief} onComplete={handleDebriefComplete} />
-    </Animated.View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
-  setupContainer: { flex: 1, paddingHorizontal: 24 },
-  setupHeaderTitle: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '800', letterSpacing: 2 },
-  setupContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  setupTaskTitle: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', textAlign: 'center', marginBottom: 8 },
-  setupDuration: { fontSize: 16, color: '#F59E0B', fontWeight: '600', marginBottom: 40, textTransform: 'uppercase', letterSpacing: 1 },
-  configCard: { width: '100%', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  configHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  configTitle: { flex: 1, color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginLeft: 12 },
-  configDescription: { color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 20, marginBottom: 20 },
-  warningBox: { padding: 16, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, borderLeftWidth: 3 },
-  warningTitle: { fontSize: 12, fontWeight: '800', marginBottom: 6, letterSpacing: 1 },
-  warningText: { color: 'rgba(255,255,255,0.6)', fontSize: 13, lineHeight: 18 },
-  engageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F59E0B', width: '100%', paddingVertical: 18, borderRadius: 30, shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 15, elevation: 10 },
-  engageText: { color: '#000000', fontSize: 18, fontWeight: '800', letterSpacing: 2 },
-  
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 10, zIndex: 10 },
-  closeBtn: { padding: 10, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  statusBadgeCompromised: { borderColor: 'rgba(239, 68, 68, 0.5)', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
-  dot: { width: 6, height: 6, borderRadius: 3, marginRight: 8 },
-  statusText: { color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
-  content: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
-  taskContainer: { alignItems: 'center', marginBottom: 60 },
-  taskLabel: { color: '#F59E0B', fontSize: 11, fontWeight: '900', letterSpacing: 2, marginBottom: 12, textTransform: 'uppercase' },
-  taskTitle: { color: '#FFFFFF', fontSize: 26, fontWeight: '700', textAlign: 'center', lineHeight: 34 },
-  timer: { fontSize: 90, fontWeight: '800', color: '#FFFFFF', fontVariant: ['tabular-nums'], letterSpacing: -2 },
-  footer: { paddingBottom: 50, alignItems: 'center', paddingHorizontal: 30 },
-  controls: { flexDirection: 'row', gap: 40 },
-  controlBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-  completeBtn: { backgroundColor: '#F59E0B', borderColor: '#F59E0B', shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 20 },
-  
-  compromisedContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', zIndex: 20, padding: 40 },
-  compromisedTitle: { color: '#EF4444', fontSize: 24, fontWeight: '900', letterSpacing: 1, marginBottom: 8, textAlign: 'center' },
-  compromisedSubtitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
-  resumeBtn: { backgroundColor: '#FFFFFF', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 30 },
-  resumeText: { color: '#000000', fontWeight: '800', fontSize: 14, letterSpacing: 1 },
-
-  linkButton: {
-    marginTop: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  linkText: {
-    color: '#F59E0B',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-});
 </file>
 
 <file path="app/leaderboard.tsx">
@@ -18899,6 +19090,409 @@ const styles = StyleSheet.create({
 });
 </file>
 
+<file path="app/focus-session.tsx">
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Dimensions, 
+  AppState, 
+  Switch,
+  Alert,
+  Linking
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useKeepAwake } from 'expo-keep-awake'; 
+import { Accelerometer } from 'expo-sensors';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming, 
+  withRepeat, 
+  withSequence,
+  interpolateColor
+} from 'react-native-reanimated';
+import { MotiView } from 'moti';
+import { 
+  X, 
+  Pause, 
+  Play, 
+  Check, 
+  SmartphoneNfc, 
+  ScanFace,
+  ShieldAlert,
+  Lock,
+  ExternalLink,
+  Smartphone
+} from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { useApp } from '../src/context/AppContext';
+import { SessionDebrief } from '../src/components/SessionDebrief';
+
+const MOVEMENT_THRESHOLD = 0.15; 
+
+export default function FocusSessionScreen() {
+  useKeepAwake(); // Prevents screen from sleeping
+  const router = useRouter();
+  const { taskId, duration } = useLocalSearchParams();
+  const { tasks, completeTask, updateTask } = useApp();
+  
+  // Find task data
+  const task = tasks.find(t => t.id === taskId) || { title: 'Deep Work Protocol', duration: Number(duration) || 25, link: undefined };
+
+  // --- STATE ---
+  const [isSetup, setIsSetup] = useState(true); // Setup phase
+  const [timeLeft, setTimeLeft] = useState((Number(duration) || 25) * 60);
+  const [isActive, setIsActive] = useState(false);
+  const [sessionState, setSessionState] = useState<'focus' | 'paused' | 'compromised'>('focus');
+  const [phoneRequired, setPhoneRequired] = useState(false); // True = Flexible (No sensors), False = Strict (Sensors)
+  const [showDebrief, setShowDebrief] = useState(false); 
+  
+  // --- ANIMATIONS ---
+  const pulse = useSharedValue(1);
+  const bgProgress = useSharedValue(0); // 0 = Black, 1 = Red (Compromised)
+
+  // --- REFS ---
+  const appState = useRef(AppState.currentState);
+  const subscription = useRef<any>(null);
+
+  // --- 1. HANDLERS ---
+
+  const handleStartMission = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsSetup(false);
+    setIsActive(true);
+  };
+
+  const handleTimerEnd = () => {
+    setIsActive(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowDebrief(true);
+  };
+
+  const handleOpenLink = () => {
+    if (task.link?.url) {
+      Haptics.selectionAsync();
+      Linking.openURL(task.link.url);
+    }
+  };
+
+  // --- DEBRIEF LOGIC ---
+  const handleDebriefComplete = (data: { completed: boolean; distraction?: string; addedMinutes?: number }) => {
+    if (taskId) {
+      if (data.completed) {
+        completeTask(taskId as string);
+      } else if (data.addedMinutes) {
+        updateTask(taskId as string, {
+          duration: data.addedMinutes,
+          status: 'queued'
+        });
+      }
+    }
+    router.back();
+  };
+
+  const handleAbort = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "Abort Mission?",
+      "Giving up now will break your streak.",
+      [
+        { text: "Stay Focused", style: "cancel" },
+        { 
+          text: "I Give Up", 
+          style: "destructive", 
+          onPress: () => {
+            router.back();
+          } 
+        }
+      ]
+    );
+  };
+
+  const handleResume = () => {
+    setSessionState('focus');
+    setIsActive(true);
+    bgProgress.value = withTiming(0, { duration: 500 });
+  };
+
+  // --- 2. SENSORS LOGIC ---
+
+  // App State Monitoring
+  useEffect(() => {
+    const appStateSub = AppState.addEventListener('change', nextAppState => {
+      // If setup or phone is REQUIRED (Flexible Mode), ignore backgrounding
+      if (isSetup || phoneRequired) return; 
+      
+      // If Strict Mode: User leaves app -> Compromised
+      if (appState.current.match(/active/) && nextAppState.match(/inactive|background/)) {
+        triggerCompromised();
+      }
+      appState.current = nextAppState;
+    });
+    return () => appStateSub.remove();
+  }, [phoneRequired, isSetup]);
+
+  // Accelerometer Monitoring
+  useEffect(() => {
+    const enableSensors = async () => {
+      // If setup or phone is REQUIRED (Flexible Mode), disable sensors
+      if (isSetup || phoneRequired || !isActive || sessionState !== 'focus') {
+        if (subscription.current) {
+          subscription.current.remove();
+          subscription.current = null;
+        }
+        return;
+      }
+
+      // Strict Mode: Enable Movement Detection
+      Accelerometer.setUpdateInterval(500); 
+      let lastData = { x: 0, y: 0, z: 0 };
+      subscription.current = Accelerometer.addListener(data => {
+        const delta = Math.abs(data.x - lastData.x) + Math.abs(data.y - lastData.y) + Math.abs(data.z - lastData.z);
+        if (lastData.x !== 0 && delta > MOVEMENT_THRESHOLD) triggerCompromised();
+        lastData = data;
+      });
+    };
+    enableSensors();
+    return () => { if (subscription.current) subscription.current.remove(); };
+  }, [phoneRequired, isActive, sessionState, isSetup]);
+
+  const triggerCompromised = () => {
+    if (sessionState === 'compromised') return;
+    setSessionState('compromised');
+    setIsActive(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    bgProgress.value = withTiming(1, { duration: 300 });
+  };
+
+  // --- 3. TIMER LOGIC ---
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isActive && timeLeft > 0 && !isSetup) {
+      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+      pulse.value = withRepeat(
+        withSequence(withTiming(1.02, { duration: 1500 }), withTiming(1, { duration: 1500 })), 
+        -1, true
+      );
+    } else if (timeLeft <= 0 && !isSetup && isActive) {
+      handleTimerEnd();
+    } else if (timeLeft <= 0 && !isSetup) {
+      pulse.value = withTiming(1, { duration: 300 });
+    } else {
+      pulse.value = withTiming(1, { duration: 300 });
+    }
+    return () => clearInterval(interval);
+  }, [isActive, timeLeft, isSetup]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Animated Styles
+  const containerStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(bgProgress.value, [0, 1], ['#000000', '#450a0a'])
+  }));
+
+  const timerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+    opacity: sessionState === 'compromised' ? 0.3 : 1,
+    color: interpolateColor(bgProgress.value, [0, 1], ['#FFFFFF', '#EF4444'])
+  }));
+
+  // --- RENDER SETUP ---
+  if (isSetup) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <SafeAreaView style={styles.setupContainer}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={router.back} style={styles.closeBtn}>
+              <X size={24} color="rgba(255,255,255,0.4)" />
+            </TouchableOpacity>
+            <Text style={styles.setupHeaderTitle}>MISSION BRIEF</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <MotiView from={{ opacity: 0, translateY: 20 }} animate={{ opacity: 1, translateY: 0 }} style={styles.setupContent}>
+            <Text style={styles.setupTaskTitle} numberOfLines={2}>{task.title}</Text>
+            <Text style={styles.setupDuration}>{Math.floor(timeLeft / 60)} Minutes</Text>
+
+            <View style={styles.configCard}>
+              <View style={styles.configHeader}>
+                {phoneRequired ? 
+                  <Smartphone size={24} color="#10B981" /> : 
+                  <Lock size={24} color="#F59E0B" /> 
+                }
+                <Text style={styles.configTitle}>I need to use my phone</Text>
+                <Switch 
+                  value={phoneRequired} 
+                  onValueChange={(val) => { setPhoneRequired(val); Haptics.selectionAsync(); }}
+                  trackColor={{ false: "#333", true: "rgba(16, 185, 129, 0.3)" }}
+                  thumbColor={phoneRequired ? "#10B981" : "#F59E0B"}
+                />
+              </View>
+              
+              <View style={[styles.warningBox, { borderColor: phoneRequired ? '#10B981' : '#F59E0B' }]}>
+                <Text style={[styles.warningTitle, { color: phoneRequired ? '#10B981' : '#F59E0B' }]}>
+                  {phoneRequired ? 'FLEXIBLE MODE' : 'STRICT SENSOR MODE'}
+                </Text>
+                <Text style={styles.warningText}>
+                  {phoneRequired 
+                    ? 'Sensors disabled. You can leave the app.' 
+                    : 'Movement & App Switching will stop the timer.'}
+                </Text>
+              </View>
+            </View>
+          </MotiView>
+
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.engageBtn} onPress={handleStartMission} activeOpacity={0.8}>
+              <ScanFace size={24} color="#000" style={{ marginRight: 8 }} />
+              <Text style={styles.engageText}>ENGAGE</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // --- RENDER ACTIVE SESSION ---
+  return (
+    <Animated.View style={[styles.container, containerStyle]}>
+      <StatusBar style="light" hidden={sessionState === 'focus'} />
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleAbort} style={styles.closeBtn}>
+            <X size={24} color="rgba(255,255,255,0.4)" />
+          </TouchableOpacity>
+          <View style={[styles.statusBadge, sessionState === 'compromised' ? styles.statusBadgeCompromised : null]}>
+            <View style={[styles.dot, { backgroundColor: sessionState === 'focus' ? '#10B981' : sessionState === 'compromised' ? '#EF4444' : '#F59E0B' }]} />
+            <Text style={styles.statusText}>
+              {sessionState === 'focus' 
+                ? (phoneRequired ? 'FLEXIBLE FOCUS' : 'STRICT SENSORS ACTIVE') 
+                : sessionState === 'compromised' ? 'BREACH DETECTED' : 'PAUSED'}
+            </Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+
+        {sessionState === 'compromised' && (
+          <View style={styles.compromisedContainer}>
+            <ShieldAlert size={64} color="#EF4444" style={{ marginBottom: 20 }} />
+            <Text style={styles.compromisedTitle}>MISSION COMPROMISED</Text>
+            <Text style={styles.compromisedSubtitle}>Movement or app switching detected.</Text>
+            <TouchableOpacity style={styles.resumeBtn} onPress={handleResume}>
+              <Text style={styles.resumeText}>I'M BACK ON TASK</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.content}>
+          <View style={styles.taskContainer}>
+            <Text style={styles.taskLabel}>CURRENT OBJECTIVE</Text>
+            <Text style={styles.taskTitle} numberOfLines={3}>{task.title}</Text>
+            
+            {/* LINK BUTTON */}
+            {task.link && (
+                <TouchableOpacity 
+                    style={styles.linkButton} 
+                    onPress={handleOpenLink}
+                    activeOpacity={0.8}
+                >
+                    <ExternalLink size={16} color="#F59E0B" />
+                    <Text style={styles.linkText}>OPEN RESOURCE</Text>
+                </TouchableOpacity>
+            )}
+          </View>
+          <Animated.Text style={[styles.timer, timerStyle]}>{formatTime(timeLeft)}</Animated.Text>
+        </View>
+
+        <View style={styles.footer}>
+            {sessionState !== 'compromised' && (
+                <View style={styles.controls}>
+                <TouchableOpacity style={styles.controlBtn} onPress={() => setIsActive(!isActive)}>
+                    {isActive ? <Pause size={32} color="#FFFFFF" /> : <Play size={32} color="#FFFFFF" />}
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.controlBtn, styles.completeBtn]} onPress={handleTimerEnd}>
+                    <Check size={32} color="#000000" />
+                </TouchableOpacity>
+                </View>
+            )}
+        </View>
+      </SafeAreaView>
+
+      <SessionDebrief visible={showDebrief} onComplete={handleDebriefComplete} />
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000000' },
+  setupContainer: { flex: 1, paddingHorizontal: 24 },
+  setupHeaderTitle: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '800', letterSpacing: 2 },
+  setupContent: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  setupTaskTitle: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', textAlign: 'center', marginBottom: 8 },
+  setupDuration: { fontSize: 16, color: '#F59E0B', fontWeight: '600', marginBottom: 40, textTransform: 'uppercase', letterSpacing: 1 },
+  configCard: { width: '100%', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  configHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  configTitle: { flex: 1, color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginLeft: 12 },
+  configDescription: { color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 20, marginBottom: 20 },
+  warningBox: { padding: 16, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, borderLeftWidth: 3 },
+  warningTitle: { fontSize: 12, fontWeight: '800', marginBottom: 6, letterSpacing: 1 },
+  warningText: { color: 'rgba(255,255,255,0.6)', fontSize: 13, lineHeight: 18 },
+  engageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F59E0B', width: '100%', paddingVertical: 18, borderRadius: 30, shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 15, elevation: 10 },
+  engageText: { color: '#000000', fontSize: 18, fontWeight: '800', letterSpacing: 2 },
+  
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 10, zIndex: 10 },
+  closeBtn: { padding: 10, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  statusBadgeCompromised: { borderColor: 'rgba(239, 68, 68, 0.5)', backgroundColor: 'rgba(239, 68, 68, 0.1)' },
+  dot: { width: 6, height: 6, borderRadius: 3, marginRight: 8 },
+  statusText: { color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
+  taskContainer: { alignItems: 'center', marginBottom: 60 },
+  taskLabel: { color: '#F59E0B', fontSize: 11, fontWeight: '900', letterSpacing: 2, marginBottom: 12, textTransform: 'uppercase' },
+  taskTitle: { color: '#FFFFFF', fontSize: 26, fontWeight: '700', textAlign: 'center', lineHeight: 34 },
+  timer: { fontSize: 90, fontWeight: '800', color: '#FFFFFF', fontVariant: ['tabular-nums'], letterSpacing: -2 },
+  footer: { paddingBottom: 50, alignItems: 'center', paddingHorizontal: 30 },
+  controls: { flexDirection: 'row', gap: 40 },
+  controlBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  completeBtn: { backgroundColor: '#F59E0B', borderColor: '#F59E0B', shadowColor: '#F59E0B', shadowOpacity: 0.4, shadowRadius: 20 },
+  
+  compromisedContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', zIndex: 20, padding: 40 },
+  compromisedTitle: { color: '#EF4444', fontSize: 24, fontWeight: '900', letterSpacing: 1, marginBottom: 8, textAlign: 'center' },
+  compromisedSubtitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginBottom: 8, textAlign: 'center' },
+  resumeBtn: { backgroundColor: '#FFFFFF', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 30 },
+  resumeText: { color: '#000000', fontWeight: '800', fontSize: 14, letterSpacing: 1 },
+
+  linkButton: {
+    marginTop: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  linkText: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+});
+</file>
+
 <file path="src/components/TaskStagingModal.tsx">
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
@@ -19439,513 +20033,6 @@ const styles = StyleSheet.create({
 });
 </file>
 
-<file path="app/profile.tsx">
-import React, { useEffect, useState, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  Modal, 
-  Switch,
-  Alert,
-  Dimensions,
-  Linking
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { 
-  ChevronLeft, 
-  Settings, 
-  Zap, 
-  Clock, 
-  Trophy, 
-  Target, 
-  Archive, 
-  CheckCircle2, 
-  User,
-  Moon,
-  Sunrise,
-  Coffee,
-  Bell,
-  LogOut,
-  ChevronRight,
-  X,
-  Brain,
-  FileText,
-  ShieldCheck
-} from 'lucide-react-native';
-import { lightColors as colors } from '../src/constants/colors';
-import { useApp } from '../src/context/AppContext';
-import { apiService } from '../src/services/api';
-import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal';
-
-const { height } = Dimensions.get('window');
-
-// --- STANDARD TIERS LOGIC FOR PROFILE ---
-const TIERS = [
-  { name: 'Recruit', min: 0, color: '#94A3B8' },
-  { name: 'Agent', min: 3, color: '#3B82F6' },
-  { name: 'Veteran', min: 7, color: '#8B5CF6' },
-  { name: 'Elite', min: 14, color: '#F59E0B' },
-  { name: 'Legend', min: 30, color: '#EF4444' },
-];
-
-const getTier = (streak: number) => {
-  return [...TIERS].reverse().find(t => streak >= t.min) || TIERS[0];
-};
-
-const MissionHistoryCard = ({ goal, delay, onPress }: { goal: any, delay: number, onPress: () => void }) => {
-  const totalTasks = goal.tasks ? goal.tasks.length : 0;
-  const totalDuration = goal.tasks ? goal.tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0) : 0;
-  
-  return (
-    <Animated.View 
-      entering={FadeInDown.delay(delay).springify()}
-    >
-      <TouchableOpacity
-        style={styles.historyCard}
-        onPress={onPress}
-        activeOpacity={0.7}
-      >
-        <View style={styles.historyHeader}>
-          <View style={styles.historyIcon}>
-            <CheckCircle2 size={20} color="#10B981" />
-          </View>
-          <View style={styles.historyTitleBox}>
-            <Text style={styles.historyTitle} numberOfLines={1}>{goal.title}</Text>
-            <Text style={styles.historyDate}>
-              {new Date(goal.completedAt || goal.createdAt).toLocaleDateString()}
-            </Text>
-          </View>
-        </View>
-        
-        <View style={styles.historyStats}>
-          <View style={styles.historyStatItem}>
-            <Clock size={12} color={colors.textSecondary} />
-            <Text style={styles.historyStatText}>{(totalDuration / 60).toFixed(1)}h Focused</Text>
-          </View>
-          <View style={styles.historyStatItem}>
-            <Target size={12} color={colors.textSecondary} />
-            <Text style={styles.historyStatText}>{totalTasks} Tasks</Text>
-          </View>
-          <View style={styles.historyBadge}>
-            <Text style={styles.historyBadgeText}>COMPLETED</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-const StatBox = ({ label, value, icon: Icon, delay }: any) => (
-  <Animated.View 
-    entering={FadeInDown.delay(delay).springify()}
-    style={styles.statBox}
-  >
-    <View style={styles.statIconBg}>
-      <Icon size={20} color={colors.primary} />
-    </View>
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
-  </Animated.View>
-);
-
-const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditProfile }: any) => {
-  const [notifications, setNotifications] = useState(true);
-
-  const openLegal = (url: string) => Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open link."));
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.settingsContainer}>
-        <View style={styles.settingsHeader}>
-          <Text style={styles.settingsTitle}>Settings</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <X size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.settingsContent}>
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>PREFERENCES</Text>
-            
-            <View style={styles.settingRow}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#EEF2FF' }]}>
-                  <Bell size={20} color="#4F46E5" />
-                </View>
-                <Text style={styles.settingText}>Push Notifications</Text>
-              </View>
-              <Switch 
-                value={notifications} 
-                onValueChange={setNotifications}
-                trackColor={{ false: colors.border, true: colors.primary }}
-              />
-            </View>
-
-            {/* Redo Onboarding Option */}
-            <TouchableOpacity style={styles.settingRow} onPress={onRedoOnboarding}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
-                  <Brain size={20} color={colors.primary} />
-                </View>
-                <Text style={styles.settingText}>Update Operative Profile</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
-            
-            <TouchableOpacity style={styles.settingRow} onPress={onEditProfile}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
-                  <User size={20} color={colors.text} />
-                </View>
-                <Text style={styles.settingText}>Edit Profile</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingRow} onPress={onLogout}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
-                  <LogOut size={20} color={colors.error} />
-                </View>
-                <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.settingGroup}>
-            <Text style={styles.settingGroupTitle}>LEGAL</Text>
-            
-            <TouchableOpacity style={styles.settingRow} onPress={() => openLegal('https://example.com/terms')}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
-                  <FileText size={20} color={colors.textSecondary} />
-                </View>
-                <Text style={styles.settingText}>Terms of Service</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.settingRow} onPress={() => openLegal('https://example.com/privacy')}>
-              <View style={styles.settingRowLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
-                  <ShieldCheck size={20} color={colors.textSecondary} />
-                </View>
-                <Text style={styles.settingText}>Privacy Policy</Text>
-              </View>
-              <ChevronRight size={20} color={colors.textLight} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Productivity Ops v1.0.3</Text>
-          </View>
-        </ScrollView>
-      </View>
-    </Modal>
-  );
-};
-
-export default function ProfileScreen() {
-  const router = useRouter();
-  // Destructure logout here
-  const { user, goals, logout } = useApp();
-  const [profileData, setProfileData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [settingsVisible, setSettingsVisible] = useState(false);
-  
-  const [viewingHistoryGoal, setViewingHistoryGoal] = useState<any>(null);
-
-  const archivedGoals = useMemo(() => {
-    return goals.filter(g => g.status === 'archived').sort((a, b) => {
-      const dateA = new Date(a.completedAt || a.createdAt).getTime();
-      const dateB = new Date(b.completedAt || b.createdAt).getTime();
-      return dateB - dateA;
-    });
-  }, [goals]);
-
-  const fetchProfile = async () => {
-    if (user?.email) {
-      try {
-        const data = await apiService.getUserProfile(user.email);
-        setProfileData(data);
-      } catch (error) {
-        console.error("Failed to load profile", error);
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProfile();
-  }, [user]);
-
-  const handleLogout = () => {
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Log Out", 
-        style: "destructive", 
-        onPress: async () => {
-          setSettingsVisible(false);
-          // Use the real logout function to clear persistence
-          await logout();
-          router.replace('/auth');
-        }
-      }
-    ]);
-  };
-
-  const handleRedoOnboarding = () => {
-    setSettingsVisible(false);
-    router.push('/onboarding');
-  };
-
-  const handleEditProfileOpen = () => {
-    setSettingsVisible(false);
-    router.push('/edit-profile');
-  };
-
-  const getGoalStats = (goal: any) => {
-    if (!goal) return { totalTime: 0, taskCount: 0 };
-    const tasks = goal.tasks || [];
-    const totalTime = tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0);
-    const taskCount = tasks.length;
-    return { totalTime, taskCount };
-  };
-
-  const getArchetypeIcon = () => {
-    const arch = profileData?.onboardingData?.focusWindow;
-    if (arch === 'night-owl' || arch === 'late_night') return Moon;
-    if (arch === 'early-bird' || arch === 'early_morning') return Sunrise;
-    return Coffee;
-  };
-  const ArchetypeIcon = getArchetypeIcon();
-
-  const rank = getTier(profileData?.stats?.streak || 0);
-
-  // SAFE NAVIGATION HANDLER
-  const handleBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/home');
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
-            <ChevronLeft size={28} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Operative Profile</Text>
-          <TouchableOpacity 
-            style={styles.iconBtn} 
-            onPress={() => setSettingsVisible(true)}
-          >
-            <Settings size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
-          {/* Identity Card */}
-          <Animated.View 
-            entering={FadeInDown.delay(100).springify()}
-            style={styles.identityCard}
-          >
-            <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>{profileData?.name?.[0] || "U"}</Text>
-            </View>
-            <View style={styles.identityText}>
-              <Text style={styles.userName}>{profileData?.name || "Unknown Agent"}</Text>
-              <Text style={[styles.userLevel, { color: rank.color }]}>
-                {rank.name} Class Operative
-              </Text>
-            </View>
-            <View style={styles.archetypeBadge}>
-              <Text style={styles.archetypeText}>
-                {profileData?.onboardingData?.workArchetype ? profileData.onboardingData.workArchetype.replace('_', ' ') : "Recruit"}
-              </Text>
-            </View>
-          </Animated.View>
-
-          {/* Efficiency Metrics */}
-          <Text style={styles.sectionHeader}>Efficiency Metrics</Text>
-          <View style={styles.statsGrid}>
-            <StatBox label="Streak" value={`${profileData?.stats?.streak || 0} Day`} icon={Zap} delay={200} />
-            <StatBox label="Hours" value={`${profileData?.stats?.hoursFocused || 0}h`} icon={Clock} delay={300} />
-            <StatBox label="Tasks" value={profileData?.stats?.tasksCrushed || 0} icon={Trophy} delay={400} />
-          </View>
-
-          {/* Cognitive DNA */}
-          <Text style={styles.sectionHeader}>Cognitive DNA</Text>
-          <View style={styles.dnaContainer}>
-            {profileData?.onboardingData?.focusWindow && (
-                <Animated.View entering={FadeInDown.delay(500)} style={styles.dnaTag}>
-                    <ArchetypeIcon size={14} color={colors.primary} style={{ marginRight: 6 }} />
-                    <Text style={[styles.dnaText, { color: colors.primary }]}>
-                        {profileData.onboardingData.focusWindow.replace(/[_-]/g, ' ').toUpperCase()}
-                    </Text>
-                </Animated.View>
-            )}
-            
-            {profileData?.onboardingData?.frictionVillain && (
-                <Animated.View entering={FadeInDown.delay(600)} style={styles.dnaTag}>
-                    <Target size={14} color="#10B981" style={{ marginRight: 6 }} />
-                    <Text style={[styles.dnaText, { color: "#10B981" }]}>
-                        FIGHTING: {profileData.onboardingData.frictionVillain.replace(/[_-]/g, ' ').toUpperCase()}
-                    </Text>
-                </Animated.View>
-            )}
-          </View>
-
-          {/* Mission Archive Section */}
-          <View style={styles.archiveHeaderRow}>
-            <Text style={styles.sectionHeader}>Mission Archive</Text>
-            <View style={styles.archiveCountBadge}>
-              <Archive size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
-              <Text style={styles.archiveCountText}>{archivedGoals.length}</Text>
-            </View>
-          </View>
-
-          {archivedGoals.length === 0 ? (
-            <View style={styles.emptyArchive}>
-              <Text style={styles.emptyText}>No completed missions yet.</Text>
-            </View>
-          ) : (
-            <View style={styles.archiveList}>
-              {archivedGoals.map((goal, index) => (
-                <MissionHistoryCard 
-                  key={goal.id} 
-                  goal={goal} 
-                  delay={500 + (index * 100)}
-                  onPress={() => setViewingHistoryGoal(goal)} 
-                />
-              ))}
-            </View>
-          )}
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
-
-        <SettingsModal 
-          visible={settingsVisible} 
-          onClose={() => setSettingsVisible(false)}
-          onLogout={handleLogout}
-          onRedoOnboarding={handleRedoOnboarding}
-          onEditProfile={handleEditProfileOpen}
-        />
-
-        {/* History Modal */}
-        {viewingHistoryGoal && (
-          <MissionAccomplishedModal
-            visible={!!viewingHistoryGoal}
-            goalTitle={viewingHistoryGoal.title}
-            totalTime={getGoalStats(viewingHistoryGoal).totalTime}
-            taskCount={getGoalStats(viewingHistoryGoal).taskCount}
-            isHistoryView={true} // Enable history mode
-            onArchive={() => {}} // Not needed in history view
-            onClose={() => setViewingHistoryGoal(null)}
-          />
-        )}
-
-      </SafeAreaView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
-  iconBtn: { padding: 8, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: colors.border },
-  scrollContent: { padding: 24 },
-  
-  identityCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4, borderWidth: 1, borderColor: colors.border, marginBottom: 32 },
-  avatarContainer: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  avatarText: { fontSize: 24, fontWeight: 'bold', color: '#FFF' },
-  identityText: { flex: 1 },
-  userName: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  userLevel: { fontSize: 14, fontWeight: '700' },
-  archetypeBadge: { backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  archetypeText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'capitalize' },
-  
-  sectionHeader: { fontSize: 14, fontWeight: '800', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, marginLeft: 4 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32, gap: 12 },
-  statBox: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
-  statIconBg: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  statValue: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4, textAlign: 'center' },
-  statLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary, textAlign: 'center' },
-
-  // DNA Styles
-  dnaContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
-  dnaTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
-  dnaText: { fontSize: 13, fontWeight: '600' },
-
-  // Archive Styles
-  archiveHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  archiveCountBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  archiveCountText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
-  emptyArchive: { padding: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E5E7EB' },
-  emptyText: { color: colors.textSecondary, fontWeight: '500' },
-  archiveList: { gap: 12 },
-  
-  historyCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F3F4F6', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8 },
-  historyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  historyIcon: { marginRight: 12 },
-  historyTitleBox: { flex: 1 },
-  historyTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
-  historyDate: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-  historyStats: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  historyStatItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  historyStatText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
-  historyBadge: { marginLeft: 'auto', backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  historyBadgeText: { fontSize: 10, fontWeight: '800', color: '#059669', letterSpacing: 0.5 },
-
-  // Settings Modal Styles
-  settingsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
-  settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border },
-  settingsTitle: { fontSize: 18, fontWeight: '700' },
-  closeBtn: { padding: 4 },
-  settingsContent: { padding: 24 },
-  settingGroup: { marginBottom: 32 },
-  settingGroupTitle: { fontSize: 12, fontWeight: '800', color: colors.textLight, marginBottom: 12, marginLeft: 4 },
-  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
-  settingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  settingIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  settingText: { fontSize: 16, fontWeight: '600', color: colors.text },
-  versionContainer: { alignItems: 'center', marginTop: 20 },
-  versionText: { color: colors.textLight, fontSize: 12 },
-});
-</file>
-
 <file path="backend/src/services/ai.service.ts">
 import OpenAI from 'openai';
 
@@ -20427,6 +20514,11 @@ export default function AuthScreen() {
       setUser(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Account Deleted", "Your account has been permanently removed.");
+      
+      // Clear navigation stack to prevent back navigation
+      if (router.canGoBack()) {
+        router.dismissAll();
+      }
       router.replace('/welcome');
     } catch (error: any) {
       console.error("Deletion Error:", error);
@@ -20974,22 +21066,39 @@ export default function GoalDetailScreen() {
   
   const goal = useMemo(() => goals.find(g => g.id === goalId), [goals, goalId]);
 
-  // 1. Calculate "Current Progress Day"
+  // HELPER: Normalize dates to local midnight to ensure calendar-day calculation
+  const getCalendarDayDiff = (startDateStr: Date | string) => {
+    const start = new Date(startDateStr);
+    start.setHours(0, 0, 0, 0); // Reset to local midnight
+    
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Reset to local midnight
+
+    const diffTime = now.getTime() - start.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Day 1 is the start day, so we add 1. 
+    return Math.max(1, diffDays + 1);
+  };
+
+  // 1. Calculate "Current Progress Day" based on Calendar Midnight
   const currentProgressDay = useMemo(() => {
     if (!goal || !goal.startDate) return 1;
-    const start = new Date(goal.startDate).getTime();
-    const now = Date.now();
-    const diffTime = Math.max(0, now - start);
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; 
-    return Math.max(1, diffDays); 
+    return getCalendarDayDiff(goal.startDate);
   }, [goal]);
 
   const totalDays = useMemo(() => {
     if (!goal || !goal.targetDate || !goal.startDate) return 30;
-    const start = new Date(goal.startDate).getTime();
-    const target = new Date(goal.targetDate).getTime();
-    const diffTime = Math.abs(target - start);
-    return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    
+    const start = new Date(goal.startDate);
+    start.setHours(0, 0, 0, 0);
+    
+    const target = new Date(goal.targetDate);
+    target.setHours(0, 0, 0, 0);
+    
+    const diffTime = target.getTime() - start.getTime();
+    // +1 to include the target day itself
+    return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
   }, [goal]);
 
   useEffect(() => {
@@ -21033,22 +21142,26 @@ export default function GoalDetailScreen() {
     return isLastDay && isDayComplete;
   }, [goal, currentProgressDay, totalDays, isDayComplete]);
 
-  // Check if today's tasks are done to trigger notification
+  // 3. NOTIFICATION SCHEDULING
+  // Check if today's tasks are done to trigger notification for TOMORROW
   useEffect(() => {
     if (goal?.type === 'journey' && viewingDay === currentProgressDay && isDayComplete) {
-        // Schedule notification for the NEXT day
+        // Schedule notification for the NEXT day (currentProgressDay + 1)
+        // NotificationService handles the "Tomorrow at 7 AM" logic internally
         const archetype = user?.onboardingData?.focusWindow || 'default';
         NotificationService.scheduleNextDayDirective(currentProgressDay + 1, archetype);
     }
   }, [isDayComplete, goal, viewingDay, currentProgressDay, user]);
 
-  // 3. AUTO-GENERATE EFFECT
+  // 4. AUTO-GENERATE EFFECT (Triggers when clock hits midnight and tasksForViewingDay is empty)
   useEffect(() => {
     const checkAndGenerate = async () => {
       if (!goal) return;
       if (goal.type !== 'journey') return;
       if (isGenerating) return;
       if (viewingDay !== currentProgressDay) return;
+      
+      // CRITICAL: Only generate if NO tasks exist for this new day
       if (tasksForViewingDay.length > 0) return;
 
       setIsGenerating(true);
@@ -21558,6 +21671,524 @@ const styles = StyleSheet.create({
 });
 </file>
 
+<file path="app/profile.tsx">
+import React, { useEffect, useState, useMemo } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Modal, 
+  Switch,
+  Alert,
+  Dimensions,
+  Linking
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { 
+  ChevronLeft, 
+  Settings, 
+  Zap, 
+  Clock, 
+  Trophy, 
+  Target, 
+  Archive, 
+  CheckCircle2, 
+  User,
+  Moon,
+  Sunrise,
+  Coffee,
+  Bell,
+  LogOut,
+  ChevronRight,
+  X,
+  Brain,
+  FileText,
+  ShieldCheck
+} from 'lucide-react-native';
+import { lightColors as colors } from '../src/constants/colors';
+import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
+import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal';
+
+const { height } = Dimensions.get('window');
+
+// --- STANDARD TIERS LOGIC FOR PROFILE ---
+const TIERS = [
+  { name: 'Recruit', min: 0, color: '#94A3B8' },
+  { name: 'Agent', min: 3, color: '#3B82F6' },
+  { name: 'Veteran', min: 7, color: '#8B5CF6' },
+  { name: 'Elite', min: 14, color: '#F59E0B' },
+  { name: 'Legend', min: 30, color: '#EF4444' },
+];
+
+const getTier = (streak: number) => {
+  return [...TIERS].reverse().find(t => streak >= t.min) || TIERS[0];
+};
+
+const MissionHistoryCard = ({ goal, delay, onPress }: { goal: any, delay: number, onPress: () => void }) => {
+  const totalTasks = goal.tasks ? goal.tasks.length : 0;
+  const totalDuration = goal.tasks ? goal.tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0) : 0;
+  
+  return (
+    <Animated.View 
+      entering={FadeInDown.delay(delay).springify()}
+    >
+      <TouchableOpacity
+        style={styles.historyCard}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <View style={styles.historyHeader}>
+          <View style={styles.historyIcon}>
+            <CheckCircle2 size={20} color="#10B981" />
+          </View>
+          <View style={styles.historyTitleBox}>
+            <Text style={styles.historyTitle} numberOfLines={1}>{goal.title}</Text>
+            <Text style={styles.historyDate}>
+              {new Date(goal.completedAt || goal.createdAt).toLocaleDateString()}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.historyStats}>
+          <View style={styles.historyStatItem}>
+            <Clock size={12} color={colors.textSecondary} />
+            <Text style={styles.historyStatText}>{(totalDuration / 60).toFixed(1)}h Focused</Text>
+          </View>
+          <View style={styles.historyStatItem}>
+            <Target size={12} color={colors.textSecondary} />
+            <Text style={styles.historyStatText}>{totalTasks} Tasks</Text>
+          </View>
+          <View style={styles.historyBadge}>
+            <Text style={styles.historyBadgeText}>COMPLETED</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+const StatBox = ({ label, value, icon: Icon, delay }: any) => (
+  <Animated.View 
+    entering={FadeInDown.delay(delay).springify()}
+    style={styles.statBox}
+  >
+    <View style={styles.statIconBg}>
+      <Icon size={20} color={colors.primary} />
+    </View>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </Animated.View>
+);
+
+const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditProfile }: any) => {
+  const [notifications, setNotifications] = useState(true);
+
+  const openLegal = (url: string) => Linking.openURL(url).catch(() => Alert.alert("Error", "Could not open link."));
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={styles.settingsContainer}>
+        <View style={styles.settingsHeader}>
+          <Text style={styles.settingsTitle}>Settings</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <X size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.settingsContent}>
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>PREFERENCES</Text>
+            
+            <View style={styles.settingRow}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#EEF2FF' }]}>
+                  <Bell size={20} color="#4F46E5" />
+                </View>
+                <Text style={styles.settingText}>Push Notifications</Text>
+              </View>
+              <Switch 
+                value={notifications} 
+                onValueChange={setNotifications}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+
+            {/* Redo Onboarding Option */}
+            <TouchableOpacity style={styles.settingRow} onPress={onRedoOnboarding}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FFF7ED' }]}>
+                  <Brain size={20} color={colors.primary} />
+                </View>
+                <Text style={styles.settingText}>Update Operative Profile</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>ACCOUNT</Text>
+            
+            <TouchableOpacity style={styles.settingRow} onPress={onEditProfile}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F3F4F6' }]}>
+                  <User size={20} color={colors.text} />
+                </View>
+                <Text style={styles.settingText}>Edit Profile</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.settingRow} onPress={onLogout}>
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#FEE2E2' }]}>
+                  <LogOut size={20} color={colors.error} />
+                </View>
+                <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.settingGroup}>
+            <Text style={styles.settingGroupTitle}>LEGAL</Text>
+            
+            <TouchableOpacity 
+              style={styles.settingRow} 
+              onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vRWHAlFYsD7whJGjq5uAUm7bWFS9YgqofzaIOFR-GCIflrtgiW4kkTNrA42cCp7ng0jo3Lh-J_pCT1d/pub')}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
+                  <FileText size={20} color={colors.textSecondary} />
+                </View>
+                <Text style={styles.settingText}>Terms of Service</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.settingRow} 
+              onPress={() => openLegal('https://docs.google.com/document/d/e/2PACX-1vTOwIb-0iHE2b5HNT8tLRPIXNVPCmqlGJtmpplqdEIABPM6X56e5jw2oW6E_IpTrky00fJVosTo-zLB/pub')}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: '#F9FAFB' }]}>
+                  <ShieldCheck size={20} color={colors.textSecondary} />
+                </View>
+                <Text style={styles.settingText}>Privacy Policy</Text>
+              </View>
+              <ChevronRight size={20} color={colors.textLight} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>Productivity Ops v1.0.3</Text>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+};
+
+export default function ProfileScreen() {
+  const router = useRouter();
+  // Destructure logout here
+  const { user, goals, logout } = useApp();
+  const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  
+  const [viewingHistoryGoal, setViewingHistoryGoal] = useState<any>(null);
+
+  const archivedGoals = useMemo(() => {
+    return goals.filter(g => g.status === 'archived').sort((a, b) => {
+      const dateA = new Date(a.completedAt || a.createdAt).getTime();
+      const dateB = new Date(b.completedAt || b.createdAt).getTime();
+      return dateB - dateA;
+    });
+  }, [goals]);
+
+  const fetchProfile = async () => {
+    if (user?.email) {
+      try {
+        const data = await apiService.getUserProfile(user.email);
+        setProfileData(data);
+      } catch (error) {
+        console.error("Failed to load profile", error);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, [user]);
+
+  const handleLogout = () => {
+    Alert.alert("Log Out", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Log Out", 
+        style: "destructive", 
+        onPress: async () => {
+          setSettingsVisible(false);
+          // Use the real logout function to clear persistence
+          await logout();
+          
+          // Clear navigation stack to prevent swipe-back
+          if (router.canGoBack()) {
+            router.dismissAll();
+          }
+          router.replace('/welcome');
+        }
+      }
+    ]);
+  };
+
+  const handleRedoOnboarding = () => {
+    setSettingsVisible(false);
+    router.push('/onboarding');
+  };
+
+  const handleEditProfileOpen = () => {
+    setSettingsVisible(false);
+    router.push('/edit-profile');
+  };
+
+  const getGoalStats = (goal: any) => {
+    if (!goal) return { totalTime: 0, taskCount: 0 };
+    const tasks = goal.tasks || [];
+    const totalTime = tasks.reduce((sum: number, t: any) => sum + (t.duration || 0), 0);
+    const taskCount = tasks.length;
+    return { totalTime, taskCount };
+  };
+
+  const getArchetypeIcon = () => {
+    const arch = profileData?.onboardingData?.focusWindow;
+    if (arch === 'night-owl' || arch === 'late_night') return Moon;
+    if (arch === 'early-bird' || arch === 'early_morning') return Sunrise;
+    return Coffee;
+  };
+  const ArchetypeIcon = getArchetypeIcon();
+
+  const rank = getTier(profileData?.stats?.streak || 0);
+
+  // SAFE NAVIGATION HANDLER
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/home');
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} style={styles.iconBtn}>
+            <ChevronLeft size={28} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Operative Profile</Text>
+          <TouchableOpacity 
+            style={styles.iconBtn} 
+            onPress={() => setSettingsVisible(true)}
+          >
+            <Settings size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          
+          {/* Identity Card */}
+          <Animated.View 
+            entering={FadeInDown.delay(100).springify()}
+            style={styles.identityCard}
+          >
+            <View style={styles.avatarContainer}>
+              <Text style={styles.avatarText}>{profileData?.name?.[0] || "U"}</Text>
+            </View>
+            <View style={styles.identityText}>
+              <Text style={styles.userName}>{profileData?.name || "Unknown Agent"}</Text>
+              <Text style={[styles.userLevel, { color: rank.color }]}>
+                {rank.name} Class Operative
+              </Text>
+            </View>
+            <View style={styles.archetypeBadge}>
+              <Text style={styles.archetypeText}>
+                {profileData?.onboardingData?.workArchetype ? profileData.onboardingData.workArchetype.replace('_', ' ') : "Recruit"}
+              </Text>
+            </View>
+          </Animated.View>
+
+          {/* Efficiency Metrics */}
+          <Text style={styles.sectionHeader}>Efficiency Metrics</Text>
+          <View style={styles.statsGrid}>
+            <StatBox label="Streak" value={`${profileData?.stats?.streak || 0} Day`} icon={Zap} delay={200} />
+            <StatBox label="Hours" value={`${profileData?.stats?.hoursFocused || 0}h`} icon={Clock} delay={300} />
+            <StatBox label="Tasks" value={profileData?.stats?.tasksCrushed || 0} icon={Trophy} delay={400} />
+          </View>
+
+          {/* Cognitive DNA */}
+          <Text style={styles.sectionHeader}>Cognitive DNA</Text>
+          <View style={styles.dnaContainer}>
+            {profileData?.onboardingData?.focusWindow && (
+                <Animated.View entering={FadeInDown.delay(500)} style={styles.dnaTag}>
+                    <ArchetypeIcon size={14} color={colors.primary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: colors.primary }]}>
+                        {profileData.onboardingData.focusWindow.replace(/[_-]/g, ' ').toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
+            
+            {profileData?.onboardingData?.frictionVillain && (
+                <Animated.View entering={FadeInDown.delay(600)} style={styles.dnaTag}>
+                    <Target size={14} color="#10B981" style={{ marginRight: 6 }} />
+                    <Text style={[styles.dnaText, { color: "#10B981" }]}>
+                        FIGHTING: {profileData.onboardingData.frictionVillain.replace(/[_-]/g, ' ').toUpperCase()}
+                    </Text>
+                </Animated.View>
+            )}
+          </View>
+
+          {/* Mission Archive Section */}
+          <View style={styles.archiveHeaderRow}>
+            <Text style={styles.sectionHeader}>Mission Archive</Text>
+            <View style={styles.archiveCountBadge}>
+              <Archive size={12} color={colors.textSecondary} style={{ marginRight: 4 }} />
+              <Text style={styles.archiveCountText}>{archivedGoals.length}</Text>
+            </View>
+          </View>
+
+          {archivedGoals.length === 0 ? (
+            <View style={styles.emptyArchive}>
+              <Text style={styles.emptyText}>No completed missions yet.</Text>
+            </View>
+          ) : (
+            <View style={styles.archiveList}>
+              {archivedGoals.map((goal, index) => (
+                <MissionHistoryCard 
+                  key={goal.id} 
+                  goal={goal} 
+                  delay={500 + (index * 100)}
+                  onPress={() => setViewingHistoryGoal(goal)} 
+                />
+              ))}
+            </View>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+
+        <SettingsModal 
+          visible={settingsVisible} 
+          onClose={() => setSettingsVisible(false)}
+          onLogout={handleLogout}
+          onRedoOnboarding={handleRedoOnboarding}
+          onEditProfile={handleEditProfileOpen}
+        />
+
+        {/* History Modal */}
+        {viewingHistoryGoal && (
+          <MissionAccomplishedModal
+            visible={!!viewingHistoryGoal}
+            goalTitle={viewingHistoryGoal.title}
+            totalTime={getGoalStats(viewingHistoryGoal).totalTime}
+            taskCount={getGoalStats(viewingHistoryGoal).taskCount}
+            isHistoryView={true} // Enable history mode
+            onArchive={() => {}} // Not needed in history view
+            onClose={() => setViewingHistoryGoal(null)}
+          />
+        )}
+
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 12 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  iconBtn: { padding: 8, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  scrollContent: { padding: 24 },
+  
+  identityCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4, borderWidth: 1, borderColor: colors.border, marginBottom: 32 },
+  avatarContainer: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  avatarText: { fontSize: 24, fontWeight: 'bold', color: '#FFF' },
+  identityText: { flex: 1 },
+  userName: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 },
+  userLevel: { fontSize: 14, fontWeight: '700' },
+  archetypeBadge: { backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  archetypeText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'capitalize' },
+  
+  sectionHeader: { fontSize: 14, fontWeight: '800', color: colors.textLight, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16, marginLeft: 4 },
+  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32, gap: 12 },
+  statBox: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+  statIconBg: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(245, 158, 11, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  statValue: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4, textAlign: 'center' },
+  statLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary, textAlign: 'center' },
+
+  // DNA Styles
+  dnaContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 32 },
+  dnaTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
+  dnaText: { fontSize: 13, fontWeight: '600' },
+
+  // Archive Styles
+  archiveHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  archiveCountBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  archiveCountText: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  emptyArchive: { padding: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E5E7EB' },
+  emptyText: { color: colors.textSecondary, fontWeight: '500' },
+  archiveList: { gap: 12 },
+  
+  historyCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#F3F4F6', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8 },
+  historyHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  historyIcon: { marginRight: 12 },
+  historyTitleBox: { flex: 1 },
+  historyTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+  historyDate: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  historyStats: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  historyStatItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  historyStatText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  historyBadge: { marginLeft: 'auto', backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  historyBadgeText: { fontSize: 10, fontWeight: '800', color: '#059669', letterSpacing: 0.5 },
+
+  // Settings Modal Styles
+  settingsContainer: { flex: 1, backgroundColor: '#F9FAFB' },
+  settingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colors.border },
+  settingsTitle: { fontSize: 18, fontWeight: '700' },
+  closeBtn: { padding: 4 },
+  settingsContent: { padding: 24 },
+  settingGroup: { marginBottom: 32 },
+  settingGroupTitle: { fontSize: 12, fontWeight: '800', color: colors.textLight, marginBottom: 12, marginLeft: 4 },
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+  settingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  settingIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  settingText: { fontSize: 16, fontWeight: '600', color: colors.text },
+  versionContainer: { alignItems: 'center', marginTop: 20 },
+  versionText: { color: colors.textLight, fontSize: 12 },
+});
+</file>
+
 <file path="backend/prisma/schema.prisma">
 generator client {
   provider = "prisma-client-js"
@@ -22003,6 +22634,8 @@ const styles = StyleSheet.create({
     "react-native": "0.81.5",
     "react-native-confetti-cannon": "^1.5.2",
     "react-native-gesture-handler": "~2.28.0",
+    "react-native-purchases": "^9.10.4",
+    "react-native-purchases-ui": "^9.10.4",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
@@ -22107,6 +22740,20 @@ export default function HomeScreen() {
   
   const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
 
+  // HELPER: Normalize dates to local midnight to ensure calendar-day calculation
+  const getCalendarDayDiff = (startDateStr: Date | string) => {
+    const start = new Date(startDateStr);
+    start.setHours(0, 0, 0, 0); // Reset to local midnight
+    
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Reset to local midnight
+
+    const diffTime = now.getTime() - start.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    return Math.max(1, diffDays + 1);
+  };
+
   const reactorGoals = useMemo(() => {
     if (!Array.isArray(goals)) return [];
     const visibleGoals = goals.filter(g => g.status !== 'archived');
@@ -22125,13 +22772,18 @@ export default function HomeScreen() {
         if (goal.status === 'completed') {
             isFullyComplete = true;
         } else if (goal.startDate && goal.targetDate) {
-            const start = new Date(goal.startDate).getTime();
-            const target = new Date(goal.targetDate).getTime();
-            const now = Date.now();
-            const diffTime = Math.max(0, now - start);
-            const currentDay = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-            const totalDuration = Math.abs(target - start);
-            const totalDays = Math.ceil(totalDuration / (1000 * 60 * 60 * 24));
+            // UPDATED LOGIC HERE: Use calendar day calculation
+            const currentDay = getCalendarDayDiff(goal.startDate);
+            
+            const start = new Date(goal.startDate);
+            start.setHours(0, 0, 0, 0);
+            
+            const target = new Date(goal.targetDate);
+            target.setHours(0, 0, 0, 0);
+            
+            const totalDurationTime = target.getTime() - start.getTime();
+            const totalDays = Math.ceil(totalDurationTime / (1000 * 60 * 60 * 24)) + 1;
+            
             const isLastDay = currentDay >= totalDays;
             isFullyComplete = isLastDay && allTasksDone;
         }
@@ -23909,7 +24561,23 @@ import { TacticalHUD } from '../components/TacticalHUD';
 import * as Haptics from 'expo-haptics';
 import { auth } from '../config/firebase'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth'; 
-import { storage } from '../utils/storage'; // Import storage utility
+import { storage } from '../utils/storage';
+import { Platform } from 'react-native';
+
+// Safe Import Pattern for RevenueCat
+let Purchases: any;
+let LOG_LEVEL: any;
+try {
+  const rc = require('react-native-purchases');
+  Purchases = rc.default;
+  LOG_LEVEL = rc.LOG_LEVEL;
+} catch (e) {
+  console.warn("RevenueCat module not found (running in Expo Go?)");
+}
+
+// ⚠️ YOUR SPECIFIC API KEY FROM THE DASHBOARD
+const REVENUECAT_API_KEY = 'test_nyqeuHFgMOMZYqBTTgGFeKSHVaQ';
+const ENTITLEMENT_ID = 'Prodai Pro';
 
 interface User {
   id: string;
@@ -23923,6 +24591,7 @@ interface User {
 interface AppContextType {
   user: User | null;
   isLoading: boolean;
+  isPro: boolean;
   setUser: (user: User | null) => void;
   logout: () => Promise<void>; 
   goals: Goal[];
@@ -23948,6 +24617,9 @@ interface AppContextType {
   getAiQuestion: (goalText: string) => Promise<string | null>;
   analyzeGoal: (goal: string, clarification?: string, question?: string) => Promise<any>; 
   triggerTestNotification: () => void;
+  restorePurchases: () => Promise<void>;
+  purchasePackage: (pack: any) => Promise<void>;
+  packages: any[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -23959,6 +24631,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  
+  // Subscription State
+  const [isPro, setIsPro] = useState(false);
+  const [packages, setPackages] = useState<any[]>([]);
+  const [useMocks, setUseMocks] = useState(false);
 
   const [hudState, setHudState] = useState({
     visible: false,
@@ -23970,17 +24647,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const notificationListener = useRef<Notifications.Subscription>();
   const responseListener = useRef<Notifications.Subscription>();
 
+  // --- INITIALIZE REVENUECAT (SAFE MODE) ---
+  useEffect(() => {
+    const initPurchases = async () => {
+      // 1. Check if we are in Expo Go (Native Module missing)
+      if (!Purchases) {
+        console.log("⚠️ RevenueCat not available. Initializing Mock Mode.");
+        setUseMocks(true);
+        
+        // Mock Packages for UI Testing
+        setPackages([
+          {
+            identifier: '$rc_monthly',
+            packageType: 'MONTHLY',
+            product: { identifier: 'hb_pro_monthly', price: 3.99, priceString: "$3.99", currencyCode: "USD", title: "Monthly Pro", description: "Unlock everything" },
+            offeringIdentifier: 'default'
+          },
+          {
+            identifier: '$rc_yearly',
+            packageType: 'ANNUAL',
+            product: { identifier: 'hb_pro_yearly', price: 35.99, priceString: "$35.99", currencyCode: "USD", title: "Yearly Pro", description: "Unlock everything" },
+            offeringIdentifier: 'default'
+          }
+        ]);
+        return;
+      }
+
+      // 2. Real Initialization
+      try {
+        if (Platform.OS === 'android' || Platform.OS === 'ios') {
+          await Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+          await Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+          
+          try {
+            const offerings = await Purchases.getOfferings();
+            if (offerings.current && offerings.current.availablePackages.length !== 0) {
+              setPackages(offerings.current.availablePackages);
+            }
+          } catch (e) {
+            console.log("RC: Error fetching offerings", e);
+          }
+
+          try {
+            const customerInfo = await Purchases.getCustomerInfo();
+            if (typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== "undefined") {
+              setIsPro(true);
+            }
+          } catch (e) {
+            console.log("RC: Error fetching customer info", e);
+          }
+        }
+      } catch (e) {
+        // If native init crashes, fallback to mocks
+        console.log("❌ RevenueCat Crash detected. Fallback to Mocks.", e);
+        setUseMocks(true);
+      }
+    };
+    initPurchases();
+  }, []);
+
   // --- AUTO LOGIN SECURITY ---
   useEffect(() => {
     console.log("🔒 AppContext: Monitoring Auth Session...");
     
-    // This listener verifies the Token stored securely on the device by Firebase
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      // 1. If no valid session token exists on this device
       if (!firebaseUser || !firebaseUser.email) {
-        console.log("ℹ️ No active session on this device.");
-        
-        // Wipe Context State immediately
         setUser(null);
         setGoals([]);
         setTasks([]);
@@ -23989,12 +24720,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
-      console.log("🔐 Valid Session Found for:", firebaseUser.email);
-      
-      // 2. Fetch specific data for THIS user only
       try {
+        // Identify user in RevenueCat using Firebase ID (Only if not mocking)
+        if (!useMocks && Purchases && (Platform.OS === 'android' || Platform.OS === 'ios')) {
+          await Purchases.logIn(firebaseUser.uid);
+        }
+
         const profile = await apiService.getUserProfile(firebaseUser.email);
-        console.log("✅ Identity Verified. Loading profile:", profile.id);
         
         setUser({
           id: profile.id,
@@ -24020,13 +24752,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } catch (error: any) {
         const errorMessage = error?.message || String(error);
-        // If the token is valid but backend has no user (rare edge case), force logout
         if (errorMessage.includes('User not found') || errorMessage.includes('404')) {
-          console.log("⚠️ Token valid but user missing in DB. Signing out.");
           await signOut(auth);
           setUser(null);
-        } else {
-          console.error("❌ Auto-login Error:", errorMessage);
         }
       } finally {
         setIsLoading(false);
@@ -24034,29 +24762,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return unsubscribe;
-  }, []);
+  }, [useMocks]);
 
-  // --- SECURE LOGOUT ---
+  // --- PURCHASE METHODS ---
+  const purchasePackage = async (pack: any) => {
+    if (useMocks) {
+      console.log("🛒 [MOCK] Purchasing package:", pack.product.identifier);
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setIsPro(true);
+      setHudState({ visible: true, title: 'Dev Mode', message: 'Mock Purchase Successful', type: 'success' });
+      return;
+    }
+
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pack);
+      if (typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== "undefined") {
+        setIsPro(true);
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        setHudState({ visible: true, title: 'Error', message: e.message, type: 'warning' });
+      }
+    }
+  };
+
+  const restorePurchases = async () => {
+    if (useMocks) {
+        console.log("🔄 [MOCK] Restore Purchases");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setIsPro(true);
+        setHudState({ visible: true, title: 'Dev Mode', message: 'Mock Restore Successful', type: 'success' });
+        return;
+    }
+
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      if (typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== "undefined") {
+        setIsPro(true);
+        setHudState({ visible: true, title: 'Success', message: 'Premium access restored.', type: 'success' });
+      } else {
+        setHudState({ visible: true, title: 'No Subscription', message: 'No active subscription found.', type: 'info' });
+      }
+    } catch (e: any) {
+      setHudState({ visible: true, title: 'Error', message: e.message, type: 'warning' });
+    }
+  };
+
   const logout = useCallback(async () => {
     try {
-      // 1. Revoke the token on this device
       await signOut(auth); 
-      
-      // 2. Clear Application State
+      if (!useMocks && Purchases && (Platform.OS === 'android' || Platform.OS === 'ios')) {
+        await Purchases.logOut();
+      }
       setUser(null);
       setGoals([]);
       setTasks([]);
       setCurrentGoal(null);
       setPendingRequestsCount(0);
-
-      // 3. Wipe Local Storage (Prevent data leaks to next user on same phone)
+      setIsPro(false); // Reset pro status on logout
       await storage.clearAllUserData();
-      
-      console.log("🔒 Secure Logout Complete. Device cleared.");
     } catch (error) {
       console.error("Logout failed:", error);
     }
-  }, []);
+  }, [useMocks]);
 
   // --- STREAK MONITORING ---
   useEffect(() => {
@@ -24089,7 +24858,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
       const { title, body, data } = notification.request.content;
-      
       let hudType: 'info' | 'warning' | 'success' = 'info';
       if (data?.type === 'streak_rescue') hudType = 'warning';
       
@@ -24124,27 +24892,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
       setTasks(allTasks);
-      
       setUser(prev => prev ? { 
         ...prev, 
         currentStreak: profile.currentStreak,
         lastActiveDate: profile.lastActiveDate 
       } : null);
-
       if (profile.id) {
         const requests = await apiService.getFriendRequests(profile.id);
         setPendingRequestsCount(requests.length);
       }
-
     } catch (e: any) {
-      console.error("Data Sync Error:", e.message);
       if (e.message && (e.message.includes('User not found') || e.message.includes('404'))) {
         setUser(null);
       }
     }
   }, [user?.email]); 
 
-  // AI & Goals
   const analyzeGoal = useCallback(async (goal: string, clarification: string = "", question: string = "") => {
     return await apiService.analyzeGoal(goal, clarification, question);
   }, []);
@@ -24155,7 +24918,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const response = await apiService.getClarifyingQuestion(user.email, goalText);
       return response.question;
     } catch (e) {
-      console.error("AI Question Error:", e);
       return null;
     }
   }, [user]);
@@ -24166,7 +24928,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const response = await apiService.generateAiPlan(user.email, goalText, clarification, dailyMinutes);
       return response.tasks;
     } catch (e) {
-      console.error("AI Generation Error:", e);
       return null;
     }
   }, [user]);
@@ -24194,7 +24955,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentGoal(newGoal);
       return newGoal;
     } catch (e) {
-      console.error("Add Goal Error", e);
       return null;
     }
   }, [user]);
@@ -24268,18 +25028,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        user, setUser,
-        logout, // Exposed to UI
-        isLoading, 
-        goals, tasks, currentGoal,
-        pendingRequestsCount, 
+        user, setUser, logout, isLoading, isPro, 
+        goals, tasks, currentGoal, pendingRequestsCount, 
         addGoal, updateGoal, deleteGoal, archiveGoal,
         addTasks, overrideTasks, completeTask,
         toggleSubTask, updateTask, reportTaskIssue,
         setCurrentGoal, rateProductivity,
         refreshData, saveOnboarding,
         generatePlan, generateDailyPlan, getAiQuestion, analyzeGoal,
-        triggerTestNotification
+        triggerTestNotification, restorePurchases, purchasePackage, packages
       }}
     >
       {children}

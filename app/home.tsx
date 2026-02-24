@@ -22,6 +22,20 @@ export default function HomeScreen() {
   
   const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
 
+  // HELPER: Normalize dates to local midnight to ensure calendar-day calculation
+  const getCalendarDayDiff = (startDateStr: Date | string) => {
+    const start = new Date(startDateStr);
+    start.setHours(0, 0, 0, 0); // Reset to local midnight
+    
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Reset to local midnight
+
+    const diffTime = now.getTime() - start.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    return Math.max(1, diffDays + 1);
+  };
+
   const reactorGoals = useMemo(() => {
     if (!Array.isArray(goals)) return [];
     const visibleGoals = goals.filter(g => g.status !== 'archived');
@@ -40,13 +54,18 @@ export default function HomeScreen() {
         if (goal.status === 'completed') {
             isFullyComplete = true;
         } else if (goal.startDate && goal.targetDate) {
-            const start = new Date(goal.startDate).getTime();
-            const target = new Date(goal.targetDate).getTime();
-            const now = Date.now();
-            const diffTime = Math.max(0, now - start);
-            const currentDay = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
-            const totalDuration = Math.abs(target - start);
-            const totalDays = Math.ceil(totalDuration / (1000 * 60 * 60 * 24));
+            // UPDATED LOGIC HERE: Use calendar day calculation
+            const currentDay = getCalendarDayDiff(goal.startDate);
+            
+            const start = new Date(goal.startDate);
+            start.setHours(0, 0, 0, 0);
+            
+            const target = new Date(goal.targetDate);
+            target.setHours(0, 0, 0, 0);
+            
+            const totalDurationTime = target.getTime() - start.getTime();
+            const totalDays = Math.ceil(totalDurationTime / (1000 * 60 * 60 * 24)) + 1;
+            
             const isLastDay = currentDay >= totalDays;
             isFullyComplete = isLastDay && allTasksDone;
         }

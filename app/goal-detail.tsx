@@ -60,22 +60,39 @@ export default function GoalDetailScreen() {
   
   const goal = useMemo(() => goals.find(g => g.id === goalId), [goals, goalId]);
 
-  // 1. Calculate "Current Progress Day"
+  // HELPER: Normalize dates to local midnight to ensure calendar-day calculation
+  const getCalendarDayDiff = (startDateStr: Date | string) => {
+    const start = new Date(startDateStr);
+    start.setHours(0, 0, 0, 0); // Reset to local midnight
+    
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Reset to local midnight
+
+    const diffTime = now.getTime() - start.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Day 1 is the start day, so we add 1. 
+    return Math.max(1, diffDays + 1);
+  };
+
+  // 1. Calculate "Current Progress Day" based on Calendar Midnight
   const currentProgressDay = useMemo(() => {
     if (!goal || !goal.startDate) return 1;
-    const start = new Date(goal.startDate).getTime();
-    const now = Date.now();
-    const diffTime = Math.max(0, now - start);
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; 
-    return Math.max(1, diffDays); 
+    return getCalendarDayDiff(goal.startDate);
   }, [goal]);
 
   const totalDays = useMemo(() => {
     if (!goal || !goal.targetDate || !goal.startDate) return 30;
-    const start = new Date(goal.startDate).getTime();
-    const target = new Date(goal.targetDate).getTime();
-    const diffTime = Math.abs(target - start);
-    return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    
+    const start = new Date(goal.startDate);
+    start.setHours(0, 0, 0, 0);
+    
+    const target = new Date(goal.targetDate);
+    target.setHours(0, 0, 0, 0);
+    
+    const diffTime = target.getTime() - start.getTime();
+    // +1 to include the target day itself
+    return Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
   }, [goal]);
 
   useEffect(() => {
@@ -119,22 +136,26 @@ export default function GoalDetailScreen() {
     return isLastDay && isDayComplete;
   }, [goal, currentProgressDay, totalDays, isDayComplete]);
 
-  // Check if today's tasks are done to trigger notification
+  // 3. NOTIFICATION SCHEDULING
+  // Check if today's tasks are done to trigger notification for TOMORROW
   useEffect(() => {
     if (goal?.type === 'journey' && viewingDay === currentProgressDay && isDayComplete) {
-        // Schedule notification for the NEXT day
+        // Schedule notification for the NEXT day (currentProgressDay + 1)
+        // NotificationService handles the "Tomorrow at 7 AM" logic internally
         const archetype = user?.onboardingData?.focusWindow || 'default';
         NotificationService.scheduleNextDayDirective(currentProgressDay + 1, archetype);
     }
   }, [isDayComplete, goal, viewingDay, currentProgressDay, user]);
 
-  // 3. AUTO-GENERATE EFFECT
+  // 4. AUTO-GENERATE EFFECT (Triggers when clock hits midnight and tasksForViewingDay is empty)
   useEffect(() => {
     const checkAndGenerate = async () => {
       if (!goal) return;
       if (goal.type !== 'journey') return;
       if (isGenerating) return;
       if (viewingDay !== currentProgressDay) return;
+      
+      // CRITICAL: Only generate if NO tasks exist for this new day
       if (tasksForViewingDay.length > 0) return;
 
       setIsGenerating(true);

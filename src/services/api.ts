@@ -19,7 +19,8 @@ const handleResponse = async (response: Response) => {
     try {
       const json = JSON.parse(text);
       if (json.error) {
-        errorMessage = json.error;
+        // We include the status code in the message so AppContext can catch it
+        errorMessage = `[${response.status}] ${json.error}`;
         if (json.details) {
           errorMessage += ` | Details: ${json.details}`;
         }
@@ -143,7 +144,6 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // NEW: Get Friend Requests
   async getFriendRequests(userId: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/social/requests/${userId}`, {
       method: 'GET',
@@ -152,7 +152,6 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // NEW: Respond to Request
   async respondToRequest(requestId: string, action: 'accept' | 'decline') {
     const res = await fetchWithTimeout(`${API_BASE_URL}/social/respond`, {
       method: 'POST',
