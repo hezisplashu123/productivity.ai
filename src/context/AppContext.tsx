@@ -8,21 +8,24 @@ import * as Haptics from 'expo-haptics';
 import { auth } from '../config/firebase'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { storage } from '../utils/storage';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 
 // Safe Import Pattern for RevenueCat
-let Purchases: any;
+let Purchases: any = null;
 let LOG_LEVEL: any;
+
 try {
+  // Only attempt to require if not in Expo Go (standard client)
+  // or catch the error if the native module isn't linked
   const rc = require('react-native-purchases');
   Purchases = rc.default;
   LOG_LEVEL = rc.LOG_LEVEL;
 } catch (e) {
-  console.warn("RevenueCat module not found");
+  console.log("ℹ️ RevenueCat native module not found. This is expected in Expo Go.");
 }
 
 // ⚠️ MAKE SURE THIS IS YOUR LIVE PUBLIC KEY FROM REVENUECAT DASHBOARD
-const REVENUECAT_API_KEY = 'appl_YOUR_ACTUAL_REVENUECAT_PUBLIC_KEY_HERE'; 
+const REVENUECAT_API_KEY = 'appl_OoFcMevmZzPrvmwvLjBGRxALoWf'; 
 const ENTITLEMENT_ID = 'Prodai Pro';
 
 interface User {
@@ -95,11 +98,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --- INITIALIZE REVENUECAT ---
   useEffect(() => {
     const initPurchases = async () => {
-      if (!Purchases) return;
+      // 1. Safety Check: If Purchases is null (Expo Go), skip initialization
+      if (!Purchases) {
+        console.log("ℹ️ Skipping RevenueCat initialization (Dev Mode/Expo Go)");
+        return;
+      }
 
       try {
         if (Platform.OS === 'android' || Platform.OS === 'ios') {
-          // Use DEBUG log level only for dev builds; Apple prefers cleaner logs, but verbose is okay for beta
+          // Use DEBUG log level only for dev builds
           await Purchases.setLogLevel(LOG_LEVEL.DEBUG); 
           await Purchases.configure({ apiKey: REVENUECAT_API_KEY });
           
@@ -141,7 +148,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       try {
-        // Sync RevenueCat User ID
+        // Sync RevenueCat User ID (Safe Check)
         if (Purchases && (Platform.OS === 'android' || Platform.OS === 'ios')) {
           await Purchases.logIn(firebaseUser.uid);
         }
@@ -197,8 +204,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return unsubscribe;
   }, []);
 
-  // --- REAL PURCHASE METHODS (NO MOCKS) ---
+  // --- REAL PURCHASE METHODS (SAFE WRAPPED) ---
   const purchasePackage = async (pack: any) => {
+    if (!Purchases) {
+      setHudState({ visible: true, title: 'Dev Mode', message: 'In-app purchases not available in Expo Go.', type: 'info' });
+      return;
+    }
+
     try {
       const { customerInfo } = await Purchases.purchasePackage(pack);
       if (typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== "undefined") {
@@ -213,6 +225,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const restorePurchases = async () => {
+    if (!Purchases) {
+      Alert.alert(
+        "Dev Mode",
+        "Restore is not available in Expo Go because native modules are disabled. To test purchases, build a Development Client."
+      );
+      return;
+    }
+
     try {
       const customerInfo = await Purchases.restorePurchases();
       if (typeof customerInfo.entitlements.active[ENTITLEMENT_ID] !== "undefined") {
@@ -229,6 +249,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = useCallback(async () => {
     try {
       await signOut(auth); 
+      // Check Purchases before calling
       if (Purchases && (Platform.OS === 'android' || Platform.OS === 'ios')) {
         await Purchases.logOut();
       }
@@ -244,9 +265,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // ... (Keep existing streak monitoring, notification setup, api wrappers unchanged) ...
-  // (Paste the rest of the file logic here exactly as it was, just ensure useMocks is gone)
-  
   useEffect(() => {
     const checkStreakStatus = async () => {
       if (!user) return;

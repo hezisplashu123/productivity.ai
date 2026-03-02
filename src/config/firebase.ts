@@ -3,6 +3,7 @@ import {
   initializeAuth, 
   getReactNativePersistence, 
   GoogleAuthProvider, 
+  OAuthProvider, // Added
   signInWithCredential, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -10,6 +11,7 @@ import {
   getAuth,
   deleteUser,
   sendPasswordResetEmail,
+  sendEmailVerification,
   Auth
 } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -43,10 +45,12 @@ try {
 export { 
   auth, 
   GoogleAuthProvider, 
+  OAuthProvider, // Exported
   signInWithCredential, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   updateProfile,
   deleteUser,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendEmailVerification
 };

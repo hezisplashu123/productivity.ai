@@ -19,13 +19,14 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { 
   auth, 
   GoogleAuthProvider, 
+  OAuthProvider, // Imported
   signInWithCredential, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile,
   deleteUser,
   sendPasswordResetEmail,
-  sendEmailVerification // IMPORTED
+  sendEmailVerification
 } from '../src/config/firebase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -110,24 +111,56 @@ export default function AuthScreen() {
 
   const handleAppleLogin = async () => {
     try {
-        const credential = await AppleAuthentication.signInAsync({
-          requestedScopes: [
-            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-            AppleAuthentication.AppleAuthenticationScope.EMAIL,
-          ],
-        });
-        setLoading(true);
-        if (isDeleteMode) {
-            Alert.alert("Not Supported", "Please use Email/Password to delete account for now.");
-            setLoading(false);
-            return;
-        }
-        
-        const displayName = credential.fullName?.givenName ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}` : "Apple User";
-        const appleUserMock = { uid: credential.user, email: credential.email, displayName };
-        // Apple users are verified by default
-        await syncUserWithBackend(appleUserMock, 'apple', displayName, credential.email || '');
-    } catch(e) { setLoading(false); }
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      setLoading(true);
+
+      const { identityToken } = credential;
+      
+      if (!identityToken) {
+        throw new Error('Apple Sign-In failed - no identity token returned');
+      }
+
+      // Create a Firebase credential from the Apple ID token
+      const provider = new OAuthProvider('apple.com');
+      const firebaseCredential = provider.credential({
+        idToken: identityToken,
+        // Apple sends a nonce sometimes, but for simple auth idToken is usually enough
+      });
+
+      // Sign in to Firebase with the Apple credential
+      const userCredential = await signInWithCredential(auth, firebaseCredential);
+      const firebaseUser = userCredential.user;
+
+      if (isDeleteMode) {
+        await executeAccountDeletion(firebaseUser);
+        return;
+      }
+      
+      // Apple only returns the full name on the FIRST sign in.
+      // We check if credential.fullName exists, otherwise fallback to existing firebase display name or "Apple User"
+      const givenName = credential.fullName?.givenName;
+      const familyName = credential.fullName?.familyName;
+      const displayName = givenName 
+        ? `${givenName} ${familyName || ''}`.trim() 
+        : (firebaseUser.displayName || "Apple User");
+
+      const email = firebaseUser.email || credential.email || '';
+
+      await syncUserWithBackend(firebaseUser, 'apple', displayName, email);
+    } catch (e: any) {
+      console.log('Apple Login Error:', e);
+      setLoading(false);
+      // Ignore user cancellation errors
+      if (e.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert("Login Failed", e.message || "Could not sign in with Apple.");
+      }
+    }
   };
 
   const handleForgotPassword = async () => {

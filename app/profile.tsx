@@ -212,7 +212,7 @@ const SettingsModal = ({ visible, onClose, onLogout, onRedoOnboarding, onEditPro
           </View>
 
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Productivity Ops v1.0.3</Text>
+            <Text style={styles.versionText}>ProdAI v1.0.3</Text>
           </View>
         </ScrollView>
       </View>
