@@ -3,7 +3,7 @@
     "name": "ProdAI",
     "slug": "productivity-ai",
     "scheme": "hourback-ai",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "platforms": [
