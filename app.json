@@ -18,7 +18,7 @@
       "backgroundColor": "#FFFFFF"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.mumix.productivityai",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
