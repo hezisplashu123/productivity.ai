@@ -1,9 +1,18 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus, Users } from 'lucide-react-native';
+import { Plus, Users, X } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withRepeat, 
+  withSequence, 
+  withTiming, 
+  FadeIn, 
+  FadeOut 
+} from 'react-native-reanimated';
 
 // Components
 import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
@@ -16,11 +25,55 @@ import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedM
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
 
+const { width } = Dimensions.get('window');
+
+// --- NEW COMPONENT: Floating Tooltip ---
+const NewGoalTooltip = ({ onDismiss }: { onDismiss: () => void }) => {
+  const translateY = useSharedValue(0);
+
+  useEffect(() => {
+    // Gentle bobbing animation
+    translateY.value = withRepeat(
+      withSequence(
+        withTiming(-8, { duration: 1000 }),
+        withTiming(0, { duration: 1000 })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }]
+  }));
+
+  return (
+    <Animated.View 
+      entering={FadeIn.delay(500)} 
+      exiting={FadeOut}
+      style={[styles.tooltipContainer, animatedStyle]}
+    >
+      <TouchableOpacity onPress={onDismiss} activeOpacity={0.9} style={styles.tooltipContent}>
+        <View style={styles.tooltipTextContainer}>
+          <Text style={styles.tooltipTitle}>New Mission?</Text>
+          <Text style={styles.tooltipText}>Tap the Brain to add more goals.</Text>
+        </View>
+        <TouchableOpacity onPress={onDismiss} hitSlop={10}>
+          <X size={14} color="#FFF" opacity={0.8} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+      {/* Downward Triangle */}
+      <View style={styles.tooltipTriangle} />
+    </Animated.View>
+  );
+};
+
 export default function HomeScreen() {
   const router = useRouter();
   const { goals, tasks, archiveGoal, pendingRequestsCount } = useApp();
   
   const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
+  const [showTooltip, setShowTooltip] = useState(true);
 
   // HELPER: Normalize dates to local midnight to ensure calendar-day calculation
   const getCalendarDayDiff = (startDateStr: Date | string) => {
@@ -118,6 +171,9 @@ export default function HomeScreen() {
     }
   };
 
+  // Logic to show tooltip: Only if we have goals (otherwise the big empty prompt is visible)
+  const shouldShowTooltip = showTooltip && reactorGoals.length > 0;
+
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
@@ -177,6 +233,11 @@ export default function HomeScreen() {
               </View>
             )}
           </ScrollView>
+
+          {/* TOOLTIP: Points to the center button */}
+          {shouldShowTooltip && (
+            <NewGoalTooltip onDismiss={() => setShowTooltip(false)} />
+          )}
 
           <BottomNav activeTab="Home" />
           
@@ -277,4 +338,58 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   emptyText: { fontSize: 15, fontWeight: '700', color: '#BDBDBD' },
+
+  // Tooltip Styles
+  tooltipContainer: {
+    position: 'absolute',
+    bottom: 95, // Positioned right above the bottom nav (height ~70 + margin)
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  tooltipContent: {
+    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+    gap: 12,
+  },
+  tooltipTextContainer: {
+    flexDirection: 'column',
+  },
+  tooltipTitle: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tooltipText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  tooltipTriangle: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderBottomWidth: 0,
+    borderTopWidth: 10, // Pointing down
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#1A1A1A',
+    marginTop: -1, // Remove tiny gap
+  },
 });

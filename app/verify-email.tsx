@@ -16,7 +16,7 @@ import { Mail, CheckCircle2, RefreshCw, ArrowRight, ArrowLeft } from 'lucide-rea
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
-import { auth, sendPasswordResetEmail, signOut } from '../src/config/firebase'; // Ensure sendEmailVerification is imported if needed, usually on User object
+import { auth, sendPasswordResetEmail, signOut } from '../src/config/firebase'; 
 import { sendEmailVerification, reload } from 'firebase/auth';
 import { apiService } from '../src/services/api';
 import { useApp } from '../src/context/AppContext';
@@ -154,6 +154,9 @@ export default function VerifyEmailScreen() {
           <Text style={styles.instructionText}>
             Tap the link in that email, then come back here and tap "I've Verified It".
           </Text>
+          <Text style={styles.spamText}>
+            (Don't see it? Check your spam folder.)
+          </Text>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.actionContainer}>
@@ -269,6 +272,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 20,
+  },
+  spamText: {
+    fontSize: 13,
+    color: colors.textLight,
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
   actionContainer: {
     width: '100%',
