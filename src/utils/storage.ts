@@ -4,6 +4,7 @@ const HABIT_PROFILER_COMPLETE_KEY = '@habit_profiler_complete';
 const ONBOARDING_COMPLETE_KEY = '@onboarding_complete';
 const ONBOARDING_DATA_KEY = '@onboarding_data';
 const HABIT_PROFILE_DATA_KEY = '@habit_profile_data';
+const NEW_GOAL_TOOLTIP_KEY = '@new_goal_tooltip_seen'; // <--- NEW KEY
 
 export const storage = {
   // Check if habit profiler is complete
@@ -86,7 +87,25 @@ export const storage = {
     }
   },
 
-  // --- NEW: SECURITY METHOD ---
+  // --- NEW METHODS FOR TOOLTIP ---
+  async hasSeenNewGoalTooltip(): Promise<boolean> {
+    try {
+      const value = await AsyncStorage.getItem(NEW_GOAL_TOOLTIP_KEY);
+      return value === 'true';
+    } catch (error) {
+      return false;
+    }
+  },
+
+  async setNewGoalTooltipSeen(): Promise<void> {
+    try {
+      await AsyncStorage.setItem(NEW_GOAL_TOOLTIP_KEY, 'true');
+    } catch (error) {
+      console.error('Error saving tooltip status:', error);
+    }
+  },
+
+  // --- SECURITY METHOD ---
   // Completely wipes user-specific data from the device
   async clearAllUserData(): Promise<void> {
     try {
@@ -94,7 +113,8 @@ export const storage = {
         HABIT_PROFILER_COMPLETE_KEY,
         ONBOARDING_COMPLETE_KEY,
         ONBOARDING_DATA_KEY,
-        HABIT_PROFILE_DATA_KEY
+        HABIT_PROFILE_DATA_KEY,
+        NEW_GOAL_TOOLTIP_KEY // Include new key in wipe
       ]);
       console.log('🔒 Secure storage cleared');
     } catch (error) {

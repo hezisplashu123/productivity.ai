@@ -24,6 +24,7 @@ import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedM
 // Context & Constants
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
+import { storage } from '../src/utils/storage'; // Added storage import
 
 const { width } = Dimensions.get('window');
 
@@ -73,7 +74,25 @@ export default function HomeScreen() {
   const { goals, tasks, archiveGoal, pendingRequestsCount } = useApp();
   
   const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
+  
+  // Initialize as TRUE so it doesn't flash on screen while we check storage
+  const [hasSeenTooltip, setHasSeenTooltip] = useState(true);
   const [showTooltip, setShowTooltip] = useState(true);
+
+  // Check storage on mount
+  useEffect(() => {
+    const checkTooltipStatus = async () => {
+      const seen = await storage.hasSeenNewGoalTooltip();
+      setHasSeenTooltip(seen);
+    };
+    checkTooltipStatus();
+  }, []);
+
+  const handleDismissTooltip = async () => {
+    setShowTooltip(false);
+    setHasSeenTooltip(true);
+    await storage.setNewGoalTooltipSeen();
+  };
 
   // HELPER: Normalize dates to local midnight to ensure calendar-day calculation
   const getCalendarDayDiff = (startDateStr: Date | string) => {
@@ -107,7 +126,6 @@ export default function HomeScreen() {
         if (goal.status === 'completed') {
             isFullyComplete = true;
         } else if (goal.startDate && goal.targetDate) {
-            // UPDATED LOGIC HERE: Use calendar day calculation
             const currentDay = getCalendarDayDiff(goal.startDate);
             
             const start = new Date(goal.startDate);
@@ -171,8 +189,8 @@ export default function HomeScreen() {
     }
   };
 
-  // Logic to show tooltip: Only if we have goals (otherwise the big empty prompt is visible)
-  const shouldShowTooltip = showTooltip && reactorGoals.length > 0;
+  // LOGIC: Show only if (1) Tooltip active (2) Not seen before (3) Goals exist
+  const shouldShowTooltip = showTooltip && !hasSeenTooltip && reactorGoals.length > 0;
 
   return (
     <View style={styles.root}>
@@ -236,7 +254,7 @@ export default function HomeScreen() {
 
           {/* TOOLTIP: Points to the center button */}
           {shouldShowTooltip && (
-            <NewGoalTooltip onDismiss={() => setShowTooltip(false)} />
+            <NewGoalTooltip onDismiss={handleDismissTooltip} />
           )}
 
           <BottomNav activeTab="Home" />
