@@ -6,7 +6,8 @@ import {
   TouchableOpacity, 
   ScrollView, 
   ActivityIndicator, 
-  Alert
+  Alert,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -28,7 +29,7 @@ import { useApp } from '../src/context/AppContext';
 const MONTHLY_PRODUCT_ID = 'hb_pro_monthly';
 const YEARLY_PRODUCT_ID = 'hb_pro_yearly';
 
-const BENEFITS = [
+const BENEFITS =[
   { text: "Save 7+ hours every week" },
   { text: "Scientifically proven focus methods" },
   { text: "Advanced AI Task Breakdown" },
@@ -38,8 +39,8 @@ const BENEFITS = [
 export default function PaywallScreen() {
   const router = useRouter();
   const { purchasePackage, restorePurchases, packages, isPro } = useApp();
-  const [selectedPlan, setSelectedPlan] = useState<'yearly' | 'monthly'>('yearly');
-  const [isPurchasing, setIsPurchasing] = useState(false);
+  const[selectedPlan, setSelectedPlan] = useState<'yearly' | 'monthly'>('yearly');
+  const[isPurchasing, setIsPurchasing] = useState(false);
 
   // Pulse animation for the badge
   const pulse = useSharedValue(1);
@@ -56,7 +57,7 @@ export default function PaywallScreen() {
   }, []);
 
   const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse.value }]
+    transform:[{ scale: pulse.value }]
   }));
 
   const handlePurchase = async () => {
@@ -209,7 +210,7 @@ export default function PaywallScreen() {
           </View>
         </ScrollView>
 
-        {/* Sticky Footer */}
+        {/* Sticky Footer with added Legal Links */}
         <View style={styles.footer}>
           <TouchableOpacity 
             style={styles.ctaButton} 
@@ -227,6 +228,15 @@ export default function PaywallScreen() {
           <Text style={styles.footerTerms}>
             Subscription automatically renews.
           </Text>
+          <View style={styles.legalLinksContainer}>
+            <TouchableOpacity onPress={() => Linking.openURL('https://docs.google.com/document/d/e/2PACX-1vRWHAlFYsD7whJGjq5uAUm7bWFS9YgqofzaIOFR-GCIflrtgiW4kkTNrA42cCp7ng0jo3Lh-J_pCT1d/pub').catch(() => Alert.alert('Error', 'Could not open link.'))}>
+              <Text style={styles.legalLinkText}>Terms of Use</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalLinkSeparator}> • </Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://docs.google.com/document/d/e/2PACX-1vTOwIb-0iHE2b5HNT8tLRPIXNVPCmqlGJtmpplqdEIABPM6X56e5jw2oW6E_IpTrky00fJVosTo-zLB/pub').catch(() => Alert.alert('Error', 'Could not open link.'))}>
+              <Text style={styles.legalLinkText}>Privacy Policy</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     </View>
@@ -234,13 +244,13 @@ export default function PaywallScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050505' }, // True black
+  container: { flex: 1, backgroundColor: '#050505' }, 
   backgroundGraphic: { position: 'absolute', top: -50, right: -50, zIndex: 0 },
   
   navBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 10, zIndex: 10 },
   restoreText: { color: '#94A3B8', fontSize: 14, fontWeight: '600' },
   
-  content: { paddingHorizontal: 24, paddingBottom: 120 },
+  content: { paddingHorizontal: 24, paddingBottom: 150 }, 
   
   headerContainer: { alignItems: 'center', marginTop: 20, marginBottom: 40 },
   iconCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(245, 158, 11, 0.2)', alignItems: 'center', justifyContent: 'center', marginBottom: 20, borderWidth: 1, borderColor: colors.primary },
@@ -300,6 +310,7 @@ const styles = StyleSheet.create({
     left: 0, 
     right: 0, 
     padding: 24, 
+    paddingBottom: 34,
     backgroundColor: '#050505',
     borderTopWidth: 1,
     borderTopColor: '#222'
@@ -319,5 +330,8 @@ const styles = StyleSheet.create({
     elevation: 8
   },
   ctaText: { color: '#000000', fontSize: 18, fontWeight: '800' },
-  footerTerms: { fontSize: 11, color: '#555', textAlign: 'center' },
+  footerTerms: { fontSize: 11, color: '#555', textAlign: 'center', marginBottom: 6 },
+  legalLinksContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  legalLinkText: { fontSize: 11, color: '#94A3B8', textDecorationLine: 'underline' },
+  legalLinkSeparator: { fontSize: 11, color: '#555', marginHorizontal: 8 },
 });
