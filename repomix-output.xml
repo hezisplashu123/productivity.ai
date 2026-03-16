@@ -55,7 +55,6 @@ app/habit-profiler.tsx
 app/home.tsx
 app/index.tsx
 app/leaderboard.tsx
-app/lock-screen.tsx
 app/onboarding.tsx
 app/paywall.tsx
 app/profile.tsx
@@ -284,550 +283,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-});
-</file>
-
-<file path="app/lock-screen.tsx">
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import * as Haptics from 'expo-haptics';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSequence, 
-  withTiming, 
-  withSpring 
-} from 'react-native-reanimated';
-import { Lock, Delete } from 'lucide-react-native';
-import { lightColors as colors } from '../src/constants/colors';
-
-const { width } = Dimensions.get('window');
-const PIN_LENGTH = 4;
-const CORRECT_PIN = "5858";
-
-export default function LockScreen() {
-  const router = useRouter();
-  const [pin, setPin] = useState<string[]>([]);
-  const [error, setError] = useState(false);
-  
-  // Animation values
-  const shake = useSharedValue(0);
-  const iconScale = useSharedValue(1);
-
-  const handlePress = (num: string) => {
-    if (pin.length >= PIN_LENGTH) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newPin = [...pin, num];
-    setPin(newPin);
-
-    // Check PIN when length is reached
-    if (newPin.length === PIN_LENGTH) {
-      const pinString = newPin.join('');
-      if (pinString === CORRECT_PIN) {
-        handleSuccess();
-      } else {
-        handleError();
-      }
-    }
-  };
-
-  const handleDelete = () => {
-    if (pin.length > 0) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setPin(pin.slice(0, -1));
-      setError(false);
-    }
-  };
-
-  const handleSuccess = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    iconScale.value = withSequence(withTiming(1.2, { duration: 100 }), withTiming(1));
-    
-    // Slight delay for visual feedback before navigation
-    setTimeout(() => {
-      // Navigate to the original entry point (Welcome)
-      router.replace('/welcome');
-    }, 200);
-  };
-
-  const handleError = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    setError(true);
-    
-    // Shake Animation
-    shake.value = withSequence(
-      withTiming(-10, { duration: 50 }),
-      withTiming(10, { duration: 50 }),
-      withTiming(-10, { duration: 50 }),
-      withTiming(10, { duration: 50 }),
-      withTiming(0, { duration: 50 })
-    );
-
-    // Clear PIN after delay
-    setTimeout(() => {
-      setPin([]);
-      setError(false);
-    }, 500);
-  };
-
-  const shakeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: shake.value }]
-  }));
-
-  const iconStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: iconScale.value }]
-  }));
-
-  const renderDot = (index: number) => {
-    const isFilled = index < pin.length;
-    return (
-      <View 
-        key={index} 
-        style={[
-          styles.dot, 
-          isFilled && styles.dotFilled,
-          error && isFilled && styles.dotError
-        ]} 
-      />
-    );
-  };
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
-      
-      <View style={styles.content}>
-        {/* Header Icon */}
-        <Animated.View style={[styles.iconContainer, iconStyle]}>
-          <Lock size={40} color={error ? colors.error : colors.primary} />
-        </Animated.View>
-        
-        <Text style={styles.title}>Dev Access</Text>
-        <Text style={styles.subtitle}>Enter Passcode</Text>
-
-        {/* PIN Dots */}
-        <Animated.View style={[styles.dotsContainer, shakeStyle]}>
-          {[...Array(PIN_LENGTH)].map((_, i) => renderDot(i))}
-        </Animated.View>
-      </View>
-
-      {/* Number Pad */}
-      <View style={styles.numpad}>
-        <View style={styles.row}>
-          <NumberButton number="1" onPress={handlePress} />
-          <NumberButton number="2" onPress={handlePress} />
-          <NumberButton number="3" onPress={handlePress} />
-        </View>
-        <View style={styles.row}>
-          <NumberButton number="4" onPress={handlePress} />
-          <NumberButton number="5" onPress={handlePress} />
-          <NumberButton number="6" onPress={handlePress} />
-        </View>
-        <View style={styles.row}>
-          <NumberButton number="7" onPress={handlePress} />
-          <NumberButton number="8" onPress={handlePress} />
-          <NumberButton number="9" onPress={handlePress} />
-        </View>
-        <View style={styles.row}>
-          <View style={styles.buttonPlaceholder} />
-          <NumberButton number="0" onPress={handlePress} />
-          <TouchableOpacity style={styles.button} onPress={handleDelete}>
-            <Delete size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-const NumberButton = ({ number, onPress }: { number: string, onPress: (n: string) => void }) => (
-  <TouchableOpacity 
-    style={styles.button} 
-    onPress={() => onPress(number)}
-    activeOpacity={0.7}
-  >
-    <Text style={styles.number}>{number}</Text>
-  </TouchableOpacity>
-);
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 40,
-  },
-  iconContainer: {
-    marginBottom: 20,
-    padding: 20,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 40,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 40,
-  },
-  dotsContainer: {
-    flexDirection: 'row',
-    gap: 20,
-    height: 20,
-    alignItems: 'center',
-  },
-  dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.textLight,
-    backgroundColor: 'transparent',
-  },
-  dotFilled: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
-  },
-  dotError: {
-    backgroundColor: colors.error,
-    borderColor: colors.error,
-  },
-  numpad: {
-    paddingHorizontal: 40,
-    paddingBottom: 40,
-    gap: 20,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  button: {
-    width: 75,
-    height: 75,
-    borderRadius: 37.5,
-    backgroundColor: colors.backgroundLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  buttonPlaceholder: {
-    width: 75,
-    height: 75,
-  },
-  number: {
-    fontSize: 28,
-    fontWeight: '600',
-    color: colors.text,
-  },
-});
-</file>
-
-<file path="app/social.tsx">
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
-  FlatList, 
-  ActivityIndicator, 
-  Share 
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { ChevronLeft, Search, UserPlus, Users, Share2, Flame, User, Inbox, Check, X } from 'lucide-react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-
-import { lightColors as colors } from '../src/constants/colors';
-import { useApp } from '../src/context/AppContext';
-import { apiService } from '../src/services/api';
-import { UserProfileModal } from '../src/components/UserProfileModal';
-
-export default function SocialScreen() {
-  const router = useRouter();
-  const { user, refreshData, pendingRequestsCount } = useApp();
-  
-  const [activeTab, setActiveTab] = useState<'squad' | 'requests' | 'search'>('squad');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [friends, setFriends] = useState<any[]>([]);
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-
-  // Load data based on tab
-  useEffect(() => {
-    if (activeTab === 'squad') fetchFriends();
-    if (activeTab === 'requests') fetchRequests();
-  }, [activeTab]);
-
-  // Search Debounce
-  useEffect(() => {
-    if (activeTab === 'search') {
-      const delayDebounceFn = setTimeout(() => {
-        if (searchQuery.trim().length > 0) {
-          performSearch(searchQuery);
-        } else {
-          setSearchResults([]);
-          setLoading(false);
-        }
-      }, 300);
-      return () => clearTimeout(delayDebounceFn);
-    }
-  }, [searchQuery, activeTab]);
-
-  const fetchFriends = async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    try {
-      const data = await apiService.getFriends(user.id);
-      setFriends(data);
-    } catch (e) { console.error(e); } 
-    finally { setLoading(false); }
-  };
-
-  const fetchRequests = async () => {
-    if (!user?.id) return;
-    setLoading(true);
-    try {
-      const data = await apiService.getFriendRequests(user.id);
-      setRequests(data);
-    } catch (e) { console.error(e); } 
-    finally { setLoading(false); }
-  };
-
-  const performSearch = async (query: string) => {
-    setLoading(true);
-    try {
-      const results = await apiService.searchUsers(query);
-      setSearchResults(results.filter((u: any) => u.id !== user?.id));
-    } catch (e) { console.error(e); } 
-    finally { setLoading(false); }
-  };
-
-  const handleInvite = async () => {
-    try {
-      await Share.share({ message: "Join me on HourBack AI. https://hourback.ai" });
-    } catch (error) { console.error(error); }
-  };
-
-  const handleRespond = async (requestId: string, action: 'accept' | 'decline') => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      await apiService.respondToRequest(requestId, action);
-      // Remove from local list immediately
-      setRequests(prev => prev.filter(r => r.requestId !== requestId));
-      // Trigger global refresh to update badge count
-      refreshData();
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const renderItem = ({ item, index }: { item: any, index: number }) => (
-    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
-      <TouchableOpacity 
-        style={styles.userCard}
-        onPress={() => {
-          Haptics.selectionAsync();
-          setSelectedUserId(item.id);
-        }}
-        activeOpacity={0.7}
-      >
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.name?.[0] || 'U'}</Text>
-        </View>
-        
-        <View style={styles.userInfo}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-            <Text style={styles.userName}>{item.name}</Text>
-            {/* RED DOT for Pending Requests */}
-            {activeTab === 'requests' && <View style={styles.redDot} />}
-          </View>
-          <View style={styles.statsRow}>
-            <Flame size={12} color={colors.primary} />
-            <Text style={styles.streakText}>{item.streak || 0} Day Streak</Text>
-          </View>
-        </View>
-
-        {/* Dynamic Action Buttons */}
-        {activeTab === 'requests' ? (
-          <View style={styles.requestActions}>
-            <TouchableOpacity 
-                style={[styles.iconBtn, { backgroundColor: '#FEE2E2' }]} 
-                onPress={() => handleRespond(item.requestId, 'decline')}
-            >
-                <X size={18} color="#EF4444" />
-            </TouchableOpacity>
-            <TouchableOpacity 
-                style={[styles.iconBtn, { backgroundColor: '#DCFCE7' }]} 
-                onPress={() => handleRespond(item.requestId, 'accept')}
-            >
-                <Check size={18} color="#16A34A" />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.actionBtn}>
-            {activeTab === 'search' ? (
-              <UserPlus size={20} color={colors.primary} />
-            ) : (
-              <User size={20} color={colors.textSecondary} />
-            )}
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
-    </Animated.View>
-  );
-
-  return (
-    <View style={styles.container}>
-      <StatusBar style="dark" />
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <ChevronLeft size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Command Center</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        <View style={styles.tabs}>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'squad' && styles.activeTab]} 
-            onPress={() => setActiveTab('squad')}
-          >
-            <Users size={16} color={activeTab === 'squad' ? colors.primary : colors.textSecondary} />
-            <Text style={[styles.tabText, activeTab === 'squad' && styles.activeTabText]}>Squad</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'requests' && styles.activeTab]} 
-            onPress={() => setActiveTab('requests')}
-          >
-            <Inbox size={16} color={activeTab === 'requests' ? colors.primary : colors.textSecondary} />
-            <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>Requests</Text>
-            {pendingRequestsCount > 0 && <View style={styles.tabBadge} />}
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'search' && styles.activeTab]} 
-            onPress={() => setActiveTab('search')}
-          >
-            <Search size={16} color={activeTab === 'search' ? colors.primary : colors.textSecondary} />
-            <Text style={[styles.tabText, activeTab === 'search' && styles.activeTabText]}>Search</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.content}>
-          {activeTab === 'search' && (
-            <View style={styles.searchBox}>
-              <Search size={20} color={colors.textSecondary} />
-              <TextInput 
-                style={styles.searchInput}
-                placeholder="Search operatives..."
-                placeholderTextColor={colors.textLight}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                autoCapitalize="none"
-              />
-              {loading && <ActivityIndicator size="small" color={colors.primary} />}
-            </View>
-          )}
-
-          {loading && activeTab !== 'search' ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : (
-            <FlatList
-              data={activeTab === 'squad' ? friends : activeTab === 'requests' ? requests : searchResults}
-              keyExtractor={(item) => item.id}
-              renderItem={renderItem}
-              contentContainerStyle={styles.listContent}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <View style={styles.emptyState}>
-                  <Users size={48} color={colors.textLight} />
-                  <Text style={styles.emptyText}>
-                    {activeTab === 'squad' ? "No friends yet." : 
-                     activeTab === 'requests' ? "No pending requests." : "No agents found."}
-                  </Text>
-                  {activeTab === 'squad' && (
-                    <TouchableOpacity style={styles.inviteBtn} onPress={handleInvite}>
-                      <Share2 size={16} color="#FFF" />
-                      <Text style={styles.inviteText}>Invite Friends</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              }
-            />
-          )}
-        </View>
-
-        <UserProfileModal 
-          visible={!!selectedUserId} 
-          userId={selectedUserId} 
-          onClose={() => setSelectedUserId(null)} 
-        />
-
-      </SafeAreaView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
-  safeArea: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 },
-  backBtn: { padding: 8, borderRadius: 12, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#F3F4F6' },
-  title: { fontSize: 16, fontWeight: '800', color: colors.text, textTransform: 'uppercase', letterSpacing: 1 },
-  
-  tabs: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 16, gap: 8 },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: '#FFF', gap: 6, borderWidth: 1, borderColor: '#F3F4F6', position: 'relative' },
-  activeTab: { borderColor: colors.primary, backgroundColor: '#FFFBEB' },
-  tabText: { fontWeight: '600', color: colors.textSecondary, fontSize: 13 },
-  activeTabText: { color: colors.primary },
-  tabBadge: { position: 'absolute', top: 8, right: 8, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
-
-  content: { flex: 1 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 16, backgroundColor: '#FFF', borderRadius: 16, paddingHorizontal: 16, height: 50, borderWidth: 1, borderColor: '#E5E7EB' },
-  searchInput: { flex: 1, marginLeft: 12, fontSize: 16, color: colors.text },
-  
-  listContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  userCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  avatarText: { fontSize: 20, fontWeight: '700', color: colors.textSecondary },
-  userInfo: { flex: 1 },
-  userName: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 4 },
-  redDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
-  statsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  streakText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
-  
-  actionBtn: { padding: 8 },
-  requestActions: { flexDirection: 'row', gap: 8 },
-  iconBtn: { padding: 8, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.7 },
-  emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600', color: colors.textSecondary },
-  inviteBtn: { marginTop: 24, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 24, gap: 8, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  inviteText: { color: '#FFF', fontWeight: '700' }
 });
 </file>
 
@@ -10235,6 +9690,304 @@ const styles = StyleSheet.create({
   legalLinksContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   legalLinkText: { fontSize: 11, color: '#94A3B8', textDecorationLine: 'underline' },
   legalLinkSeparator: { fontSize: 11, color: '#555', marginHorizontal: 8 },
+});
+</file>
+
+<file path="app/social.tsx">
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TextInput, 
+  TouchableOpacity, 
+  FlatList, 
+  ActivityIndicator, 
+  Share 
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { ChevronLeft, Search, UserPlus, Users, Share2, Flame, User, Inbox, Check, X } from 'lucide-react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+
+import { lightColors as colors } from '../src/constants/colors';
+import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
+import { UserProfileModal } from '../src/components/UserProfileModal';
+
+export default function SocialScreen() {
+  const router = useRouter();
+  const { user, refreshData, pendingRequestsCount } = useApp();
+  
+  const [activeTab, setActiveTab] = useState<'squad' | 'requests' | 'search'>('squad');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [friends, setFriends] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+
+  // Load data based on tab
+  useEffect(() => {
+    if (activeTab === 'squad') fetchFriends();
+    if (activeTab === 'requests') fetchRequests();
+  }, [activeTab]);
+
+  // Search Debounce
+  useEffect(() => {
+    if (activeTab === 'search') {
+      const delayDebounceFn = setTimeout(() => {
+        if (searchQuery.trim().length > 0) {
+          performSearch(searchQuery);
+        } else {
+          setSearchResults([]);
+          setLoading(false);
+        }
+      }, 300);
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [searchQuery, activeTab]);
+
+  const fetchFriends = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const data = await apiService.getFriends(user.id);
+      setFriends(data);
+    } catch (e) { console.error(e); } 
+    finally { setLoading(false); }
+  };
+
+  const fetchRequests = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const data = await apiService.getFriendRequests(user.id);
+      setRequests(data);
+    } catch (e) { console.error(e); } 
+    finally { setLoading(false); }
+  };
+
+  const performSearch = async (query: string) => {
+    setLoading(true);
+    try {
+      const results = await apiService.searchUsers(query);
+      setSearchResults(results.filter((u: any) => u.id !== user?.id));
+    } catch (e) { console.error(e); } 
+    finally { setLoading(false); }
+  };
+
+  const handleInvite = async () => {
+    try {
+      await Share.share({ message: "Join me on ProdAI." });
+    } catch (error) { console.error(error); }
+  };
+
+  const handleRespond = async (requestId: string, action: 'accept' | 'decline') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await apiService.respondToRequest(requestId, action);
+      // Remove from local list immediately
+      setRequests(prev => prev.filter(r => r.requestId !== requestId));
+      // Trigger global refresh to update badge count
+      refreshData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const renderItem = ({ item, index }: { item: any, index: number }) => (
+    <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
+      <TouchableOpacity 
+        style={styles.userCard}
+        onPress={() => {
+          Haptics.selectionAsync();
+          setSelectedUserId(item.id);
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{item.name?.[0] || 'U'}</Text>
+        </View>
+        
+        <View style={styles.userInfo}>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+            <Text style={styles.userName}>{item.name}</Text>
+            {/* RED DOT for Pending Requests */}
+            {activeTab === 'requests' && <View style={styles.redDot} />}
+          </View>
+          <View style={styles.statsRow}>
+            <Flame size={12} color={colors.primary} />
+            <Text style={styles.streakText}>{item.streak || 0} Day Streak</Text>
+          </View>
+        </View>
+
+        {/* Dynamic Action Buttons */}
+        {activeTab === 'requests' ? (
+          <View style={styles.requestActions}>
+            <TouchableOpacity 
+                style={[styles.iconBtn, { backgroundColor: '#FEE2E2' }]} 
+                onPress={() => handleRespond(item.requestId, 'decline')}
+            >
+                <X size={18} color="#EF4444" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+                style={[styles.iconBtn, { backgroundColor: '#DCFCE7' }]} 
+                onPress={() => handleRespond(item.requestId, 'accept')}
+            >
+                <Check size={18} color="#16A34A" />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.actionBtn}>
+            {activeTab === 'search' ? (
+              <UserPlus size={20} color={colors.primary} />
+            ) : (
+              <User size={20} color={colors.textSecondary} />
+            )}
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Command Center</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <View style={styles.tabs}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'squad' && styles.activeTab]} 
+            onPress={() => setActiveTab('squad')}
+          >
+            <Users size={16} color={activeTab === 'squad' ? colors.primary : colors.textSecondary} />
+            <Text style={[styles.tabText, activeTab === 'squad' && styles.activeTabText]}>Squad</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'requests' && styles.activeTab]} 
+            onPress={() => setActiveTab('requests')}
+          >
+            <Inbox size={16} color={activeTab === 'requests' ? colors.primary : colors.textSecondary} />
+            <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>Requests</Text>
+            {pendingRequestsCount > 0 && <View style={styles.tabBadge} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'search' && styles.activeTab]} 
+            onPress={() => setActiveTab('search')}
+          >
+            <Search size={16} color={activeTab === 'search' ? colors.primary : colors.textSecondary} />
+            <Text style={[styles.tabText, activeTab === 'search' && styles.activeTabText]}>Search</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.content}>
+          {activeTab === 'search' && (
+            <View style={styles.searchBox}>
+              <Search size={20} color={colors.textSecondary} />
+              <TextInput 
+                style={styles.searchInput}
+                placeholder="Search operatives..."
+                placeholderTextColor={colors.textLight}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+              />
+              {loading && <ActivityIndicator size="small" color={colors.primary} />}
+            </View>
+          )}
+
+          {loading && activeTab !== 'search' ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : (
+            <FlatList
+              data={activeTab === 'squad' ? friends : activeTab === 'requests' ? requests : searchResults}
+              keyExtractor={(item) => item.id}
+              renderItem={renderItem}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Users size={48} color={colors.textLight} />
+                  <Text style={styles.emptyText}>
+                    {activeTab === 'squad' ? "No friends yet." : 
+                     activeTab === 'requests' ? "No pending requests." : "No agents found."}
+                  </Text>
+                  {activeTab === 'squad' && (
+                    <TouchableOpacity style={styles.inviteBtn} onPress={handleInvite}>
+                      <Share2 size={16} color="#FFF" />
+                      <Text style={styles.inviteText}>Invite Friends</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              }
+            />
+          )}
+        </View>
+
+        <UserProfileModal 
+          visible={!!selectedUserId} 
+          userId={selectedUserId} 
+          onClose={() => setSelectedUserId(null)} 
+        />
+
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#FAFAFA' },
+  safeArea: { flex: 1 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 },
+  backBtn: { padding: 8, borderRadius: 12, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#F3F4F6' },
+  title: { fontSize: 16, fontWeight: '800', color: colors.text, textTransform: 'uppercase', letterSpacing: 1 },
+  
+  tabs: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 16, gap: 8 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, backgroundColor: '#FFF', gap: 6, borderWidth: 1, borderColor: '#F3F4F6', position: 'relative' },
+  activeTab: { borderColor: colors.primary, backgroundColor: '#FFFBEB' },
+  tabText: { fontWeight: '600', color: colors.textSecondary, fontSize: 13 },
+  activeTabText: { color: colors.primary },
+  tabBadge: { position: 'absolute', top: 8, right: 8, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+
+  content: { flex: 1 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 16, backgroundColor: '#FFF', borderRadius: 16, paddingHorizontal: 16, height: 50, borderWidth: 1, borderColor: '#E5E7EB' },
+  searchInput: { flex: 1, marginLeft: 12, fontSize: 16, color: colors.text },
+  
+  listContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  userCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: {width:0, height:2}, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  avatarText: { fontSize: 20, fontWeight: '700', color: colors.textSecondary },
+  userInfo: { flex: 1 },
+  userName: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 4 },
+  redDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+  statsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  streakText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  
+  actionBtn: { padding: 8 },
+  requestActions: { flexDirection: 'row', gap: 8 },
+  iconBtn: { padding: 8, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.7 },
+  emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600', color: colors.textSecondary },
+  inviteBtn: { marginTop: 24, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 24, gap: 8, shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  inviteText: { color: '#FFF', fontWeight: '700' }
 });
 </file>
 
@@ -25109,7 +24862,7 @@ export const useApp = () => {
     "name": "ProdAI",
     "slug": "productivity-ai",
     "scheme": "hourback-ai",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "platforms": [
