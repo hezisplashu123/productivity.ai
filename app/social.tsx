@@ -86,7 +86,7 @@ export default function SocialScreen() {
 
   const handleInvite = async () => {
     try {
-      await Share.share({ message: "Join me on HourBack AI. https://hourback.ai" });
+      await Share.share({ message: "Join me on ProdAI." });
     } catch (error) { console.error(error); }
   };
 
