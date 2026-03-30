@@ -379,7 +379,8 @@ const Screen3Input: React.FC<{
       style={styles.screen}
     >
       <View style={styles.inputContainer}>
-        <Text style={styles.inputTitle}>How many hours are you typically     'at your desk'?</Text>
+        {/* Fixed Padding and Spacing here */}
+        <Text style={styles.inputTitle}>How many hours are you typically 'at your desk'?</Text>
         <Text style={styles.hoursDisplay}>{workHours.toFixed(1)} hours</Text>
         <LinearSlider
           value={(workHours - 4) / 8}
@@ -587,8 +588,9 @@ const styles = StyleSheet.create({
     flex: 1, 
     justifyContent: 'center', 
     alignItems: 'center',
-    paddingBottom: 50, // Reduced gap to button
-    paddingTop: 60, // Shifts content lower
+    paddingBottom: 50, 
+    paddingTop: 60, 
+    paddingHorizontal: 20,
   },
   inputTitle: { 
     fontSize: 22, 
@@ -596,19 +598,20 @@ const styles = StyleSheet.create({
     color: darkTheme.text, 
     textAlign: 'center', 
     marginBottom: 8,
-    marginTop: 20 
+    marginTop: 20,
+    lineHeight: 30
   },
   hoursDisplay: { 
     fontSize: 42, 
     fontWeight: '700', 
     color: darkTheme.primary, 
-    marginBottom: 20 // Spacing between number and slider
+    marginBottom: 20 
   },
   inputSubtitle: { 
     fontSize: 18, 
     fontWeight: '600', 
     color: darkTheme.text, 
-    marginTop: 10, // Tighter gap between sections
+    marginTop: 10, 
     marginBottom: 0
   },
 

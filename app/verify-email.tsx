@@ -34,7 +34,7 @@ export default function VerifyEmailScreen() {
   const [timer, setTimer] = useState(0);
 
   const email = params.email as string;
-  const password = params.password as string; // Passed temporarily to re-auth if needed
+  const password = params.password as string; 
   const name = params.name as string;
   const onboardingData = params.onboardingData ? JSON.parse(params.onboardingData as string) : null;
 
@@ -80,9 +80,9 @@ export default function VerifyEmailScreen() {
         // 2. Update Context
         setUser(backendUser);
 
-        // 3. Navigate
+        // 3. Navigate - FINISHED! GO TO PAYWALL
         if (backendUser.onboardingData || onboardingData) {
-          router.replace('/home');
+          router.replace('/paywall');
         } else {
           router.replace('/ghost-hours');
         }
@@ -111,7 +111,7 @@ export default function VerifyEmailScreen() {
         await sendEmailVerification(currentUser);
         Alert.alert("Sent", `Verification link sent to ${email}`);
         setIsResendDisabled(true);
-        setTimer(60); // 60 second cooldown
+        setTimer(60); 
       }
     } catch (error: any) {
       Alert.alert("Error", error.message || "Could not send email.");

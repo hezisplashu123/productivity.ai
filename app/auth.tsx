@@ -19,7 +19,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { 
   auth, 
   GoogleAuthProvider, 
-  OAuthProvider, // Imported
+  OAuthProvider,
   signInWithCredential, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
@@ -76,7 +76,6 @@ export default function AuthScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Account Deleted", "Your account has been permanently removed.");
       
-      // Clear navigation stack to prevent back navigation
       if (router.canGoBack()) {
         router.dismissAll();
       }
@@ -101,7 +100,6 @@ export default function AuthScreen() {
       }
 
       const firebaseUser = userCredential.user;
-      // Google users are verified by default
       await syncUserWithBackend(firebaseUser, 'google', firebaseUser.displayName || 'Google User', firebaseUser.email || '');
     } catch (error: any) {
       setLoading(false);
@@ -126,14 +124,11 @@ export default function AuthScreen() {
         throw new Error('Apple Sign-In failed - no identity token returned');
       }
 
-      // Create a Firebase credential from the Apple ID token
       const provider = new OAuthProvider('apple.com');
       const firebaseCredential = provider.credential({
         idToken: identityToken,
-        // Apple sends a nonce sometimes, but for simple auth idToken is usually enough
       });
 
-      // Sign in to Firebase with the Apple credential
       const userCredential = await signInWithCredential(auth, firebaseCredential);
       const firebaseUser = userCredential.user;
 
@@ -142,8 +137,6 @@ export default function AuthScreen() {
         return;
       }
       
-      // Apple only returns the full name on the FIRST sign in.
-      // We check if credential.fullName exists, otherwise fallback to existing firebase display name or "Apple User"
       const givenName = credential.fullName?.givenName;
       const familyName = credential.fullName?.familyName;
       const displayName = givenName 
@@ -156,7 +149,6 @@ export default function AuthScreen() {
     } catch (e: any) {
       console.log('Apple Login Error:', e);
       setLoading(false);
-      // Ignore user cancellation errors
       if (e.code !== 'ERR_REQUEST_CANCELED') {
         Alert.alert("Login Failed", e.message || "Could not sign in with Apple.");
       }
@@ -229,16 +221,13 @@ export default function AuthScreen() {
     try {
       let userCredential;
       if (isLogin) {
-        // LOGIN FLOW
         userCredential = await signInWithEmailAndPassword(auth, email, password);
         
         if (isDeleteMode) {
           await executeAccountDeletion(userCredential.user);
         } else {
-          // If logging in, check verification status
           if (!userCredential.user.emailVerified) {
             setLoading(false);
-            // Redirect to verification screen instead of logging in
             router.push({
               pathname: '/verify-email',
               params: { email, name, onboardingData: JSON.stringify(onboardingData) }
@@ -248,17 +237,14 @@ export default function AuthScreen() {
           await syncUserWithBackend(userCredential.user, 'email');
         }
       } else {
-        // SIGN UP FLOW
         userCredential = await createUserWithEmailAndPassword(auth, email, password);
         
         if (auth.currentUser) {
           await updateProfile(auth.currentUser, { displayName: name });
-          // SEND VERIFICATION EMAIL
           await sendEmailVerification(auth.currentUser);
         }
 
         setLoading(false);
-        // Navigate to Verification Screen
         router.push({
           pathname: '/verify-email',
           params: { email, name, onboardingData: JSON.stringify(onboardingData) }
@@ -295,8 +281,10 @@ export default function AuthScreen() {
         });
         setUser(backendUser);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
         if (backendUser.onboardingData || onboardingData) {
-            router.replace('/home');
+            // Final destination after setup: The Paywall!
+            router.replace('/paywall');
         } else {
             router.replace('/ghost-hours');
         }

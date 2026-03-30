@@ -13,9 +13,9 @@ export default function OnboardingScreen() {
       await saveOnboarding(data);
       router.replace('/home');
     } else {
-      // User is new, needs to create account
+      // User is new, redirect to the immersive DEMO screen before account creation
       router.push({
-        pathname: '/auth',
+        pathname: '/demo',
         params: { onboardingData: JSON.stringify(data) }
       });
     }

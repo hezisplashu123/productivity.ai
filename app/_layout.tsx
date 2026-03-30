@@ -22,7 +22,8 @@ function RootStack() {
       currentScreen === 'verify-email' || 
       currentScreen === 'ghost-hours' || 
       currentScreen === 'onboarding' || 
-      currentScreen === 'habit-profiler';
+      currentScreen === 'habit-profiler' ||
+      currentScreen === 'demo'; // <--- Allow Demo screen
 
     const isPaywall = currentScreen === 'paywall';
 
@@ -33,7 +34,8 @@ function RootStack() {
     }
 
     // 2. Redirect to Paywall if logged in but not Pro
-    if (user && !isPro && !isPaywall && currentScreen !== 'verify-email') {
+    // Bypass paywall for verify-email AND our new demo screen
+    if (user && !isPro && !isPaywall && currentScreen !== 'verify-email' && currentScreen !== 'demo') {
       router.replace('/paywall');
       return;
     }
@@ -68,6 +70,7 @@ function RootStack() {
         }} 
       /> 
       
+      <Stack.Screen name="demo" />
       <Stack.Screen name="home" />
       <Stack.Screen name="goal-detail" />
       <Stack.Screen name="leaderboard" />

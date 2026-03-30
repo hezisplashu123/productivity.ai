@@ -69,6 +69,7 @@ interface AppContextType {
   restorePurchases: () => Promise<void>;
   purchasePackage: (pack: any) => Promise<void>;
   packages: any[];
+  devBypassPaywall: () => void; // <--- ADDED DEV SKIP FUNCTION
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -462,6 +463,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     NotificationService.sendImmediateTest(archetype);
   };
 
+  // --- ADDED DEV BYPASS FUNCTION ---
+  const devBypassPaywall = useCallback(() => {
+    setIsPro(true);
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -473,7 +479,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentGoal, rateProductivity,
         refreshData, saveOnboarding,
         generatePlan, generateDailyPlan, getAiQuestion, analyzeGoal,
-        triggerTestNotification, restorePurchases, purchasePackage, packages
+        triggerTestNotification, restorePurchases, purchasePackage, packages,
+        devBypassPaywall // <--- EXPOSED
       }}
     >
       {children}

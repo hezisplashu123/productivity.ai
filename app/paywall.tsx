@@ -118,10 +118,10 @@ export default function PaywallScreen() {
       </View>
 
       <SafeAreaView style={{ flex: 1 }}>
-        {/* Nav Bar - No X button, only Restore */}
+        {/* Nav Bar */}
         <View style={styles.navBar}>
           <View style={{ width: 60 }} />
-          <TouchableOpacity onPress={handleRestore}>
+          <TouchableOpacity onPress={handleRestore} style={{ justifyContent: 'center' }}>
             <Text style={styles.restoreText}>Restore</Text>
           </TouchableOpacity>
         </View>
