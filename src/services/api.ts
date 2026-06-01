@@ -2,7 +2,7 @@ import { API_BASE_URL } from '../config/api';
 
 const getHeaders = () => ({
   'Content-Type': 'application/json',
-  'User-Agent': 'ProductivityAI-Mobile',
+  'User-Agent': 'Hezi-Mobile',
   'ngrok-skip-browser-warning': 'true',
 });
 
@@ -161,7 +161,63 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // --- AI & Goals ---
+  // --- GAME SESSIONS ---
+  async createSession(hostId: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/session/create`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ hostId }),
+    });
+    return handleResponse(res);
+  },
+
+  async joinSession(roomCode: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/session/join`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ roomCode }),
+    });
+    return handleResponse(res);
+  },
+
+  async getNextPrompt(sessionId: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/session/next-prompt`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ sessionId }),
+      timeout: 35000,
+    });
+    return handleResponse(res);
+  },
+
+  async recordSwipe(sessionId: string, promptId: string, swipedLeft: boolean) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/session/${sessionId}/swipe`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ promptId, swipedLeft }),
+    });
+    return handleResponse(res);
+  },
+
+  async boostCategory(sessionId: string, category: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/session/${sessionId}/more-like-this`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ category }),
+    });
+    return handleResponse(res);
+  },
+
+  async pivotSession(sessionId: string) {
+    const res = await fetchWithTimeout(`${API_BASE_URL}/session/${sessionId}/pivot`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({}),
+    });
+    return handleResponse(res);
+  },
+
+  // --- Legacy AI & Goals (deprecated; kept for profile compatibility) ---
   async analyzeGoal(goal: string, clarification: string = "", question: string = "") {
     const res = await fetchWithTimeout(`${API_BASE_URL}/ai/analyze-goal`, {
       method: 'POST',

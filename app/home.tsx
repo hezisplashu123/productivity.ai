@@ -1,311 +1,252 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Share,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Plus, Users, X } from 'lucide-react-native';
+import { Users, Share2, RefreshCw, ThumbsUp } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withRepeat, 
-  withSequence, 
-  withTiming, 
-  FadeIn, 
-  FadeOut 
-} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 
-// Components
-import AnimatedStreakFlame from '../src/components/AnimatedStreakFlame';
-import TaskReactorCircle, { TaskGoal } from '../src/components/TaskReactorCircle';
+import { SwipableCardStack, SwipableCardData } from '../src/components/SwipableCardStack';
+import { BottomNav } from '../src/components/BottomNav';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
-import { BottomNav } from '../src/components/BottomNav'; 
-import { MissionAccomplishedModal } from '../src/components/MissionAccomplishedModal';
-
-// Context & Constants
 import { lightColors as colors } from '../src/constants/colors';
 import { useApp } from '../src/context/AppContext';
-import { storage } from '../src/utils/storage'; // Added storage import
+import { apiService } from '../src/services/api';
+import { storage } from '../src/utils/storage';
 
-const { width } = Dimensions.get('window');
-
-// --- NEW COMPONENT: Floating Tooltip ---
-const NewGoalTooltip = ({ onDismiss }: { onDismiss: () => void }) => {
-  const translateY = useSharedValue(0);
-
-  useEffect(() => {
-    // Gentle bobbing animation
-    translateY.value = withRepeat(
-      withSequence(
-        withTiming(-8, { duration: 1000 }),
-        withTiming(0, { duration: 1000 })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }]
-  }));
-
-  return (
-    <Animated.View 
-      entering={FadeIn.delay(500)} 
-      exiting={FadeOut}
-      style={[styles.tooltipContainer, animatedStyle]}
-    >
-      <TouchableOpacity onPress={onDismiss} activeOpacity={0.9} style={styles.tooltipContent}>
-        <View style={styles.tooltipTextContainer}>
-          <Text style={styles.tooltipTitle}>New Mission?</Text>
-          <Text style={styles.tooltipText}>Tap the Brain to add more goals.</Text>
-        </View>
-        <TouchableOpacity onPress={onDismiss} hitSlop={10}>
-          <X size={14} color="#FFF" opacity={0.8} />
-        </TouchableOpacity>
-      </TouchableOpacity>
-      {/* Downward Triangle */}
-      <View style={styles.tooltipTriangle} />
-    </Animated.View>
-  );
+type PromptCard = {
+  id: string;
+  text: string;
+  category: string;
+  tags?: string[];
 };
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { goals, tasks, archiveGoal, pendingRequestsCount } = useApp();
-  
-  const [celebrationGoal, setCelebrationGoal] = useState<TaskGoal | null>(null);
-  
-  // Initialize as TRUE so it doesn't flash on screen while we check storage
-  const [hasSeenTooltip, setHasSeenTooltip] = useState(true);
-  const [showTooltip, setShowTooltip] = useState(true);
+  const { pendingRequestsCount } = useApp();
 
-  // Check storage on mount
-  useEffect(() => {
-    const checkTooltipStatus = async () => {
-      const seen = await storage.hasSeenNewGoalTooltip();
-      setHasSeenTooltip(seen);
-    };
-    checkTooltipStatus();
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [roomCode, setRoomCode] = useState<string>('');
+  const [currentPrompt, setCurrentPrompt] = useState<PromptCard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionBusy, setActionBusy] = useState(false);
+
+  const loadSession = useCallback(async () => {
+    const stored = await storage.getGameSession();
+    if (!stored) {
+      router.replace('/');
+      return null;
+    }
+    setSessionId(stored.sessionId);
+    setRoomCode(stored.roomCode);
+    return stored.sessionId;
+  }, [router]);
+
+  const fetchNextPrompt = useCallback(async (activeSessionId: string) => {
+    const result = await apiService.getNextPrompt(activeSessionId);
+    setCurrentPrompt(result.prompt);
   }, []);
 
-  const handleDismissTooltip = async () => {
-    setShowTooltip(false);
-    setHasSeenTooltip(true);
-    await storage.setNewGoalTooltipSeen();
-  };
-
-  // HELPER: Normalize dates to local midnight to ensure calendar-day calculation
-  const getCalendarDayDiff = (startDateStr: Date | string) => {
-    const start = new Date(startDateStr);
-    start.setHours(0, 0, 0, 0); // Reset to local midnight
-    
-    const now = new Date();
-    now.setHours(0, 0, 0, 0); // Reset to local midnight
-
-    const diffTime = now.getTime() - start.getTime();
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    
-    return Math.max(1, diffDays + 1);
-  };
-
-  const reactorGoals = useMemo(() => {
-    if (!Array.isArray(goals)) return [];
-    const visibleGoals = goals.filter(g => g.status !== 'archived');
-
-    return visibleGoals.map(goal => {
-      const goalTasks = Array.isArray(tasks) ? tasks.filter(t => t.goalId === goal.id) : [];
-      const totalTime = goalTasks.reduce((sum, t) => sum + (t.duration || 0), 0);
-      const displayTitle = (goal.title || 'Untitled Mission').split(' ').slice(0, 2).join(' ');
-
-      let isFullyComplete = false;
-      const tasksCompletedCount = goalTasks.filter(t => t.status === 'completed').length;
-      const totalTasksCount = goalTasks.length;
-      const allTasksDone = totalTasksCount > 0 && tasksCompletedCount === totalTasksCount;
-
-      if (goal.type === 'journey') {
-        if (goal.status === 'completed') {
-            isFullyComplete = true;
-        } else if (goal.startDate && goal.targetDate) {
-            const currentDay = getCalendarDayDiff(goal.startDate);
-            
-            const start = new Date(goal.startDate);
-            start.setHours(0, 0, 0, 0);
-            
-            const target = new Date(goal.targetDate);
-            target.setHours(0, 0, 0, 0);
-            
-            const totalDurationTime = target.getTime() - start.getTime();
-            const totalDays = Math.ceil(totalDurationTime / (1000 * 60 * 60 * 24)) + 1;
-            
-            const isLastDay = currentDay >= totalDays;
-            isFullyComplete = isLastDay && allTasksDone;
-        }
-      } else {
-        isFullyComplete = allTasksDone;
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const id = await loadSession();
+        if (!id) return;
+        await fetchNextPrompt(id);
+      } catch (e: any) {
+        Alert.alert('Connection issue', e.message || 'Could not load the next card.');
+      } finally {
+        setLoading(false);
       }
+    };
+    init();
+  }, [loadSession, fetchNextPrompt]);
 
-      return {
-        id: goal.id,
-        title: displayTitle,
-        color: '#FF4500', 
-        totalTime,
-        type: goal.type as 'project' | 'journey',
-        isFullyComplete: isFullyComplete,
-        subTasks: goalTasks.map(t => ({
-          id: t.id,
-          title: t.title || 'Untitled Task',
-          duration: t.duration || 0,
-          isCompleted: t?.status === 'completed'
-        }))
-      };
-    });
-  }, [goals, tasks]);
+  const deckCards: SwipableCardData[] = useMemo(() => {
+    if (!currentPrompt) return [];
+    return [
+      {
+        id: currentPrompt.id,
+        label: currentPrompt.text,
+        category: currentPrompt.category,
+      },
+    ];
+  }, [currentPrompt]);
 
-  const formatDate = () => {
+  const handleSwipe = async (swipedLeft: boolean) => {
+    if (!sessionId || !currentPrompt || actionBusy) return;
+    setActionBusy(true);
+    const promptSnapshot = currentPrompt;
+
     try {
-        const today = new Date();
-        const dayName = today.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
-        const dateNum = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        return { dayName, dateNum };
-    } catch (e) {
-        return { dayName: 'TODAY', dateNum: new Date().getDate().toString() };
+      await apiService.recordSwipe(sessionId, promptSnapshot.id, swipedLeft);
+      Haptics.impactAsync(
+        swipedLeft ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light
+      );
+      setCurrentPrompt(null);
+      await fetchNextPrompt(sessionId);
+    } catch (e: any) {
+      Alert.alert('Sync failed', e.message || 'Could not save your swipe.');
+      setCurrentPrompt(promptSnapshot);
+    } finally {
+      setActionBusy(false);
     }
   };
 
-  const { dayName, dateNum } = formatDate();
-
-  const handleGoalPress = (goal: TaskGoal) => {
-    if (goal.isFullyComplete) {
-      setCelebrationGoal(goal);
-    } else {
-      router.push({ pathname: '/goal-detail', params: { goalId: goal.id }});
+  const handleMoreLikeThis = async () => {
+    if (!sessionId || !currentPrompt || actionBusy) return;
+    setActionBusy(true);
+    try {
+      await apiService.boostCategory(sessionId, currentPrompt.category);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Noted', `We'll lean harder into ${currentPrompt.category}.`);
+      setCurrentPrompt(null);
+      await fetchNextPrompt(sessionId);
+    } catch (e: any) {
+      Alert.alert('Could not boost', e.message || 'Try again.');
+    } finally {
+      setActionBusy(false);
     }
   };
 
-  const handleArchive = () => {
-    if (celebrationGoal) {
-      archiveGoal(celebrationGoal.id);
-      setCelebrationGoal(null);
+  const handlePivot = async () => {
+    if (!sessionId || actionBusy) return;
+    setActionBusy(true);
+    try {
+      await apiService.pivotSession(sessionId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setCurrentPrompt(null);
+      await fetchNextPrompt(sessionId);
+    } catch (e: any) {
+      Alert.alert('Pivot failed', e.message || 'Try again.');
+    } finally {
+      setActionBusy(false);
     }
   };
 
-  // LOGIC: Show only if (1) Tooltip active (2) Not seen before (3) Goals exist
-  const shouldShowTooltip = showTooltip && !hasSeenTooltip && reactorGoals.length > 0;
+  const handleShareCard = async () => {
+    if (!currentPrompt) return;
+    const shareLine = `"${currentPrompt.text}"\n\n— Hezi conversation card • #deepconvos`;
+    try {
+      await Share.share({ message: shareLine });
+    } catch {
+      /* user dismissed */
+    }
+  };
 
   return (
     <View style={styles.root}>
       <StatusBar style="dark" />
       <ErrorBoundary name="HomeScreen">
         <SafeAreaView style={styles.container} edges={['top']}>
-          
           <View style={styles.header}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={styles.dateBox}>
-                <Text style={styles.dayLabel}>{dayName}</Text>
-                <Text style={styles.dateLabel}>{dateNum}</Text>
-              </View>
+            <View>
+              <Text style={styles.roomLabel}>ROOM</Text>
+              <Text style={styles.roomCode}>{roomCode || '----'}</Text>
             </View>
-
-            {/* HEADER RIGHT: FRIENDS + FLAME */}
-            <View style={styles.headerRight}>
-              <TouchableOpacity 
-                style={styles.socialButton} 
-                onPress={() => router.push('/social')}
-                activeOpacity={0.7}
-              >
-                <Users size={22} color={colors.text} />
-                {pendingRequestsCount > 0 && (
-                  <View style={styles.badge} />
-                )}
-              </TouchableOpacity>
-              <AnimatedStreakFlame onPress={() => router.push('/leaderboard')} />
-            </View>
+            <TouchableOpacity
+              style={styles.socialButton}
+              onPress={() => router.push('/social')}
+              activeOpacity={0.7}
+            >
+              <Users size={22} color={colors.text} />
+              {pendingRequestsCount > 0 && <View style={styles.badge} />}
+            </TouchableOpacity>
           </View>
 
-          <ScrollView 
-            contentContainerStyle={styles.scrollContent} 
-            showsVerticalScrollIndicator={false}
-          >
-            <Text style={styles.sectionHeader}>Operational Goals</Text>
-            
-            {reactorGoals.length === 0 ? (
-              <TouchableOpacity 
-                style={styles.emptyPrompt}
-                onPress={() => router.push('/goal-input')}
-                activeOpacity={0.8}
-              >
-                <View style={styles.plusIcon}>
-                  <Plus size={24} color={colors.primary} />
-                </View>
-                <Text style={styles.emptyText}>Start a new sequence</Text>
-              </TouchableOpacity>
+          <View style={styles.deckSection}>
+            {loading ? (
+              <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
             ) : (
-              <View style={styles.grid}>
-                {reactorGoals.map((reactor) => (
-                  <TaskReactorCircle
-                    key={reactor.id}
-                    taskGoal={reactor}
-                    onPress={handleGoalPress}
-                  />
-                ))}
-              </View>
+              <SwipableCardStack
+                key={currentPrompt?.id ?? 'empty'}
+                cards={deckCards}
+                onSwipeLeft={() => handleSwipe(true)}
+                onSwipeRight={() => handleSwipe(false)}
+                leftLabel="Answer & Explore Depth"
+                rightLabel="Skip, change topic, or avoid bad mood"
+                emptyMessage={actionBusy ? 'Dealing next card...' : 'Tap Pivot Topic for a fresh lane'}
+              />
             )}
-          </ScrollView>
+          </View>
 
-          {/* TOOLTIP: Points to the center button */}
-          {shouldShowTooltip && (
-            <NewGoalTooltip onDismiss={handleDismissTooltip} />
-          )}
+          <View style={styles.controls}>
+            <TouchableOpacity
+              style={styles.shareButton}
+              onPress={handleShareCard}
+              disabled={!currentPrompt}
+              activeOpacity={0.8}
+            >
+              <Share2 size={18} color={colors.primary} />
+              <Text style={styles.shareText}>Copy for social</Text>
+            </TouchableOpacity>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={styles.secondaryAction}
+                onPress={handlePivot}
+                disabled={actionBusy || !sessionId}
+                activeOpacity={0.85}
+              >
+                <RefreshCw size={18} color={colors.text} />
+                <Text style={styles.secondaryActionText}>Pivot Topic</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.primaryAction}
+                onPress={handleMoreLikeThis}
+                disabled={actionBusy || !currentPrompt}
+                activeOpacity={0.85}
+              >
+                <ThumbsUp size={18} color="#FFFFFF" />
+                <Text style={styles.primaryActionText}>Give us more like this</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.swipeHint}>← Answer / like   ·   Skip / dislike →</Text>
+          </View>
 
           <BottomNav activeTab="Home" />
-          
-          {celebrationGoal && (
-            <MissionAccomplishedModal
-              visible={!!celebrationGoal}
-              goalTitle={celebrationGoal.title}
-              totalTime={celebrationGoal.totalTime}
-              taskCount={celebrationGoal.subTasks.length}
-              onArchive={handleArchive}
-              onClose={() => setCelebrationGoal(null)}
-            />
-          )}
-          
         </SafeAreaView>
       </ErrorBoundary>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FFFFFF' },
+  root: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
-  
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 28,
-    paddingVertical: 20,
+    paddingVertical: 16,
   },
-  dateBox: { flexDirection: 'column' },
-  dayLabel: { fontSize: 11, fontWeight: '800', color: '#BDBDBD', letterSpacing: 1.5 },
-  dateLabel: { fontSize: 24, fontWeight: '900', color: '#1A1A1A', marginTop: 2 },
-  
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
+  roomLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textLight,
+    letterSpacing: 1.5,
   },
+  roomCode: { fontSize: 28, fontWeight: '900', color: colors.text, marginTop: 2, letterSpacing: 4 },
   socialButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: colors.backgroundLight,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative'
   },
   badge: {
     position: 'absolute',
@@ -314,100 +255,52 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.error,
     borderWidth: 1,
-    borderColor: '#FFF'
+    borderColor: '#FFF',
   },
-
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 150 },
-  sectionHeader: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#1A1A1A',
-    marginTop: 25,
-    marginBottom: 20,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  
-  emptyPrompt: {
-    width: '100%',
-    height: 140,
-    borderRadius: 35,
-    backgroundColor: '#FBFBFB',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    borderStyle: 'dashed',
-  },
-  plusIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  emptyText: { fontSize: 15, fontWeight: '700', color: '#BDBDBD' },
-
-  // Tooltip Styles
-  tooltipContainer: {
-    position: 'absolute',
-    bottom: 95, // Positioned right above the bottom nav (height ~70 + margin)
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 999,
-  },
-  tooltipContent: {
-    backgroundColor: '#1A1A1A',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 16,
+  deckSection: { flex: 1, justifyContent: 'center' },
+  loader: { marginTop: 80 },
+  controls: { paddingHorizontal: 24, paddingBottom: 110 },
+  shareButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-    gap: 12,
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    marginBottom: 12,
   },
-  tooltipTextContainer: {
-    flexDirection: 'column',
+  shareText: { fontSize: 14, fontWeight: '600', color: colors.primary },
+  actionRow: { flexDirection: 'row', gap: 10 },
+  secondaryAction: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 20,
+    backgroundColor: colors.backgroundLight,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  tooltipTitle: {
-    color: colors.primary,
+  secondaryActionText: { fontSize: 14, fontWeight: '700', color: colors.text },
+  primaryAction: {
+    flex: 1.4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+  },
+  primaryActionText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  swipeHint: {
+    textAlign: 'center',
+    marginTop: 14,
     fontSize: 12,
-    fontWeight: '800',
-    marginBottom: 2,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  tooltipText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    color: colors.textLight,
     fontWeight: '600',
-  },
-  tooltipTriangle: {
-    width: 0,
-    height: 0,
-    backgroundColor: 'transparent',
-    borderStyle: 'solid',
-    borderLeftWidth: 10,
-    borderRightWidth: 10,
-    borderBottomWidth: 0,
-    borderTopWidth: 10, // Pointing down
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: '#1A1A1A',
-    marginTop: -1, // Remove tiny gap
   },
 });

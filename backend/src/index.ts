@@ -1,13 +1,32 @@
 import express from 'express';
 import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
-import { 
-  generateActionPlan, 
-  generateClarifyingQuestion, 
-  refineSingleTask,
-  analyzeGoalType,
-  generateDailyPlan
+import {
+  DEFAULT_VIBE_WEIGHTS,
+  applySwipeFeedback,
+  applyCategoryBoost,
+  getNextPromptForSession,
+  parseVibeWeights,
 } from './services/ai.service';
+
+const ROOM_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateRoomCode(): string {
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += ROOM_CHARS[Math.floor(Math.random() * ROOM_CHARS.length)];
+  }
+  return code;
+}
+
+async function ensureUniqueRoomCode(): Promise<string> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const roomCode = generateRoomCode();
+    const existing = await prisma.gameSession.findUnique({ where: { roomCode } });
+    if (!existing) return roomCode;
+  }
+  throw new Error('Could not allocate room code');
+}
 
 const prisma = new PrismaClient();
 const app = express();
@@ -155,23 +174,11 @@ app.get('/social/profile/:id', async (req, res) => {
     const user = await prisma.user.findUnique({
       where: { id },
       include: {
-        goals: { select: { tasks: true } },
         _count: { select: { followers: true, following: true } }
       }
     });
 
     if (!user) return res.status(404).json({ error: 'User not found' });
-
-    let totalMinutes = 0;
-    let tasksCompleted = 0;
-    user.goals.forEach(g => {
-      g.tasks.forEach(t => {
-        if (t.status === 'completed') {
-          totalMinutes += t.duration;
-          tasksCompleted++;
-        }
-      });
-    });
 
     let isFollowing = false;
     if (viewerId && prisma.friendship) {
@@ -191,8 +198,9 @@ app.get('/social/profile/:id', async (req, res) => {
       name: user.name || 'Operative',
       streak: user.currentStreak,
       stats: {
-        hoursFocused: (totalMinutes / 60).toFixed(1),
-        tasksCrushed: tasksCompleted,
+        hoursFocused: '0.0',
+        tasksCrushed: 0,
+        sessionsHosted: 0,
       },
       habits: user.onboardingData,
       isFollowing,
@@ -354,186 +362,210 @@ app.post('/social/report', async (req, res) => {
 });
 
 // ==========================================
-// 3. AI ROUTES
+// 3. GAME SESSION ROUTES
 // ==========================================
-app.post('/ai/analyze-goal', async (req, res) => {
-  const { goal, clarification, question } = req.body;
+
+app.post('/session/create', async (req, res) => {
+  const { hostId } = req.body;
+  if (!hostId) return res.status(400).json({ error: 'hostId is required' });
+
   try {
-    const analysis = await analyzeGoalType(goal, question || "", clarification || "");
-    res.json(analysis);
-  } catch (error) { res.status(500).json({ error: 'Analysis failed' }); }
-});
-app.post('/ai/clarify', async (req, res) => {
-  const { email, goal } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const question = await generateClarifyingQuestion(goal, user);
-    res.json({ question });
-  } catch (error) { res.status(500).json({ error: 'Clarification failed' }); }
-});
-app.post('/ai/generate-plan', async (req, res) => {
-  const { email, goal, clarification, dailyMinutes } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const result = await generateActionPlan(goal, user, clarification, dailyMinutes);
-    res.json({ tasks: result });
-  } catch (error) { res.status(500).json({ error: 'Plan generation failed' }); }
-});
-app.post('/ai/refine-task', async (req, res) => {
-  const { email, taskId, feedback } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
-    if (!user || !task) return res.status(404).json({ error: 'Not found' });
-    const newTaskData = await refineSingleTask(task, feedback, user);
-    const updatedTask = await prisma.task.update({
-      where: { id: taskId },
+    const roomCode = await ensureUniqueRoomCode();
+    const session = await prisma.gameSession.create({
       data: {
-        title: newTaskData.title,
-        duration: newTaskData.duration,
-        description: newTaskData.description
-      }
-    });
-    res.json(updatedTask);
-  } catch (error) { res.status(500).json({ error: 'Refinement failed' }); }
-});
-
-// --- UPDATED DAILY PLAN ENDPOINT ---
-app.post('/ai/daily-plan', async (req, res) => {
-  const { email, goalTitle, dayNumber, totalDays, dailyMinutes } = req.body;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    // 1. Fetch the specific goal to find history
-    const goal = await prisma.goal.findFirst({
-      where: { 
-        userId: user.id,
-        title: goalTitle 
+        roomCode,
+        hostId: String(hostId),
+        vibeWeights: DEFAULT_VIBE_WEIGHTS,
       },
-      include: {
-        tasks: {
-          where: {
-            dayNumber: { lt: dayNumber } // Only get past tasks
-          },
-          orderBy: { dayNumber: 'desc' }, // Latest first
-          take: 15 // Limit context size (last 3-5 days approx)
-        }
-      }
     });
-
-    // 2. Format history for AI
-    const history = goal?.tasks.map(t => ({
-      day: t.dayNumber,
-      title: t.title
-    })).reverse() || []; // Reverse back to chronological order
-
-    const result = await generateDailyPlan(
-      goalTitle, 
-      user, 
-      dayNumber, 
-      totalDays, 
-      dailyMinutes,
-      history // Pass history to AI service
-    );
-    
-    res.json(result);
-  } catch (error) { 
-    console.error("Daily Plan Error:", error);
-    res.status(500).json({ error: 'Daily plan failed' }); 
+    res.json(session);
+  } catch (error) {
+    console.error('Create session error:', error);
+    res.status(500).json({ error: 'Failed to create session' });
   }
 });
 
-// ==========================================
-// 4. GOAL & TASK ROUTES
-// ==========================================
-app.post('/goals', async (req, res) => {
-  const { title, userEmail, type, targetDate, dailyMinutes } = req.body;
+app.post('/session/join', async (req, res) => {
+  const { roomCode } = req.body;
+  if (!roomCode) return res.status(400).json({ error: 'roomCode is required' });
+
   try {
-    const user = await prisma.user.findUnique({ where: { email: userEmail }});
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    const goal = await prisma.goal.create({
-      data: { title, userId: user.id, type: type || 'project', targetDate: targetDate ? new Date(targetDate) : null, dailyMinutes: Number(dailyMinutes) || 45 }
+    const session = await prisma.gameSession.findUnique({
+      where: { roomCode: String(roomCode).toUpperCase().trim() },
     });
-    res.json(goal);
-  } catch (error) { res.status(500).json({ error: 'Goal creation failed' }); }
+    if (!session) return res.status(404).json({ error: 'Room not found' });
+    res.json(session);
+  } catch (error) {
+    console.error('Join session error:', error);
+    res.status(500).json({ error: 'Failed to join session' });
+  }
 });
-app.patch('/goals/:goalId', async (req, res) => {
-  const { goalId } = req.params;
+
+app.get('/session/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
   try {
-    const goal = await prisma.goal.update({ where: { id: goalId }, data: req.body });
-    res.json(goal);
-  } catch (error) { res.status(500).json({ error: 'Failed to update goal' }); }
+    const session = await prisma.gameSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        history: {
+          orderBy: { timestamp: 'desc' },
+          take: 40,
+          include: { prompt: true },
+        },
+      },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    res.json(session);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch session' });
+  }
 });
-app.delete('/goals/:goalId', async (req, res) => {
-  const { goalId } = req.params;
+
+app.post('/session/next-prompt', async (req, res) => {
+  const { sessionId } = req.body;
+  if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+
   try {
-    await prisma.goal.delete({ where: { id: goalId } });
-    res.json({ success: true });
-  } catch (error) { res.status(500).json({ error: 'Failed to delete goal' }); }
-});
-app.post('/goals/:goalId/tasks', async (req, res) => {
-  const { goalId } = req.params;
-  const { tasks } = req.body; 
-  if (!tasks || !Array.isArray(tasks)) { return res.status(400).json({ error: "Invalid tasks array" }); }
-  try {
-    const createdTasks = await prisma.$transaction(
-      tasks.map((t: any, index: number) => {
-        const linkUrl = t.link?.url || null;
-        const linkLabel = t.link?.label || null;
-        return prisma.task.create({
-          data: {
-            title: t.title,
-            description: t.description || '',
-            duration: Number(t.duration) || 15,
-            status: 'queued',
-            goalId: goalId,
-            order: index, 
-            dayNumber: t.dayNumber ? Number(t.dayNumber) : 1,
-            linkUrl,
-            linkLabel
-          }
-        });
-      })
-    );
-    const responseTasks = createdTasks.map(t => ({
-      ...t,
-      link: t.linkUrl ? { url: t.linkUrl, label: t.linkLabel || 'Resource' } : undefined
+    const session = await prisma.gameSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        history: {
+          orderBy: { timestamp: 'asc' },
+          include: { prompt: true },
+        },
+      },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const dbPrompts = await prisma.questionPrompt.findMany();
+    const history = session.history.map((play) => ({
+      swipedLeft: play.swipedLeft,
+      prompt: { category: play.prompt.category, tags: play.prompt.tags },
     }));
-    res.json(responseTasks);
-  } catch (error) { res.status(500).json({ error: 'Task creation failed' }); }
-});
-app.patch('/tasks/:taskId', async (req, res) => {
-  const { taskId } = req.params;
-  const updates = req.body;
-  try {
-    const allowedFields = ['title', 'description', 'duration', 'status', 'order', 'dayNumber', 'linkUrl', 'linkLabel'];
-    const filteredData: any = {};
-    Object.keys(updates).forEach(key => { if (allowedFields.includes(key)) filteredData[key] = updates[key]; });
-    const task = await prisma.task.update({
-      where: { id: taskId },
-      data: filteredData,
-      include: { goal: { include: { user: true } } }
+    const playedPromptIds = session.history.map((play) => play.promptId);
+
+    const result = await getNextPromptForSession({
+      vibeWeights: session.vibeWeights,
+      history,
+      dbPrompts,
+      playedPromptIds,
     });
-    if (filteredData.status === 'completed') {
-      const user = task.goal.user;
-      const today = new Date();
-      const lastActive = user.lastActiveDate ? new Date(user.lastActiveDate) : null;
-      let newStreak = user.currentStreak;
-      let shouldUpdate = false;
-      if (!lastActive || !isSameDay(today, lastActive)) {
-        shouldUpdate = true;
-        newStreak = (lastActive && isYesterday(today, lastActive)) ? user.currentStreak + 1 : 1;
-      }
-      if (shouldUpdate) {
-        await prisma.user.update({ where: { id: user.id }, data: { currentStreak: newStreak, lastActiveDate: today } });
-      }
+
+    let prompt = result.prompt;
+    if (result.source === 'generated' || !dbPrompts.find((p) => p.id === prompt.id)) {
+      const created = await prisma.questionPrompt.create({
+        data: {
+          text: prompt.text,
+          category: prompt.category,
+          tags: prompt.tags,
+        },
+      });
+      prompt = created;
     }
-    const formattedTask = { ...task, link: task.linkUrl ? { url: task.linkUrl, label: task.linkLabel || 'Resource' } : undefined };
-    res.json(formattedTask);
-  } catch (error) { res.status(500).json({ error: 'Failed to update task' }); }
+
+    res.json({
+      prompt,
+      vibeWeights: result.vibeWeights,
+      source: result.source,
+    });
+  } catch (error) {
+    console.error('Next prompt error:', error);
+    res.status(500).json({ error: 'Failed to get next prompt' });
+  }
+});
+
+app.post('/session/:sessionId/swipe', async (req, res) => {
+  const { sessionId } = req.params;
+  const { promptId, swipedLeft } = req.body;
+
+  if (!promptId || typeof swipedLeft !== 'boolean') {
+    return res.status(400).json({ error: 'promptId and swipedLeft are required' });
+  }
+
+  try {
+    const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
+    const prompt = await prisma.questionPrompt.findUnique({ where: { id: promptId } });
+    if (!session || !prompt) return res.status(404).json({ error: 'Session or prompt not found' });
+
+    const weights = parseVibeWeights(session.vibeWeights);
+    const updatedWeights = applySwipeFeedback(
+      weights,
+      prompt.category,
+      prompt.tags,
+      swipedLeft
+    );
+
+    const play = await prisma.sessionPlay.create({
+      data: { sessionId, promptId, swipedLeft },
+    });
+    await prisma.gameSession.update({
+      where: { id: sessionId },
+      data: { vibeWeights: updatedWeights },
+    });
+
+    res.json({ play, vibeWeights: updatedWeights });
+  } catch (error) {
+    console.error('Swipe error:', error);
+    res.status(500).json({ error: 'Failed to record swipe' });
+  }
+});
+
+app.post('/session/:sessionId/more-like-this', async (req, res) => {
+  const { sessionId } = req.params;
+  const { category } = req.body;
+  if (!category) return res.status(400).json({ error: 'category is required' });
+
+  try {
+    const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const updatedWeights = applyCategoryBoost(
+      parseVibeWeights(session.vibeWeights),
+      String(category)
+    );
+
+    const updated = await prisma.gameSession.update({
+      where: { id: sessionId },
+      data: { vibeWeights: updatedWeights },
+    });
+
+    res.json({ vibeWeights: updated.vibeWeights });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to boost category' });
+  }
+});
+
+app.post('/session/:sessionId/pivot', async (req, res) => {
+  const { sessionId } = req.params;
+  try {
+    const session = await prisma.gameSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        history: {
+          orderBy: { timestamp: 'asc' },
+          take: 12,
+          include: { prompt: true },
+        },
+      },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const inverted = Object.fromEntries(
+      Object.entries(parseVibeWeights(session.vibeWeights)).map(([k, v]) => [
+        k,
+        Math.max(0.05, 1 - v),
+      ])
+    );
+
+    const updated = await prisma.gameSession.update({
+      where: { id: sessionId },
+      data: { vibeWeights: inverted },
+    });
+
+    res.json({ vibeWeights: updated.vibeWeights, pivoted: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to pivot session' });
+  }
 });
 
 // ==========================================
@@ -561,13 +593,7 @@ app.delete('/users/:email', async (req, res) => {
           });
         }
 
-        // 2. Delete Goals (Tasks cascade automatically via Prisma schema if set, otherwise manual cleanup recommended)
-        // Check schema: Goal deletion usually doesn't cascade to user, but user deletion fails if goals exist without cascade.
-        // We delete goals explicitly to be safe.
-        // Note: In schema `Task` has `onDelete: Cascade` relation to `Goal`. So deleting Goals deletes Tasks.
-        await tx.goal.deleteMany({ where: { userId: user.id } });
-
-        // 3. Delete User
+        // 2. Delete User
         await tx.user.delete({ where: { id: user.id } });
     });
 
@@ -584,7 +610,6 @@ app.get('/users/:email', async (req, res) => {
   try {
     let user = await prisma.user.findUnique({
       where: { email },
-      include: { goals: { include: { tasks: true } } }
     });
     
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -599,40 +624,19 @@ app.get('/users/:email', async (req, res) => {
         user = await prisma.user.update({
           where: { id: user.id },
           data: { currentStreak: 0 },
-          include: { goals: { include: { tasks: true } } }
         });
       }
     }
 
-    let tasksCrushed = 0;
-    let totalMinutes = 0;
-    user.goals.forEach(g => {
-      g.tasks.forEach(t => {
-        if (t.status === 'completed') {
-          tasksCrushed++;
-          totalMinutes += t.duration;
-        }
-      });
-    });
-
-    // Transform tasks to include 'link' object
-    const transformedGoals = user.goals.map(goal => ({
-      ...goal,
-      tasks: goal.tasks.map(task => ({
-        ...task,
-        link: task.linkUrl ? { url: task.linkUrl, label: task.linkLabel || 'View Resource' } : undefined
-      }))
-    }));
-
     res.json({
       ...user,
-      goals: transformedGoals,
+      goals: [],
       stats: {
-        tasksCrushed,
-        hoursFocused: (totalMinutes / 60).toFixed(1),
-        streak: user.currentStreak, 
-        level: Math.floor(tasksCrushed / 5) + 1
-      }
+        tasksCrushed: 0,
+        hoursFocused: '0.0',
+        streak: user.currentStreak,
+        level: 1,
+      },
     });
   } catch (error) {
     console.error("Get Profile Error:", error);

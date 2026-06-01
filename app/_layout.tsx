@@ -10,37 +10,31 @@ function RootStack() {
   const router = useRouter();
 
   useEffect(() => {
-    // Wait for auth to initialize
     if (isLoading) return;
 
     const currentScreen = segments[0];
 
-    // Screens accessible without being logged in
-    const isAllowedGuestScreen = 
-      currentScreen === 'welcome' || 
-      currentScreen === 'auth' || 
-      currentScreen === 'verify-email' || 
-      currentScreen === 'ghost-hours' || 
-      currentScreen === 'onboarding' || 
-      currentScreen === 'habit-profiler' ||
-      currentScreen === 'demo'; // <--- Allow Demo screen
+    const isAllowedGuestScreen =
+      currentScreen === 'index' ||
+      currentScreen === 'welcome' ||
+      currentScreen === 'auth' ||
+      currentScreen === 'verify-email' ||
+      currentScreen === 'onboarding' ||
+      currentScreen === 'home' ||
+      currentScreen === 'demo';
 
     const isPaywall = currentScreen === 'paywall';
 
-    // 1. Redirect to Welcome if not logged in and on a protected screen
     if (!user && !isAllowedGuestScreen) {
-      router.replace('/welcome');
+      router.replace('/');
       return;
     }
 
-    // 2. Redirect to Paywall if logged in but not Pro
-    // Bypass paywall for verify-email AND our new demo screen
     if (user && !isPro && !isPaywall && currentScreen !== 'verify-email' && currentScreen !== 'demo') {
       router.replace('/paywall');
       return;
     }
 
-    // 3. Redirect to Home if Pro user tries to see Welcome or Paywall
     if (user && isPro && (currentScreen === 'welcome' || isPaywall)) {
       router.replace('/home');
     }
@@ -50,40 +44,28 @@ function RootStack() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#FFFFFF' }, 
-        animation: 'slide_from_right', 
+        contentStyle: { backgroundColor: '#FFFFFF' },
+        animation: 'slide_from_right',
       }}
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="welcome" />
-      <Stack.Screen name="ghost-hours" />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="auth" />
-      
-      {/* PAYWALL CONFIGURATION: Native Modal Presentation */}
-      <Stack.Screen 
-        name="paywall" 
-        options={{ 
-          presentation: 'modal', 
+      <Stack.Screen
+        name="paywall"
+        options={{
+          presentation: 'modal',
           animation: 'slide_from_bottom',
-          gestureEnabled: false, // Prevents swiping down to close
-        }} 
-      /> 
-      
+          gestureEnabled: false,
+        }}
+      />
       <Stack.Screen name="demo" />
       <Stack.Screen name="home" />
-      <Stack.Screen name="goal-detail" />
-      <Stack.Screen name="leaderboard" />
-      <Stack.Screen name="goal-input" />
       <Stack.Screen name="profile" />
+      <Stack.Screen name="social" />
       <Stack.Screen name="verify-email" />
-      <Stack.Screen 
-        name="focus-session" 
-        options={{ 
-          animation: 'fade',
-          gestureEnabled: false 
-        }} 
-      />
+      <Stack.Screen name="edit-profile" />
     </Stack>
   );
 }

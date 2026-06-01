@@ -1,401 +1,241 @@
 import OpenAI from 'openai';
+import { Prisma } from '@prisma/client';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-/**
- * 🧠 IDENTITY PROTOCOLS
- */
-const IDENTITY_FRAMEWORK: Record<string, string> = {
-  'student': "CONTEXT: User is a STUDENT. Focus: Grades, comprehension, deadlines. TONE: Academic Coach. Use terms like 'Active Recall', 'Spaced Repetition', and 'Deep Focus'.",
-  'professional': "CONTEXT: User is a PROFESSIONAL. Focus: Efficiency, stakeholders, clear deliverables. TONE: Chief of Staff. Use terms like 'Q3 Goals', 'Stakeholder alignment', and '80/20 Rule'.",
-  'entrepreneur': "CONTEXT: User is an ENTREPRENEUR. Focus: ROI, speed, sales, delegation. TONE: Venture Partner. Use terms like 'MVP', 'Time-to-market', and 'High Leverage'.",
-  'maker': "CONTEXT: User is a MAKER/CREATIVE. Focus: Deep work, flow state, shipping. TONE: Senior Tech Lead / Creative Director. Focus on 'Flow State' and 'Shipping'.",
-  'personal': "CONTEXT: User is doing LIFE ADMIN. Focus: Reducing friction, sanity, getting it over with. TONE: Supportive but efficient."
+export const DEFAULT_VIBE_WEIGHTS: Record<string, number> = {
+  Existential: 0.5,
+  Nostalgia: 0.5,
+  Scenarios: 0.5,
+  Relationships: 0.5,
+  Funny: 0.5,
+  Vulnerability: 0.5,
 };
 
-/**
- * 🎯 CORE DRIVER PROTOCOLS
- */
-const DRIVER_PROTOCOLS: Record<string, string> = {
-  'velocity': "OPTIMIZATION GOAL: SPEED. Prioritize finishing fast. Cut non-essential steps. Use 'Sprint' logic. Identify shortcuts.",
-  'mastery': "OPTIMIZATION GOAL: QUALITY. Prioritize depth. Add steps for review, refinement, and testing. Ensure the output is excellent, not just done.",
-  'survival': "OPTIMIZATION GOAL: MOMENTUM. The user is burnt out. Break tasks into tiny, non-threatening micro-steps. Lower the bar for 'success' to just getting started.",
-  'impact': "OPTIMIZATION GOAL: LEVERAGE. Focus on the 20% of work that gives 80% of results. Deprioritize admin/setup. Focus on the high-value output."
+const WEIGHT_DELTA = 0.12;
+const HARD_BOOST = 1.0;
+const MIN_WEIGHT = 0.05;
+const MAX_WEIGHT = 1.0;
+
+export type QuestionPromptCandidate = {
+  id: string;
+  text: string;
+  category: string;
+  tags: string[];
 };
 
-/**
- * 🛡️ VILLAIN DEFENSE PROTOCOLS
- */
-const VILLAIN_PROTOCOLS: Record<string, string> = {
-  'doomscrolling': "DEFENSE: 'Digital Blinders'. Explicitly forbid opening new tabs or checking feeds. Focus purely on the active window.",
-  'multitasking': "DEFENSE: 'The Monotask'. The plan must be strictly sequential. Explicitly forbid 'switching' context. One thing at a time.",
-  'side_quests': "DEFENSE: 'Tunnel Vision'. Explicitly forbid cleaning, organizing, or 'pre-work'. Start the ugly work immediately.",
-  'rotting': "DEFENSE: 'Micro-Activation'. The first task must be laughably easy (2 mins) to break the paralysis."
+export type SessionPlayRecord = {
+  swipedLeft: boolean;
+  prompt: { category: string; tags: string[] };
 };
 
-/**
- * 🧠 STEP 1: THE CLARIFIER
- */
-export const generateClarifyingQuestion = async (goal: string, userProfile: any) => {
-  const onboarding = userProfile.onboardingData || {};
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
-  
+function clampWeight(value: number): number {
+  return Math.min(MAX_WEIGHT, Math.max(MIN_WEIGHT, value));
+}
+
+function normalizeWeights(weights: Record<string, number>): Record<string, number> {
+  const merged = { ...DEFAULT_VIBE_WEIGHTS, ...weights };
+  const entries = Object.entries(merged);
+  const sum = entries.reduce((acc, [, v]) => acc + v, 0) || 1;
+  return Object.fromEntries(entries.map(([k, v]) => [k, clampWeight(v / sum)]));
+}
+
+export function parseVibeWeights(raw: Prisma.JsonValue | null): Record<string, number> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ...DEFAULT_VIBE_WEIGHTS };
+  }
+  return normalizeWeights(raw as Record<string, number>);
+}
+
+export function applySwipeFeedback(
+  weights: Record<string, number>,
+  category: string,
+  tags: string[],
+  swipedLeft: boolean
+): Record<string, number> {
+  const next = { ...parseVibeWeights(weights) };
+  const delta = swipedLeft ? WEIGHT_DELTA : -WEIGHT_DELTA;
+  const keys = new Set([category, ...tags]);
+
+  keys.forEach((key) => {
+    if (!key) return;
+    const current = next[key] ?? DEFAULT_VIBE_WEIGHTS[key] ?? 0.5;
+    next[key] = clampWeight(current + delta);
+  });
+
+  return normalizeWeights(next);
+}
+
+export function applyCategoryBoost(
+  weights: Record<string, number>,
+  category: string
+): Record<string, number> {
+  const next = { ...parseVibeWeights(weights) };
+  next[category] = clampWeight((next[category] ?? 0.5) + HARD_BOOST);
+  return normalizeWeights(next);
+}
+
+function pickWeightedCategory(weights: Record<string, number>): string {
+  const entries = Object.entries(weights);
+  const total = entries.reduce((sum, [, w]) => sum + w, 0);
+  let roll = Math.random() * total;
+  for (const [category, weight] of entries) {
+    roll -= weight;
+    if (roll <= 0) return category;
+  }
+  return entries[0]?.[0] ?? 'Existential';
+}
+
+function scorePrompt(
+  prompt: QuestionPromptCandidate,
+  weights: Record<string, number>,
+  playedIds: Set<string>
+): number {
+  if (playedIds.has(prompt.id)) return -1;
+  let score = weights[prompt.category] ?? 0.3;
+  prompt.tags.forEach((tag) => {
+    score += (weights[tag] ?? 0) * 0.35;
+  });
+  return score + Math.random() * 0.08;
+}
+
+export async function selectNextPromptFromDb(
+  prompts: QuestionPromptCandidate[],
+  weights: Record<string, number>,
+  playedIds: Set<string>
+): Promise<QuestionPromptCandidate | null> {
+  const ranked = prompts
+    .map((p) => ({ p, score: scorePrompt(p, weights, playedIds) }))
+    .filter((x) => x.score >= 0)
+    .sort((a, b) => b.score - a.score);
+
+  return ranked[0]?.p ?? null;
+}
+
+export async function generatePivotPrompt(
+  weights: Record<string, number>,
+  recentHistory: SessionPlayRecord[]
+): Promise<{ text: string; category: string; tags: string[] } | null> {
+  const targetCategory = pickWeightedCategory(
+    Object.fromEntries(
+      Object.entries(weights).map(([k, v]) => [k, Math.max(MIN_WEIGHT, 1 - v)])
+    )
+  );
+
+  const liked = recentHistory
+    .filter((h) => h.swipedLeft)
+    .map((h) => h.prompt.category)
+    .slice(-5);
+  const skipped = recentHistory
+    .filter((h) => !h.swipedLeft)
+    .map((h) => h.prompt.category)
+    .slice(-5);
+
   const systemPrompt = `
-    You are an elite Chief of Staff.
-    ${identityPrompt}
-    
-    The user has a goal: "${goal}".
-    
-    Your job: Dig deeper. The goal is vague, and I need you to identify the specific variables required to build a tactical plan.
-    
-    STRATEGY:
-    1. **Identify Missing Variables:** Does the goal lack a specific Topic, a Deliverable, a Constraint, or a Method?
-    2. **Ask up to 2 Distinct Points:** You can combine two questions to triangulate their intent (e.g., "What is the topic AND what is the format?").
-    3. **Be Conversational but Tactical:** Don't sound like a robot. Speak like a coach.
+You are the Room Vibe Tuning Engine for a group conversation card game.
+Generate ONE deep, open-ended question that sparks flowing dialogue.
 
-    *** CRITICAL NEGATIVE CONSTRAINTS (READ CAREFULLY) ***
-    - **NEVER ASK ABOUT TIME OR SCHEDULE:** Do NOT ask "When do you want to finish?", "What is your deadline?", "How many hours a week?", or "How much time per day?".
-    - **REASON:** The app handles scheduling, deadlines, and daily time limits in a separate UI step immediately after this conversation. Asking now is redundant and annoying.
-    - **FOCUS ONLY ON SCOPE:** Only ask about the *content*, *specific outcome*, *tools*, or *methodology* of the goal.
+TARGET CATEGORY (pivot toward): "${targetCategory}"
+RECENTLY LIKED CATEGORIES: ${liked.join(', ') || 'none'}
+RECENTLY SKIPPED CATEGORIES: ${skipped.join(', ') || 'none'}
 
-    EXAMPLES:
-    - Input: "Study"
-    - BAD Output: "When is your exam and how long do you want to study?" (Violates Negative Constraint)
-    - GOOD Output: "What specific subject or exam are we prepping for? Also, are we reviewing notes or doing active practice problems?"
-    
-    - Input: "Learn Spanish"
-    - BAD Output: "How many minutes a day do you want to practice?" (Violates Negative Constraint)
-    - GOOD Output: "Are you starting from absolute zero or do you have some basics? And are we using an app, a textbook, or conversation practice?"
-    
-    - Input: "Clean house"
-    - GOOD Output: "Let's focus. Which room is the biggest disaster right now? Do we need to do a deep clean or just a rapid visual tidy-up?"
+Rules:
+- Avoid yes/no questions.
+- Keep it under 220 characters.
+- Tone: warm, curious, party-game friendly (Imposter / Wavelength energy).
+- Do NOT repeat generic icebreakers.
 
-    CONSTRAINTS: 
-    - Aim for exactly 2 sentences. 
-    - Use 3 sentences ONLY if the input is extremely ambiguous and needs context.
-    - Focus on "What" and "How", NEVER "When".
-    
-    OUTPUT JSON:
-    { "question": "..." }
-  `;
+OUTPUT JSON:
+{ "text": "...", "category": "${targetCategory}", "tags": ["tag1","tag2"] }
+`;
 
   try {
     const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: goal }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature: 0.7, 
+      messages: [{ role: 'system', content: systemPrompt }],
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      temperature: 0.85,
     });
-    const result = JSON.parse(completion.choices[0].message.content || "{}");
-    return result.question || "What is the specific outcome you need to achieve today, and what is the first step?";
-  } catch (error) {
-    return "To build the perfect plan, what is the specific immediate outcome you are aiming for?";
-  }
-};
-
-/**
- * 🧠 STEP 1.5: THE CLASSIFIER (Adaptive Complexity)
- */
-export const analyzeGoalType = async (goal: string, previousQuestion: string, userAnswer: string) => {
-  const systemPrompt = `
-    Analyze the user's intent based on the FULL CONVERSATION CONTEXT:
-    
-    1. INITIAL GOAL: "${goal}"
-    2. AI QUESTION ASKED: "${previousQuestion}"
-    3. USER ANSWER: "${userAnswer}"
-    
-    TASK: 
-    1. Classify as "PROJECT" (Single Session) or "JOURNEY" (Multi-Day/Long Term).
-    2. If JOURNEY, estimate the typical time in DAYS based on complexity.
-    3. If JOURNEY, recommend a sustainable DAILY TIME COMMITMENT (in minutes).
-
-    *** ADAPTIVE COMPLEXITY MATRIX ***
-    - **Simple Habit** (e.g., "Drink water", "Read more"): ~21-30 Days, 15-30 mins/day.
-    - **Medium Project/Skill** (e.g., "Finish book draft", "Learn basic SQL"): ~30-45 Days, 45-60 mins/day.
-    - **Major Lifestyle/Mastery** (e.g., "Get six pack", "Learn fluent Spanish", "Launch startup"): ~60-90+ Days, 60-90 mins/day.
-    
-    LOGIC ENGINE:
-    - "Today", "tonight", "now" -> PROJECT.
-    - "Learn X", "Build X", "Become X" -> JOURNEY.
-    - If user implies a deadline in the answer, use that to calculate days (e.g., "Exam in 2 weeks" -> 14 days).
-
-    OUTPUT JSON:
-    { 
-      "type": "project" | "journey",
-      "reason": "Explain why based on the Q&A context.",
-      "estimatedDays": number, // Intelligent estimate based on complexity
-      "recommendedDailyMinutes": number // Sustainable recommendation
-    }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-    });
-    return JSON.parse(completion.choices[0].message.content || '{"type": "project"}');
-  } catch (error) {
-    return { type: 'project' };
-  }
-};
-
-/** 
- * 🧠 STEP 2: THE STRATEGIST (Proactive Resource Suggestions)
- */
-export const generateActionPlan = async (goal: string, userProfile: any, clarification: string = "", dailyMinutes: number = 0) => {
-  const onboarding = userProfile.onboardingData || {};
-  
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
-  const driverPrompt = DRIVER_PROTOCOLS[onboarding.coreDriver] || DRIVER_PROTOCOLS['velocity'];
-  const villainPrompt = VILLAIN_PROTOCOLS[onboarding.frictionVillain] || "Minimize distractions.";
-
-  const SHORT_TERM_PROTOCOLS = `
-    ANALYZE THE GOAL AND APPLY THE CORRECT PROTOCOL:
-    🌊 **TYPE A: THE GRIND (Volume)** - Triage -> Velocity -> Slog -> Polish.
-    🎨 **TYPE B: THE BLANK PAGE (Creation)** - Structure -> Vomit Draft -> Refine.
-    ❓ **TYPE C: THE BLACK BOX (Ambiguity)** - Research Spike -> Prototype -> Expand.
-    🧠 **TYPE D: THE DOWNLOAD (Study)** - Scope -> Active Recall -> Gap Fill.
-  `;
-
-  let timeConstraintPrompt = "";
-  if (dailyMinutes > 0) {
-    timeConstraintPrompt = `
-    CRITICAL CONSTRAINT: STRICT TIME BUDGET
-    - The user has committed exactly ${dailyMinutes} minutes.
-    - The sum of task durations MUST equal ${dailyMinutes}.
-    `;
-  } else {
-    timeConstraintPrompt = `- Target total duration: 45-90 minutes.`;
-  }
-
-  const systemPrompt = `
-    You are the user's specialized Chief of Staff.
-    
-    USER PROFILE:
-    - ${identityPrompt}
-    - ${driverPrompt}
-    - ${villainPrompt}
-    
-    GOAL: "${goal}"
-    CONTEXT/CLARIFICATION: "${clarification}"
-
-    MISSION:
-    Create a "High-Resolution" Execution Plan for a SINGLE WORK SESSION.
-    
-    ${SHORT_TERM_PROTOCOLS}
-
-    CRITICAL RULES:
-    1. **ACTION BIAS:** Tasks must be tangible execution steps (e.g. "Draft the email", "Code the function") NOT meta-work (e.g. "Write down goals", "Decide what to do"). Assume the "Planning" phase is OVER.
-    2. **AVOID SINGLE TASKS:** Unless the duration is under 15 minutes, break the workflow into at least 2 steps (e.g. Draft -> Edit, or Research -> Implement).
-    3. **APPLY THE DRIVER:** If 'Velocity', skip review steps. If 'Mastery', double the review time.
-    4. **COUNTER THE VILLAIN:** Include defense mechanisms in descriptions.
-    
-    5. **ADAPTIVE RESOLUTION (THE "ANCHOR TASK" RULE):**
-       - You do NOT need to write a long essay for every task.
-       - **Simple Tasks:** Keep descriptions brief and punchy. (e.g., "Send the email. No overthinking.")
-       - **Complex/Ambiguous Tasks:** Provide a "High-Resolution" guide (2-3 sentences) with a specific method or mental model.
-       - **CRITICAL:** Ensure **at least ONE** task in the list (the most important or difficult one) has a deep, tactical description to anchor the plan's value.
-
-    6. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
-       - If a task involves finding, watching, researching, or buying something, you MUST generate a search URL.
-       - Do NOT wait for a specific URL. Construct it yourself.
-       - **YouTube:** https://www.youtube.com/results?search_query=YOUR+SEARCH+TERMS
-       - **Google:** https://www.google.com/search?q=YOUR+SEARCH+TERMS
-       - **Amazon:** https://www.amazon.com/s?k=YOUR+SEARCH+TERMS
-       - **Example:** Task "Find a piano tutorial" -> link: { "url": "https://www.youtube.com/results?search_query=beginner+piano+tutorial", "label": "YouTube: Beginner Tutorial" }
-       - **Example:** Task "Research best microphones" -> link: { "url": "https://www.google.com/search?q=best+budget+microphones+2024", "label": "Google: Best Mics" }
-
-    7. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
-    ${timeConstraintPrompt}
-
-    OUTPUT FORMAT (JSON):
-    {
-      "short_title": "MAX 2 WORD Mission Name",
-      "tasks": [ 
-        { 
-          "title": "Action Verb + Object", 
-          "duration": 15, 
-          "description": "Tactical instruction.",
-          "link": { "url": "https://...", "label": "Source: [Title]" } // OPTIONAL but HIGH PRIORITY for research tasks
-        } 
-      ]
-    }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini", 
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    });
-
-    const content = completion.choices[0].message.content;
-    if (!content) throw new Error("No content received");
-
-    const result = JSON.parse(content);
-    const trimmedTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : "Mission Alpha";
-
-    return { 
-      shortTitle: trimmedTitle, 
-      tasks: result.tasks || [] 
-    };
-
-  } catch (error) {
-    console.error("❌ OpenAI API Error:", error);
-    return null; 
-  }
-};
-
-/**
- * 🧠 STEP 2 (VARIANT): THE COACH (Progressive Difficulty)
- * Updated to support history-aware progression.
- */
-export const generateDailyPlan = async (
-  goal: string, 
-  userProfile: any, 
-  dayNumber: number, 
-  totalDays: number, 
-  dailyMinutes: number = 45,
-  recentHistory: any[] = [] // [{ day: 1, title: '...' }]
-) => {
-  const onboarding = userProfile.onboardingData || {};
-  
-  const driverPrompt = DRIVER_PROTOCOLS[onboarding.coreDriver] || DRIVER_PROTOCOLS['velocity'];
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || "";
-  const villainPrompt = VILLAIN_PROTOCOLS[onboarding.frictionVillain] || "";
-  
-  // Calculate Phase
-  const progress = dayNumber / totalDays;
-  let phaseInstruction = "";
-  
-  if (progress < 0.2) {
-    phaseInstruction = "PHASE: WARMUP. Keep tasks relatively easy and foundational. Focus on building the habit and reducing friction.";
-  } else if (progress >= 0.2 && progress < 0.8) {
-    phaseInstruction = "PHASE: THE GRIND (High Intensity). Apply Progressive Overload. tasks should be challenging and high-volume. Push the user.";
-  } else {
-    phaseInstruction = "PHASE: FINAL POLISH/TAPER. Focus on synthesizing results, reviewing work, and finishing strong.";
-  }
-
-  // Format history for context
-  const historyString = recentHistory.length > 0 
-    ? `PAST TASKS (DO NOT REPEAT): ${JSON.stringify(recentHistory)}` 
-    : "PAST TASKS: None (Day 1). Start from basics.";
-
-  const systemPrompt = `
-    You are an expert Long-Term Performance Coach.
-    ${identityPrompt}
-    ${driverPrompt}
-    ${villainPrompt}
-    
-    MAIN GOAL: "${goal}"
-    CURRENT PROGRESS: Day ${dayNumber} of ${totalDays}.
-    TIME BUDGET FOR TODAY: ${dailyMinutes} minutes.
-    ${historyString}
-    
-    ${phaseInstruction}
-
-    RULES:
-    1. **ACTION BIAS:** Focus on OUTPUT. Avoid "Review goals" or "Plan the day". Give them the actual work.
-    2. **STRICT CONTEXT:** All tasks MUST contribute directly to the MAIN GOAL.
-    3. **PROGRESSIVE DIFFICULTY (CRITICAL):** 
-       - Look at the "PAST TASKS". 
-       - Today's tasks must be HARDER or MORE ADVANCED than previous days. 
-       - Do NOT repeat tasks from history unless it's strictly necessary for practice.
-       - If yesterday was "Research", today must be "Drafting" or "Building".
-    
-    4. **ADAPTIVE RESOLUTION (THE "ANCHOR TASK" RULE):**
-       - **Simple Tasks:** Brief, direct descriptions.
-       - **Anchor Task:** Identify the "Main Event" for the day (the hardest or most important task) and give it a **2-3 sentence tactical breakdown**. Explain exactly *how* to do it or *why* it matters.
-       - Ensure at least one task gets this deep treatment to maximize user productivity.
-
-    5. **AGGRESSIVE HYPERLINKING (SEARCH QUERIES):** 
-       - If a task involves learning, finding, or watching, GENERATE A SEARCH URL.
-       - **YouTube:** https://www.youtube.com/results?search_query=...
-       - **Google:** https://www.google.com/search?q=...
-       - Example: "Watch tutorial" -> link: { "url": "https://www.youtube.com/results?search_query=advanced+react+tutorial", "label": "YouTube: React Tutorial" }
-
-    6. **STRICT TIME LIMIT:** Sum must equal ${dailyMinutes}.
-    7. **SHORT TITLE:** The 'short_title' must be STRICTLY 2 words max.
-    
-    OUTPUT JSON:
-    {
-      "short_title": "MAX 2 WORD Theme",
-      "tasks": [ 
-        { 
-          "title": "Specific Exercise/Task", 
-          "duration": 15, 
-          "description": "Tactical instruction.",
-          "link": { "url": "https://...", "label": "Source: [Title]" } // OPTIONAL
-        } 
-      ]
-    }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-    });
-    const result = JSON.parse(completion.choices[0].message.content || "{}");
-    
-    const shortTitle = result.short_title ? result.short_title.split(' ').slice(0, 2).join(' ') : `Day ${dayNumber}`;
-
-    return { 
-      shortTitle: shortTitle, 
-      tasks: result.tasks || [] 
+    const parsed = JSON.parse(completion.choices[0].message.content || '{}');
+    if (!parsed.text) return null;
+    return {
+      text: String(parsed.text),
+      category: String(parsed.category || targetCategory),
+      tags: Array.isArray(parsed.tags) ? parsed.tags.map(String) : [targetCategory],
     };
   } catch (error) {
+    console.error('Pivot prompt generation failed:', error);
     return null;
   }
-};
+}
 
-/** 
- * 🧠 STEP 3: THE FIXER
- */
-export const refineSingleTask = async (task: any, feedback: string, userProfile: any) => {
-  const onboarding = userProfile.onboardingData || {};
-  const identityPrompt = IDENTITY_FRAMEWORK[onboarding.identity] || IDENTITY_FRAMEWORK['professional'];
-  const driverPrompt = DRIVER_PROTOCOLS[onboarding.coreDriver] || DRIVER_PROTOCOLS['velocity'];
+export async function getNextPromptForSession(input: {
+  vibeWeights: Prisma.JsonValue | null;
+  history: SessionPlayRecord[];
+  dbPrompts: QuestionPromptCandidate[];
+  playedPromptIds: string[];
+}): Promise<{
+  prompt: QuestionPromptCandidate;
+  source: 'database' | 'generated';
+  vibeWeights: Record<string, number>;
+}> {
+  const weights = parseVibeWeights(input.vibeWeights);
+  const playedIds = new Set(input.playedPromptIds);
 
-  const systemPrompt = `
-    You are a pragmatic Chief of Staff.
-    ${identityPrompt}
-    ${driverPrompt}
-    
-    ORIGINAL TASK: "${task.title}"
-    USER OBSTACLE: "${feedback}"
-    
-    MISSION:
-    Rewrite this task to bypass the obstacle.
-    
-    CRITICAL:
-    - Provide a new, longer, and more detailed description (2-3 sentences) that specifically addresses *how* to overcome the reported obstacle.
-    - If the user says they don't have time, suggest a "Minimum Viable Version".
-    - If the user says they don't know how, provide a specific "First Step" or resource.
+  const recentPlays = input.history.slice(-3);
+  const recentSkips = recentPlays.filter((h) => !h.swipedLeft).length;
+  const shouldPivot = recentSkips >= 2;
 
-    OUTPUT JSON:
-    { "title": "New Task Name", "duration": 15, "description": "Specific tactical instructions addressing the obstacle..." }
-  `;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: systemPrompt }],
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-    });
-
-    const content = completion.choices[0].message.content;
-    if (!content) return task;
-
-    return JSON.parse(content);
-  } catch (error) {
-    console.error("❌ Task Refinement Error:", error);
-    return task;
+  if (shouldPivot) {
+    const generated = await generatePivotPrompt(weights, input.history);
+    if (generated) {
+      return {
+        prompt: {
+          id: `generated-${Date.now()}`,
+          text: generated.text,
+          category: generated.category,
+          tags: generated.tags,
+        },
+        source: 'generated',
+        vibeWeights: weights,
+      };
+    }
   }
-};
+
+  const fromDb = await selectNextPromptFromDb(
+    input.dbPrompts,
+    weights,
+    playedIds
+  );
+
+  if (fromDb) {
+    return { prompt: fromDb, source: 'database', vibeWeights: weights };
+  }
+
+  const generated = await generatePivotPrompt(weights, input.history);
+  if (generated) {
+    return {
+      prompt: {
+        id: `generated-${Date.now()}`,
+        text: generated.text,
+        category: generated.category,
+        tags: generated.tags,
+      },
+      source: 'generated',
+      vibeWeights: weights,
+    };
+  }
+
+  return {
+    prompt: {
+      id: 'fallback',
+      text: 'What is something you believed five years ago that you no longer believe?',
+      category: 'Existential',
+      tags: ['reflection', 'growth'],
+    },
+    source: 'generated',
+    vibeWeights: weights,
+  };
+}

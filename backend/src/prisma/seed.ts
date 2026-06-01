@@ -23,8 +23,29 @@ const mockUsers =[
   { email: 'recruit1@test.com', name: 'Emma W.', currentStreak: 2 },
 ];
 
+const starterPrompts = [
+  { text: 'What is a belief you held strongly in college that you have quietly abandoned?', category: 'Existential', tags: ['reflection', 'growth'] },
+  { text: 'Which childhood smell instantly transports you back—and to which room?', category: 'Nostalgia', tags: ['memory', 'sensory'] },
+  { text: 'If everyone in this room swapped phones for one hour, what scandal would break first?', category: 'Scenarios', tags: ['hypothetical', 'funny'] },
+  { text: 'Who here do you trust with a secret that could change your reputation?', category: 'Relationships', tags: ['trust', 'vulnerability'] },
+  { text: 'What is the pettiest hill you are willing to die on at brunch?', category: 'Funny', tags: ['debate', 'light'] },
+  { text: 'When did you last cry in front of someone—and what did it cost you?', category: 'Vulnerability', tags: ['emotion', 'honesty'] },
+  { text: 'If your life were a movie genre right now, what would the audience yell at the screen?', category: 'Existential', tags: ['meta', 'story'] },
+  { text: 'What song would play when you walk into a party where your ex is present?', category: 'Scenarios', tags: ['music', 'awkward'] },
+  { text: 'What compliment do you secretly crave but never know how to accept?', category: 'Relationships', tags: ['affirmation', 'self'] },
+  { text: 'Which family tradition would you erase without guilt?', category: 'Nostalgia', tags: ['family', 'boundaries'] },
+];
+
 async function main() {
   console.log('🌱 Starting database seed...');
+
+  const existingPrompts = await prisma.questionPrompt.count();
+  if (existingPrompts === 0) {
+    for (const prompt of starterPrompts) {
+      await prisma.questionPrompt.create({ data: prompt });
+    }
+    console.log(`✅ Seeded ${starterPrompts.length} conversation prompts`);
+  }
 
   // 1. Create the mock users
   for (const u of mockUsers) {

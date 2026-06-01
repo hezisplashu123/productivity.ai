@@ -194,7 +194,7 @@ export default function WelcomeScreen() {
   }));
 
   const handleGetStarted = () => {
-    router.replace('/ghost-hours');
+    router.replace('/');
   };
 
   const handleLogin = () => {

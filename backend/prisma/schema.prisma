@@ -12,20 +12,18 @@ model User {
   email          String   @unique
   socialId       String?  @unique
   name           String?
-  
+
   password       String?
   provider       String   @default("email")
-  
+
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  
-  currentStreak  Int      @default(0)
-  lastActiveDate DateTime? 
-  
-  onboardingData Json?
-  goals          Goal[]
 
-  // Social Relations
+  currentStreak  Int      @default(0)
+  lastActiveDate DateTime?
+
+  onboardingData Json?
+
   following      Friendship[] @relation("UserFollowing")
   followers      Friendship[] @relation("UserFollowers")
   reportsFiled   Report[]     @relation("Reporter")
@@ -36,7 +34,7 @@ model Friendship {
   id          String   @id @default(uuid())
   followerId  String
   followingId String
-  status      String   @default("PENDING") // 'PENDING' or 'ACCEPTED'
+  status      String   @default("PENDING")
   createdAt   DateTime @default(now())
 
   follower    User     @relation("UserFollowing", fields: [followerId], references: [id])
@@ -56,35 +54,30 @@ model Report {
   reportedUser   User     @relation("ReportedUser", fields: [reportedUserId], references: [id])
 }
 
-model Goal {
-  id          String   @id @default(uuid())
-  title       String
-  status      String   @default("active")
-  type        String   @default("project") 
-  targetDate  DateTime?
-  startDate   DateTime @default(now())
-  dailyMinutes Int     @default(45)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  tasks       Task[]
+model GameSession {
+  id          String        @id @default(uuid())
+  roomCode    String        @unique
+  hostId      String
+  createdAt   DateTime      @default(now())
+  vibeWeights Json
+  history     SessionPlay[]
 }
 
-model Task {
-  id          String   @id @default(uuid())
-  title       String
-  description String?
-  duration    Int
-  status      String   @default("queued")
-  order       Int      @default(0)
-  dayNumber   Int      @default(1) 
-  linkUrl     String?
-  linkLabel   String?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  goalId      String
-  goal        Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+model QuestionPrompt {
+  id          String        @id @default(uuid())
+  text        String
+  category    String
+  tags        String[]
+  plays       SessionPlay[]
+}
+
+model SessionPlay {
+  id          String         @id @default(uuid())
+  sessionId   String
+  promptId    String
+  swipedLeft  Boolean
+  timestamp   DateTime       @default(now())
+
+  session     GameSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  prompt      QuestionPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
 }

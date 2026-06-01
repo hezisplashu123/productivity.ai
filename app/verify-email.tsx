@@ -84,7 +84,7 @@ export default function VerifyEmailScreen() {
         if (backendUser.onboardingData || onboardingData) {
           router.replace('/paywall');
         } else {
-          router.replace('/ghost-hours');
+          router.replace('/onboarding');
         }
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);

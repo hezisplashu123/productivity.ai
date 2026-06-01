@@ -4,7 +4,9 @@ const HABIT_PROFILER_COMPLETE_KEY = '@habit_profiler_complete';
 const ONBOARDING_COMPLETE_KEY = '@onboarding_complete';
 const ONBOARDING_DATA_KEY = '@onboarding_data';
 const HABIT_PROFILE_DATA_KEY = '@habit_profile_data';
-const NEW_GOAL_TOOLTIP_KEY = '@new_goal_tooltip_seen'; // <--- NEW KEY
+const NEW_GOAL_TOOLTIP_KEY = '@new_goal_tooltip_seen';
+const GAME_SESSION_KEY = '@game_session';
+const SWIPE_TUTORIAL_KEY = '@swipe_tutorial_complete';
 
 export const storage = {
   // Check if habit profiler is complete
@@ -105,6 +107,52 @@ export const storage = {
     }
   },
 
+  async saveGameSession(sessionId: string, roomCode: string): Promise<void> {
+    try {
+      await AsyncStorage.setItem(
+        GAME_SESSION_KEY,
+        JSON.stringify({ sessionId, roomCode })
+      );
+    } catch (error) {
+      console.error('Error saving game session:', error);
+    }
+  },
+
+  async getGameSession(): Promise<{ sessionId: string; roomCode: string } | null> {
+    try {
+      const value = await AsyncStorage.getItem(GAME_SESSION_KEY);
+      return value ? JSON.parse(value) : null;
+    } catch (error) {
+      console.error('Error reading game session:', error);
+      return null;
+    }
+  },
+
+  async clearGameSession(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(GAME_SESSION_KEY);
+    } catch (error) {
+      console.error('Error clearing game session:', error);
+    }
+  },
+
+  async isSwipeTutorialComplete(): Promise<boolean> {
+    try {
+      const value = await AsyncStorage.getItem(SWIPE_TUTORIAL_KEY);
+      return value === 'true';
+    } catch {
+      return false;
+    }
+  },
+
+  async setSwipeTutorialComplete(complete: boolean): Promise<void> {
+    try {
+      await AsyncStorage.setItem(SWIPE_TUTORIAL_KEY, complete ? 'true' : 'false');
+    } catch (error) {
+      console.error('Error saving swipe tutorial status:', error);
+    }
+  },
+
   // --- SECURITY METHOD ---
   // Completely wipes user-specific data from the device
   async clearAllUserData(): Promise<void> {
@@ -114,7 +162,9 @@ export const storage = {
         ONBOARDING_COMPLETE_KEY,
         ONBOARDING_DATA_KEY,
         HABIT_PROFILE_DATA_KEY,
-        NEW_GOAL_TOOLTIP_KEY // Include new key in wipe
+        NEW_GOAL_TOOLTIP_KEY,
+        GAME_SESSION_KEY,
+        SWIPE_TUTORIAL_KEY,
       ]);
       console.log('🔒 Secure storage cleared');
     } catch (error) {

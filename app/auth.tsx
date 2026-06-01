@@ -286,7 +286,7 @@ export default function AuthScreen() {
             // Final destination after setup: The Paywall!
             router.replace('/paywall');
         } else {
-            router.replace('/ghost-hours');
+            router.replace('/onboarding');
         }
     } catch (error) {
         console.error("Backend Sync Error:", error);
