@@ -30,26 +30,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    let profile = await apiService.getUserProfile(firebaseUser.email).catch(async (error: Error) => {
-      if (error.message.includes('not found') || error.message.includes('404')) {
-        return apiService.syncUser({
-          email: firebaseUser.email!,
-          socialId: firebaseUser.uid,
-          name: firebaseUser.displayName || 'Player',
-          provider: 'email',
-        });
+    try {
+      // 1. Try to fetch existing user
+      let fetchedUser = await apiService.getUserProfile(firebaseUser.email).catch(async (error: Error) => {
+        if (error.message.includes('not found') || error.message.includes('404')) {
+          // 2. If not found, sync (create) them
+          return apiService.syncUser({
+            email: firebaseUser.email!,
+            socialId: firebaseUser.uid,
+            name: firebaseUser.displayName || 'Player',
+            provider: 'email',
+          });
+        }
+        throw error;
+      });
+
+      // 3. Ensure we have the profile ID. If the backend didn't attach it, force it.
+      let profileId = fetchedUser.profile?.id;
+      if (!profileId) {
+        const ensuredProfile = await apiService.ensureProfile(fetchedUser.id);
+        profileId = ensuredProfile.id;
       }
-      throw error;
-    });
 
-    const userProfile = await apiService.ensureProfile(profile.id);
+      setUser({
+        id: fetchedUser.id,
+        email: fetchedUser.email,
+        name: fetchedUser.name || 'Player',
+        profileId: profileId,
+      });
 
-    setUser({
-      id: profile.id,
-      email: profile.email,
-      name: profile.name || 'Player',
-      profileId: userProfile.id,
-    });
+    } catch (error) {
+      console.error('Failed to hydrate user:', error);
+      setUser(null);
+    }
   }, []);
 
   useEffect(() => {

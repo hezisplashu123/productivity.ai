@@ -79,11 +79,12 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  async getNextPrompt(profileId: string, forcePivot = false) {
+  // UPDATED METHOD: Returns an array of prompts
+  async getNextPrompts(profileId: string, count: number = 2) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/next-prompt`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ profileId, forcePivot }),
+      body: JSON.stringify({ profileId, count }),
       timeout: 35000,
     });
     return handleResponse(res);
@@ -103,15 +104,6 @@ export const apiService = {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ seedWeights }),
-    });
-    return handleResponse(res);
-  },
-
-  async pivotProfile(profileId: string) {
-    const res = await fetchWithTimeout(`${API_BASE_URL}/profile/${profileId}/pivot`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({}),
     });
     return handleResponse(res);
   },

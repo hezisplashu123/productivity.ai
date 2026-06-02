@@ -5,8 +5,7 @@ import {
   DEFAULT_VIBE_WEIGHTS,
   applySwipeFeedback,
   applySeedWeights,
-  getNextPromptForProfile,
-  invertWeights,
+  getNextPromptsForProfile,
   parseVibeWeights,
 } from './services/ai.service';
 
@@ -29,6 +28,7 @@ async function ensureProfile(userId: string, seedWeights?: Record<string, number
       data: {
         userId,
         vibeWeights: seedWeights ? applySeedWeights(seedWeights) : DEFAULT_VIBE_WEIGHTS,
+        traitProfile: null,
       },
     });
   }
@@ -53,35 +53,31 @@ app.post('/users/sync', async (req, res) => {
     } else {
       const finalEmail = email || `${socialId}@${provider}.com`;
       user = await prisma.user.create({
-        data: {
-          email: finalEmail,
-          name: name || 'Player',
-          provider: provider || 'email',
-          socialId: socialId,
-        },
+        data: { email: finalEmail, name: name || 'Player', provider: provider || 'email', socialId: socialId },
       });
     }
-
+    
+    // Ensure profile exists and return the fully populated user
     await ensureProfile(user.id);
-    res.json(user);
-  } catch (error) {
-    console.error('Sync User Error:', error);
-    res.status(500).json({ error: 'Failed to sync user', details: String(error) });
+    const populatedUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { profile: true }
+    });
+    
+    res.json(populatedUser);
+  } catch (error) { 
+    console.error('Sync error:', error);
+    res.status(500).json({ error: 'Failed to sync user', details: String(error) }); 
   }
 });
 
 app.get('/users/:email', async (req, res) => {
   const { email } = req.params;
   try {
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { profile: true },
-    });
+    const user = await prisma.user.findUnique({ where: { email }, include: { profile: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch user' });
-  }
+  } catch (error) { res.status(500).json({ error: 'Failed to fetch user' }); }
 });
 
 app.delete('/users/:email', async (req, res) => {
@@ -91,27 +87,23 @@ app.delete('/users/:email', async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     await prisma.user.delete({ where: { id: user.id } });
     res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete user' });
-  }
+  } catch (error) { res.status(500).json({ error: 'Failed to delete user' }); }
 });
 
-// ==========================================
-// PROFILE & PROMPTS
-// ==========================================
 app.post('/profile/ensure', async (req, res) => {
   const { userId, seedWeights } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId is required' });
   try {
     const profile = await ensureProfile(String(userId), seedWeights);
     res.json(profile);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to ensure profile' });
-  }
+  } catch (error) { res.status(500).json({ error: 'Failed to ensure profile' }); }
 });
 
+// ==========================================
+// BATCH PROMPT FETCHING
+// ==========================================
 app.post('/profile/next-prompt', async (req, res) => {
-  const { profileId, forcePivot } = req.body;
+  const { profileId, count = 2 } = req.body;
   if (!profileId) return res.status(400).json({ error: 'profileId is required' });
 
   try {
@@ -129,33 +121,41 @@ app.post('/profile/next-prompt', async (req, res) => {
     const dbPrompts = await prisma.questionPrompt.findMany();
     const history = profile.history.map((play) => ({
       swipedLeft: play.swipedLeft,
-      prompt: { category: play.prompt.category, tags: play.prompt.tags },
+      prompt: { text: play.prompt.text, category: play.prompt.category, tags: play.prompt.tags },
     }));
     const playedPromptIds = profile.history.map((play) => play.promptId);
 
-    const result = await getNextPromptForProfile({
+    const result = await getNextPromptsForProfile({
       vibeWeights: profile.vibeWeights,
+      traitProfile: profile.traitProfile,
       history,
       dbPrompts,
       playedPromptIds,
-      forcePivot: Boolean(forcePivot),
+      count,
     });
 
-    let prompt = result.prompt;
-    if (result.source === 'generated' || !dbPrompts.find((p) => p.id === prompt.id)) {
-      prompt = await prisma.questionPrompt.create({
-        data: {
-          text: prompt.text,
-          category: prompt.category,
-          tags: prompt.tags,
-        },
-      });
-    }
+    // Save generated prompts to DB to act as history anchors later
+    const savedPrompts = await Promise.all(
+      result.prompts.map(async (p) => {
+        if (p.id.startsWith('generated-') || p.id.startsWith('fallback-')) {
+          return await prisma.questionPrompt.create({
+            data: { text: p.text, category: p.category, tags: p.tags },
+          });
+        }
+        return p;
+      })
+    );
 
-    res.json({ prompt, vibeWeights: result.vibeWeights, source: result.source });
+    // Save the newly updated AI Character Profile
+    await prisma.userProfile.update({
+      where: { id: profileId },
+      data: { traitProfile: result.updatedTraitProfile },
+    });
+
+    res.json({ prompts: savedPrompts, traitProfile: result.updatedTraitProfile });
   } catch (error) {
     console.error('Next prompt error:', error);
-    res.status(500).json({ error: 'Failed to get next prompt' });
+    res.status(500).json({ error: 'Failed to get next prompts' });
   }
 });
 
@@ -206,23 +206,6 @@ app.post('/profile/:profileId/reset-weights', async (req, res) => {
     res.json(profile);
   } catch (error) {
     res.status(500).json({ error: 'Failed to reset weights' });
-  }
-});
-
-app.post('/profile/:profileId/pivot', async (req, res) => {
-  const { profileId } = req.params;
-  try {
-    const profile = await prisma.userProfile.findUnique({ where: { id: profileId } });
-    if (!profile) return res.status(404).json({ error: 'Profile not found' });
-
-    const inverted = invertWeights(parseVibeWeights(profile.vibeWeights));
-    const updated = await prisma.userProfile.update({
-      where: { id: profileId },
-      data: { vibeWeights: inverted },
-    });
-    res.json({ vibeWeights: updated.vibeWeights });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to pivot' });
   }
 });
 

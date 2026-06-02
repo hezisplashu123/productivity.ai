@@ -21,10 +21,11 @@ model User {
 }
 
 model UserProfile {
-  id          String       @id @default(uuid())
-  userId      String       @unique
-  vibeWeights Json
-  history     PromptPlay[]
+  id           String       @id @default(uuid())
+  userId       String       @unique
+  vibeWeights  Json
+  traitProfile String?      // Stores the AI's psychological profile of the user
+  history      PromptPlay[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

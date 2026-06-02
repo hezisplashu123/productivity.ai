@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { LogOut } from 'lucide-react-native';
+import { Flame, Ghost, Heart, Layers, MessageCircle, Sparkles, Zap } from 'lucide-react-native';
 import { colors } from '../src/constants/colors';
 import { CONVERSATION_CATEGORIES } from '../src/constants/categories';
 import { useApp } from '../src/context/AppContext';
@@ -41,10 +41,13 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Hey, {user?.name?.split(' ')[0] || 'crew'}</Text>
-          <Text style={styles.headline}>Pick a vibe</Text>
+          <View style={styles.headlineRow}>
+            <Flame size={24} color={colors.primary} />
+            <Text style={styles.headline}>Pick a vibe</Text>
+          </View>
         </View>
         <TouchableOpacity onPress={logout} style={styles.logout} hitSlop={12}>
-          <LogOut size={20} color={colors.textSecondary} />
+          <Ghost size={20} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -63,7 +66,7 @@ export default function HomeScreen() {
             onPress={() => startCategory(cat.id, cat.seedWeights)}
             activeOpacity={0.85}
           >
-            <Text style={styles.emoji}>{cat.icon}</Text>
+            <View style={styles.categoryIconWrap}>{getCategoryIcon(cat.id)}</View>
             <Text style={styles.cardTitle}>{cat.title}</Text>
             <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
           </TouchableOpacity>
@@ -71,6 +74,24 @@ export default function HomeScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function getCategoryIcon(categoryId: string) {
+  const iconProps = { size: 24, color: colors.primary };
+  switch (categoryId) {
+    case 'deep-talk':
+      return <Layers {...iconProps} />;
+    case 'icebreakers':
+      return <Sparkles {...iconProps} />;
+    case 'what-ifs':
+      return <Zap {...iconProps} />;
+    case 'relationships':
+      return <MessageCircle {...iconProps} />;
+    case 'nostalgia':
+      return <Heart {...iconProps} />;
+    default:
+      return <Flame {...iconProps} />;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -84,6 +105,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   greeting: { fontSize: 14, color: colors.textSecondary, fontWeight: '600' },
+  headlineRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   headline: { fontSize: 32, fontWeight: '800', color: colors.text, marginTop: 4 },
   logout: {
     width: 44,
@@ -119,7 +141,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     minHeight: 160,
   },
-  emoji: { fontSize: 28, marginBottom: 12 },
+  categoryIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   cardTitle: { fontSize: 17, fontWeight: '800', color: colors.text, marginBottom: 6 },
   cardSubtitle: { fontSize: 13, lineHeight: 18, color: colors.textSecondary },
 });

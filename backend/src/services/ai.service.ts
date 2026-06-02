@@ -27,7 +27,7 @@ export type QuestionPromptCandidate = {
 
 export type PromptPlayRecord = {
   swipedLeft: boolean;
-  prompt: { category: string; tags: string[] };
+  prompt: { text: string; category: string; tags: string[] };
 };
 
 function clampWeight(value: number): number {
@@ -71,61 +71,35 @@ export function applySeedWeights(seed: Record<string, number>): Record<string, n
   return normalizeWeights({ ...DEFAULT_VIBE_WEIGHTS, ...seed });
 }
 
-export function invertWeights(weights: Record<string, number>): Record<string, number> {
-  const parsed = parseVibeWeights(weights);
-  return normalizeWeights(
-    Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, clampWeight(1 - v)]))
-  );
-}
-
-function scorePrompt(
-  prompt: QuestionPromptCandidate,
+export async function generatePersonalizedPrompts(
   weights: Record<string, number>,
-  playedIds: Set<string>
-): number {
-  if (playedIds.has(prompt.id)) return -1;
-  let score = weights[prompt.category] ?? 0.3;
-  prompt.tags.forEach((tag) => {
-    score += (weights[tag] ?? 0) * 0.35;
-  });
-  return score + Math.random() * 0.08;
-}
-
-export async function selectNextPromptFromDb(
-  prompts: QuestionPromptCandidate[],
-  weights: Record<string, number>,
-  playedIds: Set<string>
-): Promise<QuestionPromptCandidate | null> {
-  const ranked = prompts
-    .map((p) => ({ p, score: scorePrompt(p, weights, playedIds) }))
-    .filter((x) => x.score >= 0)
-    .sort((a, b) => b.score - a.score);
-
-  return ranked[0]?.p ?? null;
-}
-
-export async function generatePivotPrompt(
-  weights: Record<string, number>,
-  recentHistory: PromptPlayRecord[]
-): Promise<{ text: string; category: string; tags: string[] } | null> {
-  const inverted = invertWeights(weights);
-  const targetCategory = Object.entries(inverted).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Scenarios';
-
-  const liked = recentHistory.filter((h) => h.swipedLeft).map((h) => h.prompt.category).slice(-5);
-  const skipped = recentHistory.filter((h) => !h.swipedLeft).map((h) => h.prompt.category).slice(-5);
+  recentHistory: PromptPlayRecord[],
+  traitProfile: string | null,
+  count: number = 2
+): Promise<{ updatedProfile: string; prompts: { text: string; category: string; tags: string[] }[] } | null> {
+  
+  const liked = recentHistory.filter((h) => h.swipedLeft).map((h) => h.prompt.text).slice(-4);
+  const skipped = recentHistory.filter((h) => !h.swipedLeft).map((h) => h.prompt.text).slice(-4);
 
   const systemPrompt = `
-You are the Room Vibe Tuning Engine for a single-device group conversation card game.
-Generate ONE open-ended question for people passing one phone around.
+You are the AI Game Master for a deep conversation card game. 
+Your goal is to build a psychological profile of the user based on their swipes, and generate highly targeted questions.
 
-TARGET CATEGORY: "${targetCategory}"
-RECENTLY LIKED: ${liked.join(', ') || 'none'}
-RECENTLY SKIPPED: ${skipped.join(', ') || 'none'}
+CURRENT TRAIT PROFILE: ${traitProfile || 'New User, no data yet.'}
+RECENT QUESTIONS THEY LIKED: ${liked.join(' | ') || 'None'}
+RECENT QUESTIONS THEY SKIPPED: ${skipped.join(' | ') || 'None'}
 
-Rules:
-- No yes/no questions. Under 220 characters.
-- Warm, curious, party-game tone.
-OUTPUT JSON: { "text": "...", "category": "${targetCategory}", "tags": ["tag1","tag2"] }
+TASK:
+1. Update the Trait Profile. Based on their likes/skips, deduce their psychological preferences (e.g., "Avoids small talk, deeply nostalgic, prefers ethical dilemmas"). Keep it under 2 sentences.
+2. Generate ${count} new, highly personalized, open-ended questions (under 200 chars) that perfectly target this updated profile. Do not make them sound like robot prompts. Make them human, warm, and provocative.
+
+OUTPUT JSON FORMAT:
+{
+  "updatedTraitProfile": "...",
+  "prompts": [
+    { "text": "...", "category": "Existential", "tags": ["tag1", "tag2"] }
+  ]
+}
 `;
 
   try {
@@ -136,79 +110,85 @@ OUTPUT JSON: { "text": "...", "category": "${targetCategory}", "tags": ["tag1","
       temperature: 0.85,
     });
     const parsed = JSON.parse(completion.choices[0].message.content || '{}');
-    if (!parsed.text) return null;
+    
+    if (!parsed.prompts || !Array.isArray(parsed.prompts)) return null;
+    
     return {
-      text: String(parsed.text),
-      category: String(parsed.category || targetCategory),
-      tags: Array.isArray(parsed.tags) ? parsed.tags.map(String) : [targetCategory],
+      updatedProfile: parsed.updatedTraitProfile || traitProfile || '',
+      prompts: parsed.prompts.map((p: any) => ({
+        text: String(p.text),
+        category: String(p.category || 'Deep Talk'),
+        tags: Array.isArray(p.tags) ? p.tags.map(String) : [],
+      })),
     };
   } catch (error) {
-    console.error('Pivot prompt generation failed:', error);
+    console.error('Personalized prompt generation failed:', error);
     return null;
   }
 }
 
-export async function getNextPromptForProfile(input: {
+export async function getNextPromptsForProfile(input: {
   vibeWeights: Prisma.JsonValue | null;
+  traitProfile: string | null;
   history: PromptPlayRecord[];
   dbPrompts: QuestionPromptCandidate[];
   playedPromptIds: string[];
-  forcePivot?: boolean;
+  count: number;
 }): Promise<{
-  prompt: QuestionPromptCandidate;
-  source: 'database' | 'generated';
-  vibeWeights: Record<string, number>;
+  prompts: QuestionPromptCandidate[];
+  updatedTraitProfile: string;
 }> {
   const weights = parseVibeWeights(input.vibeWeights);
   const playedIds = new Set(input.playedPromptIds);
+  let results: QuestionPromptCandidate[] = [];
 
-  const recentPlays = input.history.slice(-3);
-  const recentSkips = recentPlays.filter((h) => !h.swipedLeft).length;
-  const shouldPivot = input.forcePivot || recentSkips >= 2;
+  // Phase 1: Try to use Presets (DB Prompts) first (Max 3 times per category usually)
+  const availableDbPrompts = input.dbPrompts.filter(p => !playedIds.has(p.id));
+  
+  if (input.history.length < 3 && availableDbPrompts.length > 0) {
+    // Score and pick top from DB
+    const ranked = availableDbPrompts
+      .map(p => {
+        let score = weights[p.category] ?? 0.3;
+        p.tags.forEach(tag => score += (weights[tag] ?? 0) * 0.35);
+        return { p, score: score + Math.random() * 0.1 };
+      })
+      .sort((a, b) => b.score - a.score);
 
-  if (shouldPivot) {
-    const generated = await generatePivotPrompt(weights, input.history);
-    if (generated) {
-      return {
-        prompt: {
-          id: `generated-${Date.now()}`,
-          text: generated.text,
-          category: generated.category,
-          tags: generated.tags,
-        },
-        source: 'generated',
-        vibeWeights: weights,
-      };
+    const amountToTake = Math.min(input.count, ranked.length);
+    for (let i = 0; i < amountToTake; i++) {
+      results.push(ranked[i].p);
     }
   }
 
-  const fromDb = await selectNextPromptFromDb(input.dbPrompts, weights, playedIds);
-  if (fromDb) {
-    return { prompt: fromDb, source: 'database', vibeWeights: weights };
+  // Phase 2: AI Generation (if DB prompts are exhausted or we are past the preset phase)
+  let newTraitProfile = input.traitProfile || '';
+  if (results.length < input.count) {
+    const needed = input.count - results.length;
+    const generated = await generatePersonalizedPrompts(weights, input.history, input.traitProfile, needed);
+    
+    if (generated) {
+      newTraitProfile = generated.updatedProfile;
+      generated.prompts.forEach((gp, idx) => {
+        results.push({
+          id: `generated-${Date.now()}-${idx}`,
+          text: gp.text,
+          category: gp.category,
+          tags: gp.tags,
+        });
+      });
+    }
   }
 
-  const generated = await generatePivotPrompt(weights, input.history);
-  if (generated) {
-    return {
-      prompt: {
-        id: `generated-${Date.now()}`,
-        text: generated.text,
-        category: generated.category,
-        tags: generated.tags,
-      },
-      source: 'generated',
-      vibeWeights: weights,
-    };
-  }
-
-  return {
-    prompt: {
-      id: 'fallback',
-      text: 'What is something you believed five years ago that you no longer believe?',
+  // Fallback if AI fails completely
+  if (results.length === 0) {
+    results.push({
+      id: `fallback-${Date.now()}`,
+      text: 'If you could change one decision from your past, knowing it would change where you are today, would you do it?',
       category: 'Existential',
-      tags: ['reflection', 'growth'],
-    },
-    source: 'generated',
-    vibeWeights: weights,
-  };
+      tags: ['reflection'],
+    });
+  }
+
+  return { prompts: results, updatedTraitProfile: newTraitProfile };
 }

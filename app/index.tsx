@@ -42,12 +42,12 @@ export default function IndexScreen() {
         </View>
         <Text style={styles.title}>Hezi</Text>
         <Text style={styles.subtitle}>
-          Pass one phone around the room. Swipe into deeper conversations—powered by AI that reads the vibe.
+          Pass one phone around the room. Swipe into deeper conversations—curated in real-time to match your group's vibe.
         </Text>
       </View>
       <TouchableOpacity
         style={styles.button}
-        onPress={() => router.push('/auth')}
+        onPress={() => router.push('/onboarding')}
         activeOpacity={0.85}
       >
         <Text style={styles.buttonText}>Get Started</Text>

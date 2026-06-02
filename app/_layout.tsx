@@ -16,8 +16,10 @@ function RootStack() {
 
     const screen = segments[0];
     const isAuthScreen = screen === 'auth' || screen === 'verify-email';
+    const isGuestAllowedScreen =
+      screen === 'index' || screen === 'onboarding' || screen === 'home' || screen === 'deck';
 
-    if (!user && screen !== 'index' && !isAuthScreen) {
+    if (!user && !isAuthScreen && !isGuestAllowedScreen) {
       router.replace('/');
       return;
     }
