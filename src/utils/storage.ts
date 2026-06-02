@@ -1,174 +1,34 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const HABIT_PROFILER_COMPLETE_KEY = '@habit_profiler_complete';
-const ONBOARDING_COMPLETE_KEY = '@onboarding_complete';
-const ONBOARDING_DATA_KEY = '@onboarding_data';
-const HABIT_PROFILE_DATA_KEY = '@habit_profile_data';
-const NEW_GOAL_TOOLTIP_KEY = '@new_goal_tooltip_seen';
-const GAME_SESSION_KEY = '@game_session';
 const SWIPE_TUTORIAL_KEY = '@swipe_tutorial_complete';
+const ACTIVE_CATEGORY_KEY = '@active_category_id';
 
 export const storage = {
-  // Check if habit profiler is complete
-  async isHabitProfilerComplete(): Promise<boolean> {
-    try {
-      const value = await AsyncStorage.getItem(HABIT_PROFILER_COMPLETE_KEY);
-      return value === 'true';
-    } catch (error) {
-      console.error('Error reading habit profiler status:', error);
-      return false;
-    }
-  },
-
-  // Mark habit profiler as complete
-  async setHabitProfilerComplete(complete: boolean): Promise<void> {
-    try {
-      await AsyncStorage.setItem(HABIT_PROFILER_COMPLETE_KEY, complete ? 'true' : 'false');
-    } catch (error) {
-      console.error('Error saving habit profiler status:', error);
-    }
-  },
-
-  // Check if onboarding is complete
-  async isOnboardingComplete(): Promise<boolean> {
-    try {
-      const value = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
-      return value === 'true';
-    } catch (error) {
-      console.error('Error reading onboarding status:', error);
-      return false;
-    }
-  },
-
-  // Mark onboarding as complete
-  async setOnboardingComplete(complete: boolean): Promise<void> {
-    try {
-      await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, complete ? 'true' : 'false');
-    } catch (error) {
-      console.error('Error saving onboarding status:', error);
-    }
-  },
-
-  // Save habit profile data
-  async saveHabitProfileData(data: any): Promise<void> {
-    try {
-      await AsyncStorage.setItem(HABIT_PROFILE_DATA_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.error('Error saving habit profile data:', error);
-    }
-  },
-
-  // Get habit profile data
-  async getHabitProfileData(): Promise<any | null> {
-    try {
-      const value = await AsyncStorage.getItem(HABIT_PROFILE_DATA_KEY);
-      return value ? JSON.parse(value) : null;
-    } catch (error) {
-      console.error('Error reading habit profile data:', error);
-      return null;
-    }
-  },
-
-  // Save onboarding data
-  async saveOnboardingData(data: any): Promise<void> {
-    try {
-      await AsyncStorage.setItem(ONBOARDING_DATA_KEY, JSON.stringify(data));
-    } catch (error) {
-      console.error('Error saving onboarding data:', error);
-    }
-  },
-
-  // Get onboarding data
-  async getOnboardingData(): Promise<any | null> {
-    try {
-      const value = await AsyncStorage.getItem(ONBOARDING_DATA_KEY);
-      return value ? JSON.parse(value) : null;
-    } catch (error) {
-      console.error('Error reading onboarding data:', error);
-      return null;
-    }
-  },
-
-  // --- NEW METHODS FOR TOOLTIP ---
-  async hasSeenNewGoalTooltip(): Promise<boolean> {
-    try {
-      const value = await AsyncStorage.getItem(NEW_GOAL_TOOLTIP_KEY);
-      return value === 'true';
-    } catch (error) {
-      return false;
-    }
-  },
-
-  async setNewGoalTooltipSeen(): Promise<void> {
-    try {
-      await AsyncStorage.setItem(NEW_GOAL_TOOLTIP_KEY, 'true');
-    } catch (error) {
-      console.error('Error saving tooltip status:', error);
-    }
-  },
-
-  async saveGameSession(sessionId: string, roomCode: string): Promise<void> {
-    try {
-      await AsyncStorage.setItem(
-        GAME_SESSION_KEY,
-        JSON.stringify({ sessionId, roomCode })
-      );
-    } catch (error) {
-      console.error('Error saving game session:', error);
-    }
-  },
-
-  async getGameSession(): Promise<{ sessionId: string; roomCode: string } | null> {
-    try {
-      const value = await AsyncStorage.getItem(GAME_SESSION_KEY);
-      return value ? JSON.parse(value) : null;
-    } catch (error) {
-      console.error('Error reading game session:', error);
-      return null;
-    }
-  },
-
-  async clearGameSession(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(GAME_SESSION_KEY);
-    } catch (error) {
-      console.error('Error clearing game session:', error);
-    }
-  },
-
   async isSwipeTutorialComplete(): Promise<boolean> {
     try {
-      const value = await AsyncStorage.getItem(SWIPE_TUTORIAL_KEY);
-      return value === 'true';
+      return (await AsyncStorage.getItem(SWIPE_TUTORIAL_KEY)) === 'true';
     } catch {
       return false;
     }
   },
 
   async setSwipeTutorialComplete(complete: boolean): Promise<void> {
+    await AsyncStorage.setItem(SWIPE_TUTORIAL_KEY, complete ? 'true' : 'false');
+  },
+
+  async setActiveCategory(categoryId: string): Promise<void> {
+    await AsyncStorage.setItem(ACTIVE_CATEGORY_KEY, categoryId);
+  },
+
+  async getActiveCategory(): Promise<string | null> {
     try {
-      await AsyncStorage.setItem(SWIPE_TUTORIAL_KEY, complete ? 'true' : 'false');
-    } catch (error) {
-      console.error('Error saving swipe tutorial status:', error);
+      return await AsyncStorage.getItem(ACTIVE_CATEGORY_KEY);
+    } catch {
+      return null;
     }
   },
 
-  // --- SECURITY METHOD ---
-  // Completely wipes user-specific data from the device
   async clearAllUserData(): Promise<void> {
-    try {
-      await AsyncStorage.multiRemove([
-        HABIT_PROFILER_COMPLETE_KEY,
-        ONBOARDING_COMPLETE_KEY,
-        ONBOARDING_DATA_KEY,
-        HABIT_PROFILE_DATA_KEY,
-        NEW_GOAL_TOOLTIP_KEY,
-        GAME_SESSION_KEY,
-        SWIPE_TUTORIAL_KEY,
-      ]);
-      console.log('🔒 Secure storage cleared');
-    } catch (error) {
-      console.error('Error clearing user data:', error);
-    }
-  }
+    await AsyncStorage.multiRemove([SWIPE_TUTORIAL_KEY, ACTIVE_CATEGORY_KEY]);
+  },
 };

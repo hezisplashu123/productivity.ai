@@ -19,16 +19,13 @@ import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } fr
 import { auth, sendPasswordResetEmail, signOut } from '../src/config/firebase'; 
 import { sendEmailVerification, reload } from 'firebase/auth';
 import { apiService } from '../src/services/api';
-import { useApp } from '../src/context/AppContext';
-import { lightColors as colors } from '../src/constants/colors';
+import { colors } from '../src/constants/colors';
 
 const { width } = Dimensions.get('window');
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { setUser } = useApp();
-  
   const [loading, setLoading] = useState(false);
   const [isResendDisabled, setIsResendDisabled] = useState(false);
   const [timer, setTimer] = useState(0);
@@ -36,8 +33,6 @@ export default function VerifyEmailScreen() {
   const email = params.email as string;
   const password = params.password as string; 
   const name = params.name as string;
-  const onboardingData = params.onboardingData ? JSON.parse(params.onboardingData as string) : null;
-
   useEffect(() => {
     // Start countdown if resend is disabled
     let interval: NodeJS.Timeout;
@@ -69,23 +64,14 @@ export default function VerifyEmailScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
         // 1. Sync with Backend now that it's verified
-        const backendUser = await apiService.syncUser({
+        await apiService.syncUser({
           email: currentUser.email,
           socialId: currentUser.uid,
-          name: name || currentUser.displayName || 'Operative',
+          name: name || currentUser.displayName || 'Player',
           provider: 'email',
-          onboardingData: onboardingData
         });
 
-        // 2. Update Context
-        setUser(backendUser);
-
-        // 3. Navigate - FINISHED! GO TO PAYWALL
-        if (backendUser.onboardingData || onboardingData) {
-          router.replace('/paywall');
-        } else {
-          router.replace('/onboarding');
-        }
+        router.replace('/onboarding');
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         Alert.alert(
@@ -195,7 +181,7 @@ export default function VerifyEmailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -219,11 +205,11 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    backgroundColor: colors.glow,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.2)',
+    borderColor: colors.border,
   },
   badge: {
     position: 'absolute',

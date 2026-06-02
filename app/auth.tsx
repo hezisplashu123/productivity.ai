@@ -6,8 +6,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { apiService } from '../src/services/api';
-import { useApp } from '../src/context/AppContext';
-import { lightColors as colors } from '../src/constants/colors';
+import { colors } from '../src/constants/colors';
 import { ArrowRight, Lock, Mail, User, AlertTriangle, Trash2, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg'; 
@@ -34,12 +33,7 @@ WebBrowser.maybeCompleteAuthSession();
 export default function AuthScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { setUser } = useApp();
-  const insets = useSafeAreaInsets(); 
-  
-  const onboardingDataString = params.onboardingData as string;
-  const onboardingData = onboardingDataString ? JSON.parse(onboardingDataString) : null;
-  
+  const insets = useSafeAreaInsets();
   const isDeleteMode = params.mode === 'delete_reauth';
   const prefillEmail = params.email as string || '';
 
@@ -72,14 +66,13 @@ export default function AuthScreen() {
         await apiService.deleteUser(firebaseUser.email);
       }
       await deleteUser(firebaseUser);
-      setUser(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Account Deleted", "Your account has been permanently removed.");
       
       if (router.canGoBack()) {
         router.dismissAll();
       }
-      router.replace('/welcome');
+      router.replace('/');
     } catch (error: any) {
       console.error("Deletion Error:", error);
       Alert.alert("Deletion Failed", error.message || "Could not delete account.");
@@ -230,7 +223,7 @@ export default function AuthScreen() {
             setLoading(false);
             router.push({
               pathname: '/verify-email',
-              params: { email, name, onboardingData: JSON.stringify(onboardingData) }
+              params: { email, name }
             });
             return;
           }
@@ -247,7 +240,7 @@ export default function AuthScreen() {
         setLoading(false);
         router.push({
           pathname: '/verify-email',
-          params: { email, name, onboardingData: JSON.stringify(onboardingData) }
+          params: { email, name }
         });
       }
     } catch (error: any) {
@@ -272,22 +265,14 @@ export default function AuthScreen() {
 
   const syncUserWithBackend = async (firebaseUser: any, provider: string, nameOverride?: string, emailOverride?: string) => {
     try {
-        const backendUser = await apiService.syncUser({
+        await apiService.syncUser({
             email: emailOverride || firebaseUser.email,
             socialId: firebaseUser.uid || firebaseUser.socialId,
-            name: nameOverride || firebaseUser.displayName || name || 'Operative',
+            name: nameOverride || firebaseUser.displayName || name || 'Player',
             provider: provider,
-            onboardingData: onboardingData
         });
-        setUser(backendUser);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        if (backendUser.onboardingData || onboardingData) {
-            // Final destination after setup: The Paywall!
-            router.replace('/paywall');
-        } else {
-            router.replace('/onboarding');
-        }
+        router.replace('/onboarding');
     } catch (error) {
         console.error("Backend Sync Error:", error);
         Alert.alert("Sync Error", "Logged in, but failed to connect to the backend.");
@@ -300,13 +285,13 @@ export default function AuthScreen() {
     if (router.canGoBack()) {
       router.back(); 
     } else {
-      router.replace('/edit-profile'); 
+      router.replace('/'); 
     }
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <StatusBar style="dark" />
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBar style="light" />
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         style={styles.container}

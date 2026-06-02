@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -12,12 +12,12 @@ import Animated, {
   Extrapolate,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { lightColors as colors } from '../constants/colors';
+import { colors } from '../constants/colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
-const ROTATION_MAX = 15;
-const CARD_SCALE = 0.95;
+const ROTATION_MAX = 12;
+const CARD_SCALE = 0.96;
 
 export interface SwipableCardData {
   id: string;
@@ -64,11 +64,8 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
 
   const handleSwipeComplete = useCallback(
     (direction: 'left' | 'right') => {
-      if (direction === 'left') {
-        onSwipeLeft(card.id);
-      } else {
-        onSwipeRight(card.id);
-      }
+      if (direction === 'left') onSwipeLeft(card.id);
+      else onSwipeRight(card.id);
     },
     [card.id, onSwipeLeft, onSwipeRight]
   );
@@ -80,16 +77,15 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
     })
     .onUpdate((e) => {
       translateX.value = e.translationX;
-      translateY.value = e.translationY * 0.1;
+      translateY.value = e.translationY * 0.08;
       rotation.value = interpolate(
         translateX.value,
         [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
         [-ROTATION_MAX, 0, ROTATION_MAX],
         Extrapolate.CLAMP
       );
-      const dragDistance = Math.abs(translateX.value);
       scale.value = interpolate(
-        dragDistance,
+        Math.abs(translateX.value),
         [0, SCREEN_WIDTH * 0.5],
         [1, CARD_SCALE],
         Extrapolate.CLAMP
@@ -111,39 +107,29 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
           runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
         }
 
-        translateX.value = withSpring(finalX, {
-          damping: 20,
-          stiffness: 90,
-          velocity,
-        });
-        translateY.value = withSpring(0, { damping: 20, stiffness: 90 });
+        translateX.value = withSpring(finalX, { damping: 20, stiffness: 90, velocity });
+        translateY.value = withSpring(0);
         opacity.value = withTiming(0, { duration: 200 });
-        scale.value = withTiming(0.8, { duration: 200 });
+        scale.value = withTiming(0.85, { duration: 200 });
         runOnJS(handleSwipeComplete)(direction);
       } else {
-        translateX.value = withSpring(0, { damping: 15, stiffness: 300 });
-        translateY.value = withSpring(0, { damping: 15, stiffness: 300 });
-        rotation.value = withSpring(0, { damping: 15, stiffness: 300 });
-        scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        rotation.value = withSpring(0);
+        scale.value = withSpring(1);
       }
     });
 
-  const cardStyle = useAnimatedStyle(() => {
-    const zIndex = totalCards - index;
-    const cardScale = index === 0 ? scale.value : 1 - index * 0.05;
-    const cardOpacity = index === 0 ? opacity.value : 1 - index * 0.2;
-
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { rotate: `${rotation.value}deg` },
-        { scale: cardScale },
-      ],
-      opacity: cardOpacity,
-      zIndex,
-    };
-  });
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { rotate: `${rotation.value}deg` },
+      { scale: index === 0 ? scale.value : 1 - index * 0.04 },
+    ],
+    opacity: index === 0 ? opacity.value : 1 - index * 0.15,
+    zIndex: totalCards - index,
+  }));
 
   const backgroundStyle = useAnimatedStyle(() => {
     if (translateX.value < 0) {
@@ -151,7 +137,12 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
         backgroundColor: interpolateColor(
           translateX.value,
           [-SWIPE_THRESHOLD, 0],
-          [colors.success, colors.backgroundCard]
+          [colors.swipeKeep, colors.backgroundCard]
+        ),
+        borderColor: interpolateColor(
+          translateX.value,
+          [-SWIPE_THRESHOLD, 0],
+          [colors.primary, colors.border]
         ),
       };
     }
@@ -160,58 +151,43 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
         backgroundColor: interpolateColor(
           translateX.value,
           [0, SWIPE_THRESHOLD],
-          [colors.backgroundCard, colors.error]
+          [colors.backgroundCard, colors.swipeSkip]
+        ),
+        borderColor: interpolateColor(
+          translateX.value,
+          [0, SWIPE_THRESHOLD],
+          [colors.border, colors.error]
         ),
       };
     }
-    return { backgroundColor: colors.backgroundCard };
+    return { backgroundColor: colors.backgroundCard, borderColor: colors.border };
   });
 
   const leftOverlayStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      translateX.value,
-      [-SWIPE_THRESHOLD, 0],
-      [1, 0],
-      Extrapolate.CLAMP
-    ),
+    opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolate.CLAMP),
   }));
 
   const rightOverlayStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      translateX.value,
-      [0, SWIPE_THRESHOLD],
-      [0, 1],
-      Extrapolate.CLAMP
-    ),
+    opacity: interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolate.CLAMP),
   }));
 
   return (
     <Animated.View
-      style={[
-        styles.cardContainer,
-        cardStyle,
-        { position: index === 0 ? 'relative' : 'absolute' },
-      ]}
+      style={[styles.cardContainer, cardStyle, { position: index === 0 ? 'relative' : 'absolute' }]}
       pointerEvents={index === 0 ? 'auto' : 'none'}
     >
       <GestureDetector gesture={panGesture}>
         <Animated.View style={[styles.card, backgroundStyle]}>
-          <Animated.View style={[styles.overlay, styles.leftOverlay, leftOverlayStyle]}>
-            <Text style={styles.overlayText}>{leftLabel}</Text>
+          <Animated.View style={[styles.overlay, styles.keepOverlay, leftOverlayStyle]}>
+            <Text style={[styles.overlayText, styles.keepText]}>{leftLabel}</Text>
           </Animated.View>
-
-          <Animated.View style={[styles.overlay, styles.rightOverlay, rightOverlayStyle]}>
-            <Text style={styles.overlayText}>{rightLabel}</Text>
+          <Animated.View style={[styles.overlay, styles.skipOverlay, rightOverlayStyle]}>
+            <Text style={[styles.overlayText, styles.skipText]}>{rightLabel}</Text>
           </Animated.View>
-
           <View style={styles.cardContent}>
-            {card.category ? (
-              <Text style={styles.categoryTag}>{card.category}</Text>
-            ) : null}
+            {card.category ? <Text style={styles.categoryTag}>{card.category}</Text> : null}
             <Text style={styles.cardLabel}>{card.label}</Text>
-            {card.description ? (
-              <Text style={styles.cardDescription}>{card.description}</Text>
-            ) : null}
+            {card.description ? <Text style={styles.cardDescription}>{card.description}</Text> : null}
           </View>
         </Animated.View>
       </GestureDetector>
@@ -278,14 +254,13 @@ export const SwipableCardStack: React.FC<SwipableCardStackProps> = ({
 const styles = StyleSheet.create({
   stackContainer: {
     width: '100%',
-    height: 420,
+    height: 440,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   cardContainer: {
-    width: SCREEN_WIDTH - 48,
-    height: 400,
+    width: SCREEN_WIDTH - 40,
+    height: 420,
     position: 'absolute',
   },
   card: {
@@ -293,29 +268,27 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 28,
     padding: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
+    borderWidth: 1.5,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
     shadowRadius: 24,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    elevation: 12,
     overflow: 'hidden',
   },
   cardContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1,
     paddingHorizontal: 8,
   },
   categoryTag: {
     fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 1.2,
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
     color: colors.primary,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   cardLabel: {
     fontSize: 26,
@@ -329,39 +302,32 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
-    marginTop: 12,
+    marginTop: 14,
   },
   overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
     paddingHorizontal: 24,
+    zIndex: 2,
   },
-  leftOverlay: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-  },
-  rightOverlay: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-  },
+  keepOverlay: { backgroundColor: colors.swipeKeepGlow },
+  skipOverlay: { backgroundColor: colors.swipeSkipGlow },
   overlayText: {
     fontSize: 20,
     fontWeight: '800',
-    color: colors.text,
     textAlign: 'center',
   },
+  keepText: { color: colors.swipeKeep },
+  skipText: { color: colors.swipeSkip },
   emptyContainer: {
-    width: '100%',
-    height: 420,
+    height: 440,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: colors.textSecondary,
     textAlign: 'center',

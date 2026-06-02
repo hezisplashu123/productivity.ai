@@ -8,76 +8,42 @@ datasource db {
 }
 
 model User {
-  id             String   @id @default(uuid())
-  email          String   @unique
-  socialId       String?  @unique
-  name           String?
+  id        String   @id @default(uuid())
+  email     String   @unique
+  socialId  String?  @unique
+  name      String?
+  password  String?
+  provider  String   @default("email")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  password       String?
-  provider       String   @default("email")
-
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  currentStreak  Int      @default(0)
-  lastActiveDate DateTime?
-
-  onboardingData Json?
-
-  following      Friendship[] @relation("UserFollowing")
-  followers      Friendship[] @relation("UserFollowers")
-  reportsFiled   Report[]     @relation("Reporter")
-  reportsReceived Report[]    @relation("ReportedUser")
+  profile UserProfile?
 }
 
-model Friendship {
-  id          String   @id @default(uuid())
-  followerId  String
-  followingId String
-  status      String   @default("PENDING")
-  createdAt   DateTime @default(now())
-
-  follower    User     @relation("UserFollowing", fields: [followerId], references: [id])
-  following   User     @relation("UserFollowers", fields: [followingId], references: [id])
-
-  @@unique([followerId, followingId])
-}
-
-model Report {
-  id             String   @id @default(uuid())
-  reporterId     String
-  reportedUserId String
-  reason         String
-  createdAt      DateTime @default(now())
-
-  reporter       User     @relation("Reporter", fields: [reporterId], references: [id])
-  reportedUser   User     @relation("ReportedUser", fields: [reportedUserId], references: [id])
-}
-
-model GameSession {
-  id          String        @id @default(uuid())
-  roomCode    String        @unique
-  hostId      String
-  createdAt   DateTime      @default(now())
+model UserProfile {
+  id          String       @id @default(uuid())
+  userId      String       @unique
   vibeWeights Json
-  history     SessionPlay[]
+  history     PromptPlay[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model QuestionPrompt {
-  id          String        @id @default(uuid())
-  text        String
-  category    String
-  tags        String[]
-  plays       SessionPlay[]
+  id       String       @id @default(uuid())
+  text     String
+  category String
+  tags     String[]
+  plays    PromptPlay[]
 }
 
-model SessionPlay {
-  id          String         @id @default(uuid())
-  sessionId   String
-  promptId    String
-  swipedLeft  Boolean
-  timestamp   DateTime       @default(now())
+model PromptPlay {
+  id         String   @id @default(uuid())
+  profileId  String
+  promptId   String
+  swipedLeft Boolean
+  timestamp  DateTime @default(now())
 
-  session     GameSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  prompt      QuestionPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  profile UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  prompt  QuestionPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
 }

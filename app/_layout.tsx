@@ -3,69 +3,54 @@ import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
+import { colors } from '../src/constants/colors';
+import { storage } from '../src/utils/storage';
 
 function RootStack() {
-  const { user, isLoading, isPro } = useApp();
+  const { user, isLoading } = useApp();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (isLoading) return;
 
-    const currentScreen = segments[0];
+    const screen = segments[0];
+    const isAuthScreen = screen === 'auth' || screen === 'verify-email';
 
-    const isAllowedGuestScreen =
-      currentScreen === 'index' ||
-      currentScreen === 'welcome' ||
-      currentScreen === 'auth' ||
-      currentScreen === 'verify-email' ||
-      currentScreen === 'onboarding' ||
-      currentScreen === 'home' ||
-      currentScreen === 'demo';
-
-    const isPaywall = currentScreen === 'paywall';
-
-    if (!user && !isAllowedGuestScreen) {
+    if (!user && screen !== 'index' && !isAuthScreen) {
       router.replace('/');
       return;
     }
 
-    if (user && !isPro && !isPaywall && currentScreen !== 'verify-email' && currentScreen !== 'demo') {
-      router.replace('/paywall');
-      return;
+    if (user) {
+      const route = async () => {
+        const tutorialDone = await storage.isSwipeTutorialComplete();
+        if (!tutorialDone && screen !== 'onboarding') {
+          router.replace('/onboarding');
+          return;
+        }
+        if (tutorialDone && (screen === 'index' || screen === 'auth' || screen === 'onboarding')) {
+          router.replace('/home');
+        }
+      };
+      route();
     }
-
-    if (user && isPro && (currentScreen === 'welcome' || isPaywall)) {
-      router.replace('/home');
-    }
-  }, [user, isLoading, isPro, segments]);
+  }, [user, isLoading, segments]);
 
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: '#FFFFFF' },
+        contentStyle: { backgroundColor: colors.background },
         animation: 'slide_from_right',
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="welcome" />
-      <Stack.Screen name="onboarding" />
       <Stack.Screen name="auth" />
-      <Stack.Screen
-        name="paywall"
-        options={{
-          presentation: 'modal',
-          animation: 'slide_from_bottom',
-          gestureEnabled: false,
-        }}
-      />
-      <Stack.Screen name="demo" />
-      <Stack.Screen name="home" />
-      <Stack.Screen name="profile" />
-      <Stack.Screen name="social" />
       <Stack.Screen name="verify-email" />
-      <Stack.Screen name="edit-profile" />
+      <Stack.Screen name="onboarding" />
+      <Stack.Screen name="home" />
+      <Stack.Screen name="deck" options={{ animation: 'fade' }} />
     </Stack>
   );
 }
@@ -73,7 +58,7 @@ function RootStack() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
         <AppProvider>
           <RootStack />
         </AppProvider>

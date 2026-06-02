@@ -1,50 +1,12 @@
-export interface Goal {
+export interface QuestionPrompt {
   id: string;
-  title: string;
-  createdAt: Date | string; 
-  completedAt?: Date | string;
-  status: 'active' | 'completed' | 'archived';
-  
-  type?: 'project' | 'journey';
-  targetDate?: Date | string;
-  startDate?: Date | string;
-  dailyMinutes?: number;
+  text: string;
+  category: string;
+  tags: string[];
 }
 
-export type TaskStatus = 'queued' | 'in_progress' | 'completed';
-
-export interface Task {
+export interface UserProfile {
   id: string;
-  goalId: string;
-  title: string;
-  description?: string;
-  duration: number; // in minutes
-  status: TaskStatus;
-  order?: number; 
-  dayNumber?: number;
-  dueDate?: Date | string;
-  completedAt?: Date | string;
-  productivityRating?: number;
-  subTasks?: SubTask[];
-  completed?: boolean;
-  timeBudget?: number;
-  
-  // NEW: Link object
-  link?: {
-    url: string;
-    label: string;
-  };
-}
-
-export interface SubTask {
-  id: string;
-  title: string;
-  completed: boolean;
-  duration?: number;
-}
-
-export interface ProductivityRating {
-  taskId: string;
-  rating: number;
-  timestamp: Date;
+  userId: string;
+  vibeWeights: Record<string, number>;
 }

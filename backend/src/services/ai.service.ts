@@ -15,7 +15,6 @@ export const DEFAULT_VIBE_WEIGHTS: Record<string, number> = {
 };
 
 const WEIGHT_DELTA = 0.12;
-const HARD_BOOST = 1.0;
 const MIN_WEIGHT = 0.05;
 const MAX_WEIGHT = 1.0;
 
@@ -26,7 +25,7 @@ export type QuestionPromptCandidate = {
   tags: string[];
 };
 
-export type SessionPlayRecord = {
+export type PromptPlayRecord = {
   swipedLeft: boolean;
   prompt: { category: string; tags: string[] };
 };
@@ -35,7 +34,7 @@ function clampWeight(value: number): number {
   return Math.min(MAX_WEIGHT, Math.max(MIN_WEIGHT, value));
 }
 
-function normalizeWeights(weights: Record<string, number>): Record<string, number> {
+export function normalizeWeights(weights: Record<string, number>): Record<string, number> {
   const merged = { ...DEFAULT_VIBE_WEIGHTS, ...weights };
   const entries = Object.entries(merged);
   const sum = entries.reduce((acc, [, v]) => acc + v, 0) || 1;
@@ -61,31 +60,22 @@ export function applySwipeFeedback(
 
   keys.forEach((key) => {
     if (!key) return;
-    const current = next[key] ?? DEFAULT_VIBE_WEIGHTS[key] ?? 0.5;
+    const current = next[key] ?? 0.5;
     next[key] = clampWeight(current + delta);
   });
 
   return normalizeWeights(next);
 }
 
-export function applyCategoryBoost(
-  weights: Record<string, number>,
-  category: string
-): Record<string, number> {
-  const next = { ...parseVibeWeights(weights) };
-  next[category] = clampWeight((next[category] ?? 0.5) + HARD_BOOST);
-  return normalizeWeights(next);
+export function applySeedWeights(seed: Record<string, number>): Record<string, number> {
+  return normalizeWeights({ ...DEFAULT_VIBE_WEIGHTS, ...seed });
 }
 
-function pickWeightedCategory(weights: Record<string, number>): string {
-  const entries = Object.entries(weights);
-  const total = entries.reduce((sum, [, w]) => sum + w, 0);
-  let roll = Math.random() * total;
-  for (const [category, weight] of entries) {
-    roll -= weight;
-    if (roll <= 0) return category;
-  }
-  return entries[0]?.[0] ?? 'Existential';
+export function invertWeights(weights: Record<string, number>): Record<string, number> {
+  const parsed = parseVibeWeights(weights);
+  return normalizeWeights(
+    Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, clampWeight(1 - v)]))
+  );
 }
 
 function scorePrompt(
@@ -116,39 +106,26 @@ export async function selectNextPromptFromDb(
 
 export async function generatePivotPrompt(
   weights: Record<string, number>,
-  recentHistory: SessionPlayRecord[]
+  recentHistory: PromptPlayRecord[]
 ): Promise<{ text: string; category: string; tags: string[] } | null> {
-  const targetCategory = pickWeightedCategory(
-    Object.fromEntries(
-      Object.entries(weights).map(([k, v]) => [k, Math.max(MIN_WEIGHT, 1 - v)])
-    )
-  );
+  const inverted = invertWeights(weights);
+  const targetCategory = Object.entries(inverted).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Scenarios';
 
-  const liked = recentHistory
-    .filter((h) => h.swipedLeft)
-    .map((h) => h.prompt.category)
-    .slice(-5);
-  const skipped = recentHistory
-    .filter((h) => !h.swipedLeft)
-    .map((h) => h.prompt.category)
-    .slice(-5);
+  const liked = recentHistory.filter((h) => h.swipedLeft).map((h) => h.prompt.category).slice(-5);
+  const skipped = recentHistory.filter((h) => !h.swipedLeft).map((h) => h.prompt.category).slice(-5);
 
   const systemPrompt = `
-You are the Room Vibe Tuning Engine for a group conversation card game.
-Generate ONE deep, open-ended question that sparks flowing dialogue.
+You are the Room Vibe Tuning Engine for a single-device group conversation card game.
+Generate ONE open-ended question for people passing one phone around.
 
-TARGET CATEGORY (pivot toward): "${targetCategory}"
-RECENTLY LIKED CATEGORIES: ${liked.join(', ') || 'none'}
-RECENTLY SKIPPED CATEGORIES: ${skipped.join(', ') || 'none'}
+TARGET CATEGORY: "${targetCategory}"
+RECENTLY LIKED: ${liked.join(', ') || 'none'}
+RECENTLY SKIPPED: ${skipped.join(', ') || 'none'}
 
 Rules:
-- Avoid yes/no questions.
-- Keep it under 220 characters.
-- Tone: warm, curious, party-game friendly (Imposter / Wavelength energy).
-- Do NOT repeat generic icebreakers.
-
-OUTPUT JSON:
-{ "text": "...", "category": "${targetCategory}", "tags": ["tag1","tag2"] }
+- No yes/no questions. Under 220 characters.
+- Warm, curious, party-game tone.
+OUTPUT JSON: { "text": "...", "category": "${targetCategory}", "tags": ["tag1","tag2"] }
 `;
 
   try {
@@ -171,11 +148,12 @@ OUTPUT JSON:
   }
 }
 
-export async function getNextPromptForSession(input: {
+export async function getNextPromptForProfile(input: {
   vibeWeights: Prisma.JsonValue | null;
-  history: SessionPlayRecord[];
+  history: PromptPlayRecord[];
   dbPrompts: QuestionPromptCandidate[];
   playedPromptIds: string[];
+  forcePivot?: boolean;
 }): Promise<{
   prompt: QuestionPromptCandidate;
   source: 'database' | 'generated';
@@ -186,7 +164,7 @@ export async function getNextPromptForSession(input: {
 
   const recentPlays = input.history.slice(-3);
   const recentSkips = recentPlays.filter((h) => !h.swipedLeft).length;
-  const shouldPivot = recentSkips >= 2;
+  const shouldPivot = input.forcePivot || recentSkips >= 2;
 
   if (shouldPivot) {
     const generated = await generatePivotPrompt(weights, input.history);
@@ -204,12 +182,7 @@ export async function getNextPromptForSession(input: {
     }
   }
 
-  const fromDb = await selectNextPromptFromDb(
-    input.dbPrompts,
-    weights,
-    playedIds
-  );
-
+  const fromDb = await selectNextPromptFromDb(input.dbPrompts, weights, playedIds);
   if (fromDb) {
     return { prompt: fromDb, source: 'database', vibeWeights: weights };
   }

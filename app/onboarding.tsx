@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ArrowRight } from 'lucide-react-native';
-import { lightColors as colors } from '../src/constants/colors';
+import { colors } from '../src/constants/colors';
 import { SwipableCardStack, SwipableCardData } from '../src/components/SwipableCardStack';
 import { storage } from '../src/utils/storage';
 
@@ -12,13 +12,13 @@ const TUTORIAL_CARDS: SwipableCardData[] = [
   {
     id: 'tutorial-left',
     label: 'Swipe LEFT to answer',
-    description: 'When a question sparks depth, curiosity, or laughter—keep it in the mix.',
+    description: 'When a question lands—keep it. The deck leans into topics the room loves.',
     category: 'Tutorial',
   },
   {
     id: 'tutorial-right',
     label: 'Swipe RIGHT to skip',
-    description: 'When the vibe is off, pivot away. The AI learns what not to serve next.',
+    description: 'When the mood is off—pivot away. The AI shifts to a fresher lane.',
     category: 'Tutorial',
   },
 ];
@@ -34,27 +34,26 @@ export default function OnboardingScreen() {
     return [];
   }, [leftDone, rightDone]);
 
-  const handleComplete = async () => {
+  const handleFinish = async () => {
     await storage.setSwipeTutorialComplete(true);
     router.replace('/home');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="dark" />
-
+      <StatusBar style="light" />
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>Quick tutorial</Text>
-        <Text style={styles.title}>Learn the swipe language</Text>
+        <Text style={styles.eyebrow}>How to play</Text>
+        <Text style={styles.title}>One phone. One deck.</Text>
         <Text style={styles.subtitle}>
-          Complete both gestures to enter the deck. Left keeps the energy; right changes the channel.
+          Pass the device around. Complete both swipes to enter the game.
         </Text>
       </View>
 
-      <View style={styles.deckArea}>
+      <View style={styles.deck}>
         {cards.length > 0 ? (
           <SwipableCardStack
-            key={leftDone ? 'right-card' : 'left-card'}
+            key={leftDone ? 'right' : 'left'}
             cards={cards}
             onSwipeLeft={() => {
               if (!leftDone) setLeftDone(true);
@@ -67,31 +66,31 @@ export default function OnboardingScreen() {
             emptyMessage=""
           />
         ) : (
-          <View style={styles.doneBox}>
-            <Text style={styles.doneTitle}>You are ready</Text>
-            <Text style={styles.doneText}>The room is tuned. Time to deal real questions.</Text>
+          <View style={styles.done}>
+            <Text style={styles.doneTitle}>Ready to deal</Text>
+            <Text style={styles.doneText}>Pick a category and let the room guide the AI.</Text>
           </View>
         )}
       </View>
 
       <View style={styles.hints}>
-        <View style={[styles.hintPill, leftDone && styles.hintDone]}>
-          <ArrowLeft size={16} color={leftDone ? colors.success : colors.textSecondary} />
-          <Text style={[styles.hintText, leftDone && styles.hintTextDone]}>Swipe left ✓</Text>
+        <View style={[styles.hint, leftDone && styles.hintActiveKeep]}>
+          <ArrowLeft size={16} color={leftDone ? colors.swipeKeep : colors.textMuted} />
+          <Text style={styles.hintText}>Swipe left</Text>
         </View>
-        <View style={[styles.hintPill, rightDone && styles.hintDone]}>
-          <ArrowRight size={16} color={rightDone ? colors.error : colors.textSecondary} />
-          <Text style={[styles.hintText, rightDone && styles.hintTextDone]}>Swipe right ✓</Text>
+        <View style={[styles.hint, rightDone && styles.hintActiveSkip]}>
+          <ArrowRight size={16} color={rightDone ? colors.swipeSkip : colors.textMuted} />
+          <Text style={styles.hintText}>Swipe right</Text>
         </View>
       </View>
 
       <TouchableOpacity
-        style={[styles.continueButton, !(leftDone && rightDone) && styles.continueDisabled]}
-        onPress={handleComplete}
+        style={[styles.cta, !(leftDone && rightDone) && styles.ctaDisabled]}
         disabled={!(leftDone && rightDone)}
+        onPress={handleFinish}
         activeOpacity={0.85}
       >
-        <Text style={styles.continueText}>Enter the conversation</Text>
+        <Text style={styles.ctaText}>Choose a category</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -99,7 +98,7 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 24 },
-  header: { paddingTop: 12, paddingBottom: 8 },
+  header: { paddingTop: 8, paddingBottom: 4 },
   eyebrow: {
     fontSize: 11,
     fontWeight: '800',
@@ -108,39 +107,34 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: 8,
   },
-  title: { fontSize: 28, fontWeight: '800', color: colors.text, marginBottom: 8 },
+  title: { fontSize: 30, fontWeight: '800', color: colors.text, marginBottom: 8 },
   subtitle: { fontSize: 15, lineHeight: 22, color: colors.textSecondary },
-  deckArea: { flex: 1, justifyContent: 'center' },
-  doneBox: {
-    height: 420,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  doneTitle: { fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: 8 },
-  doneText: { fontSize: 16, color: colors.textSecondary, textAlign: 'center', lineHeight: 24 },
-  hints: { flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 16 },
-  hintPill: {
+  deck: { flex: 1, justifyContent: 'center' },
+  done: { height: 440, justifyContent: 'center', alignItems: 'center' },
+  doneTitle: { fontSize: 26, fontWeight: '800', color: colors.text },
+  doneText: { fontSize: 16, color: colors.textSecondary, marginTop: 8, textAlign: 'center' },
+  hints: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 16 },
+  hint: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: colors.backgroundLight,
     borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.backgroundElevated,
   },
-  hintDone: { borderColor: colors.success, backgroundColor: '#ECFDF5' },
+  hintActiveKeep: { borderColor: colors.swipeKeep, backgroundColor: colors.swipeKeepGlow },
+  hintActiveSkip: { borderColor: colors.swipeSkip, backgroundColor: colors.swipeSkipGlow },
   hintText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  hintTextDone: { color: colors.text },
-  continueButton: {
+  cta: {
     backgroundColor: colors.primary,
     paddingVertical: 18,
     borderRadius: 28,
     alignItems: 'center',
     marginBottom: 16,
   },
-  continueDisabled: { opacity: 0.45 },
-  continueText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
+  ctaDisabled: { opacity: 0.4 },
+  ctaText: { color: colors.background, fontSize: 17, fontWeight: '700' },
 });
