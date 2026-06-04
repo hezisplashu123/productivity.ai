@@ -40,7 +40,16 @@ async function ensureProfile(userId: string, seedWeights?: Record<string, number
 // ==========================================
 app.post('/users/sync', async (req, res) => {
   const { email, name, provider, socialId } = req.body;
+
+  if (!email && !socialId) {
+    return res.status(400).json({ error: 'email or socialId is required' });
+  }
+
   try {
+    const isGuest = typeof email === 'string' && email.endsWith('@hezi.app') && email.startsWith('guest_');
+    const displayName = name || (isGuest ? 'Guest' : 'Player');
+    const authProvider = provider || (isGuest ? 'guest' : 'email');
+
     let user;
     if (socialId) user = await prisma.user.findUnique({ where: { socialId } });
     if (!user && email) user = await prisma.user.findUnique({ where: { email } });
@@ -48,26 +57,38 @@ app.post('/users/sync', async (req, res) => {
     if (user) {
       user = await prisma.user.update({
         where: { id: user.id },
-        data: { name: name || user.name, socialId: socialId || user.socialId },
+        data: {
+          name: displayName,
+          socialId: socialId || user.socialId,
+          provider: authProvider,
+        },
       });
     } else {
-      const finalEmail = email || `${socialId}@${provider}.com`;
+      const finalEmail = email || `${socialId}@${authProvider}.com`;
       user = await prisma.user.create({
-        data: { email: finalEmail, name: name || 'Player', provider: provider || 'email', socialId: socialId },
+        data: {
+          email: finalEmail,
+          name: displayName,
+          provider: authProvider,
+          socialId: socialId ?? null,
+        },
       });
     }
-    
-    // Ensure profile exists and return the fully populated user
-    await ensureProfile(user.id);
+
+    const profile = await ensureProfile(user.id);
     const populatedUser = await prisma.user.findUnique({
       where: { id: user.id },
-      include: { profile: true }
+      include: { profile: true },
     });
-    
-    res.json(populatedUser);
-  } catch (error) { 
+
+    res.json({
+      ...populatedUser,
+      profile: populatedUser?.profile ?? profile,
+      profileId: populatedUser?.profile?.id ?? profile.id,
+    });
+  } catch (error) {
     console.error('Sync error:', error);
-    res.status(500).json({ error: 'Failed to sync user', details: String(error) }); 
+    res.status(500).json({ error: 'Failed to sync user', details: String(error) });
   }
 });
 

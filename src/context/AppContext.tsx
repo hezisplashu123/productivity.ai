@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { apiService } from '../services/api';
-import { auth } from '../config/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { storage } from '../utils/storage';
+import { getOrCreateDeviceId, storage } from '../utils/storage';
 
 export interface AppUser {
   id: string;
@@ -24,76 +22,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const hydrateUser = useCallback(async (firebaseUser: { email: string | null; uid: string; displayName: string | null }) => {
-    if (!firebaseUser.email) {
-      setUser(null);
-      return;
-    }
-
+  const hydrateGuestUser = useCallback(async () => {
     try {
-      // 1. Try to fetch existing user
-      let fetchedUser = await apiService.getUserProfile(firebaseUser.email).catch(async (error: Error) => {
-        if (error.message.includes('not found') || error.message.includes('404')) {
-          // 2. If not found, sync (create) them
-          return apiService.syncUser({
-            email: firebaseUser.email!,
-            socialId: firebaseUser.uid,
-            name: firebaseUser.displayName || 'Player',
-            provider: 'email',
-          });
-        }
-        throw error;
+      const deviceId = await getOrCreateDeviceId();
+      const email = `guest_${deviceId}@hezi.app`;
+
+      const syncedUser = await apiService.syncUser({
+        email,
+        socialId: deviceId,
+        name: 'Guest',
+        provider: 'guest',
       });
 
-      // 3. Ensure we have the profile ID. If the backend didn't attach it, force it.
-      let profileId = fetchedUser.profile?.id;
-      if (!profileId) {
-        const ensuredProfile = await apiService.ensureProfile(fetchedUser.id);
-        profileId = ensuredProfile.id;
-      }
+      const profileId = syncedUser.profile?.id ?? syncedUser.profileId;
 
       setUser({
-        id: fetchedUser.id,
-        email: fetchedUser.email,
-        name: fetchedUser.name || 'Player',
-        profileId: profileId,
+        id: syncedUser.id,
+        email: syncedUser.email,
+        name: syncedUser.name || 'Guest',
+        profileId,
       });
-
     } catch (error) {
-      console.error('Failed to hydrate user:', error);
+      console.error('Failed to hydrate guest user:', error);
       setUser(null);
     }
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (!firebaseUser?.email) {
-          setUser(null);
-        } else {
-          await hydrateUser(firebaseUser);
-        }
-      } catch (error) {
-        console.error('Auth hydrate error:', error);
-        await signOut(auth);
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    });
-    return unsubscribe;
-  }, [hydrateUser]);
+    hydrateGuestUser().finally(() => setIsLoading(false));
+  }, [hydrateGuestUser]);
 
   const refreshUser = useCallback(async () => {
-    const firebaseUser = auth.currentUser;
-    if (firebaseUser?.email) await hydrateUser(firebaseUser);
-  }, [hydrateUser]);
+    await hydrateGuestUser();
+  }, [hydrateGuestUser]);
 
   const logout = useCallback(async () => {
-    await signOut(auth);
     setUser(null);
     await storage.clearAllUserData();
-  }, []);
+    await hydrateGuestUser();
+  }, [hydrateGuestUser]);
 
   return (
     <AppContext.Provider value={{ user, isLoading, logout, refreshUser }}>

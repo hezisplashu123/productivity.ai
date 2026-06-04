@@ -5,12 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { Flame, Ghost, Heart, Layers, MessageCircle, Sparkles, Zap } from 'lucide-react-native';
+import { Flame, Heart, Layers, MessageCircle, Sparkles, Zap, HelpCircle } from 'lucide-react-native';
 import { colors } from '../src/constants/colors';
 import { CONVERSATION_CATEGORIES } from '../src/constants/categories';
 import { useApp } from '../src/context/AppContext';
@@ -19,36 +18,35 @@ import { storage } from '../src/utils/storage';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, logout } = useApp();
+  const { user } = useApp();
 
   const startCategory = async (categoryId: string, seedWeights: Record<string, number>) => {
-    if (!user?.profileId) {
-      Alert.alert('Session error', 'Profile not ready. Try again in a moment.');
-      return;
-    }
-    try {
-      await apiService.resetProfileWeights(user.profileId, seedWeights);
-      await storage.setActiveCategory(categoryId);
-      router.push({ pathname: '/deck', params: { categoryId } });
-    } catch (e: any) {
-      Alert.alert('Could not start', e.message || 'Please try again.');
-    }
+    await storage.setActiveCategory(categoryId);
+    router.push({ pathname: '/deck', params: { categoryId } });
+
+    if (!user?.profileId) return;
+
+    apiService.resetProfileWeights(user.profileId, seedWeights).catch(() => {});
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hey, {user?.name?.split(' ')[0] || 'crew'}</Text>
-          <View style={styles.headlineRow}>
-            <Flame size={24} color={colors.primary} />
-            <Text style={styles.headline}>Pick a vibe</Text>
-          </View>
+        <View style={styles.headlineRow}>
+          <Text style={styles.headline}>Pick a vibe</Text>
         </View>
-        <TouchableOpacity onPress={logout} style={styles.logout} hitSlop={12}>
-          <Ghost size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
+        
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            onPress={() => router.push('/onboarding')} 
+            style={styles.howToPlayBtn}
+            activeOpacity={0.8}
+          >
+            <HelpCircle size={16} color={colors.text} />
+            <Text style={styles.howToPlayText}>How to play</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={styles.lead}>
@@ -99,23 +97,32 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
-  greeting: { fontSize: 14, color: colors.textSecondary, fontWeight: '600' },
-  headlineRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  headline: { fontSize: 32, fontWeight: '800', color: colors.text, marginTop: 4 },
-  logout: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headlineRow: { flexDirection: 'row', alignItems: 'center' },
+  headline: { fontSize: 32, fontWeight: '800', color: colors.text },
+  howToPlayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.backgroundElevated,
     borderWidth: 1,
     borderColor: colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    gap: 6,
+  },
+  howToPlayText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
   },
   lead: {
     fontSize: 15,

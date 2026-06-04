@@ -27,13 +27,14 @@ function RootStack() {
     if (user) {
       const route = async () => {
         const tutorialDone = await storage.isSwipeTutorialComplete();
+        
+        // Force them to onboarding if they haven't done it yet
         if (!tutorialDone && screen !== 'onboarding') {
           router.replace('/onboarding');
           return;
         }
-        if (tutorialDone && (screen === 'index' || screen === 'auth' || screen === 'onboarding')) {
-          router.replace('/home');
-        }
+        
+        // Removed the strict auto-redirect so you can test the onboarding freely
       };
       route();
     }

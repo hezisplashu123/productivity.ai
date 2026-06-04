@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
-import { Check, Flame, MessageCircle, Sparkles, X, ArrowRight, Users } from 'lucide-react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { Check, Flame, MessageCircle, Sparkles, X, ArrowRight, Hand, CornerDownLeft, CornerDownRight, RotateCcw } from 'lucide-react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   cancelAnimation,
@@ -14,54 +14,63 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
+  withSequence,
   withSpring,
   withTiming,
   FadeIn,
+  FadeOut,
+  SlideInDown,
+  SlideOutDown,
 } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { colors } from '../src/constants/colors';
 import { storage } from '../src/utils/storage';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.24;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 
 const TUTORIAL_STEPS = [
   {
     id: 'tutorial-right',
     question: 'What is your favorite season of the year?',
     guidance: "Don't like a question?\nSwipe right to skip.",
-    expectedDirection: 'right' as const,
+    expectedAction: 'right' as const,
   },
   {
     id: 'tutorial-left',
     question: 'What is a movie you could watch over and over again?',
     guidance: 'Fits the vibe?\nSwipe left to answer.',
-    expectedDirection: 'left' as const,
+    expectedAction: 'left' as const,
+  },
+  {
+    id: 'tutorial-tap',
+    question: 'What is your favorite season of the year?', // Same as the first to mimic undo
+    guidance: 'Swiped too fast?\nTap the card to undo.',
+    expectedAction: 'tap' as const,
   },
 ];
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const [stepIndex, setStepIndex] = useState(0);
-  const [completed, setCompleted] = useState(false);
-  const [hasStartedDemo, setHasStartedDemo] = useState(false);
-
-  // Intro Animation Values
-  const introProgress = useSharedValue(0); 
-  const headerOpacity = useSharedValue(0);
-  const categoryOpacity = useSharedValue(0);
-  const categoryTranslateY = useSharedValue(20);
-  const demoButtonOpacity = useSharedValue(0);
   
-  // Card Values
-  const cardOpacity = useSharedValue(0);
+  // App Phases: 0 = Intro, 1 = Pre-Demo, 2 = Active Demo, 2.5 = Demo Modal, 3 = Done
+  const [phase, setPhase] = useState<0 | 1 | 2 | 2.5 | 3>(0);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [showHint, setShowHint] = useState(false);
+  const [isTypingStep, setIsTypingStep] = useState(-1);
+  const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Animation Values
+  const demoProgress = useSharedValue(0); 
   const cardScale = useSharedValue(0.9);
-  const cardTranslateY = useSharedValue(24);
   const dragX = useSharedValue(0);
   const idlePullX = useSharedValue(0);
   const isDragging = useSharedValue(0);
-  
-  // Guidance Text Values
+  const fingerOpacity = useSharedValue(0);
+  const fingerX = useSharedValue(0);
+  const fingerScale = useSharedValue(1);
   const guidanceOpacity = useSharedValue(0);
+  
   const [typedChars, setTypedChars] = useState(0);
 
   const activeStep = useMemo(() => TUTORIAL_STEPS[stepIndex], [stepIndex]);
@@ -69,79 +78,178 @@ export default function OnboardingScreen() {
     () => activeStep.guidance.slice(0, typedChars),
     [activeStep.guidance, typedChars]
   );
+  const expectedAction = activeStep.expectedAction;
 
-  const expectedDirection = activeStep.expectedDirection;
+  useFocusEffect(
+    React.useCallback(() => {
+      setPhase(0);
+      setStepIndex(0);
+      setShowHint(false);
+      setIsTypingStep(-1);
+      setTypedChars(0);
+      demoProgress.value = 0;
+      cardScale.value = 0.9;
+      dragX.value = 0;
+      idlePullX.value = 0;
+      isDragging.value = 0;
+      fingerOpacity.value = 0;
+      fingerX.value = 0;
+      fingerScale.value = 1;
+      guidanceOpacity.value = 0;
+    }, [])
+  );
 
-  const startIdleHint = (direction: 'left' | 'right') => {
+  // Bulletproof Typewriter Effect
+  useEffect(() => {
+    if ((phase === 1 || phase === 2) && stepIndex !== isTypingStep) {
+      setIsTypingStep(stepIndex);
+      setTypedChars(0);
+      
+      // Instantly hide old text, then fade in new text container
+      guidanceOpacity.value = 0; 
+      guidanceOpacity.value = withTiming(1, { duration: 300 }); 
+      
+      const textLen = TUTORIAL_STEPS[stepIndex].guidance.length;
+      const timer = setInterval(() => {
+        setTypedChars((prev) => {
+          if (prev >= textLen) {
+            clearInterval(timer);
+            return textLen;
+          }
+          return prev + 1;
+        });
+      }, 35);
+      return () => clearInterval(timer);
+    }
+  }, [phase, stepIndex, isTypingStep]);
+
+  const startIdleHint = (action: 'left' | 'right' | 'tap') => {
     cancelAnimation(idlePullX);
-    const target = direction === 'right' ? 14 : -14;
+    if (action === 'tap') return; // No pull for tap
+    
+    const target = action === 'right' ? 14 : -14;
     idlePullX.value = withRepeat(
-      withTiming(target, {
-        duration: 1800,
-        easing: Easing.inOut(Easing.quad),
-      }),
+      withTiming(target, { duration: 1800, easing: Easing.inOut(Easing.quad) }),
       -1,
       true
     );
   };
 
-  // Typing Effect
+  const resetHintTimer = () => {
+    if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
+    setShowHint(false);
+    hintTimeoutRef.current = setTimeout(() => {
+      setShowHint(true);
+    }, 3000); 
+  };
+
   useEffect(() => {
-    setTypedChars(0);
-    guidanceOpacity.value = 0;
-    guidanceOpacity.value = withTiming(1, { duration: 360 });
+    if (phase === 2) resetHintTimer();
+    return () => {
+      if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
+    };
+  }, [phase, stepIndex]);
 
-    const textLen = activeStep.guidance.length;
-
-    if (stepIndex > 0) {
-      introProgress.value = 1;
-      headerOpacity.value = 1;
-      categoryOpacity.value = 1;
-    }
-
-    const timer = setInterval(() => {
-      setTypedChars((prev) => {
-        const next = prev + 1;
+  // Dynamic Visual Hint based on expected action
+  useEffect(() => {
+    if (showHint && phase === 2) {
+      if (expectedAction === 'tap') {
+        fingerX.value = 0;
+        fingerScale.value = 1;
         
-        if (next >= textLen) {
-          clearInterval(timer);
-          if (stepIndex === 0 && !hasStartedDemo) {
-             demoButtonOpacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.back(1.5)) });
-          }
-          if (stepIndex !== 0) {
-             setTimeout(() => startIdleHint(expectedDirection), 300);
-          }
-          return textLen;
-        }
-        return next;
-      });
-    }, 45);
-
-    return () => clearInterval(timer);
-  }, [stepIndex, activeStep.guidance, hasStartedDemo, expectedDirection]);
-
-  useEffect(() => {
-    if (completed) {
-      cancelAnimation(idlePullX);
+        fingerOpacity.value = withRepeat(
+          withSequence(
+            withTiming(0.8, { duration: 200 }),
+            withTiming(0, { duration: 200 }),
+            withTiming(0.8, { duration: 200 }),
+            withTiming(0, { duration: 1000 })
+          ),
+          -1
+        );
+        fingerScale.value = withRepeat(
+          withSequence(
+            withTiming(0.8, { duration: 200, easing: Easing.out(Easing.cubic) }),
+            withTiming(1, { duration: 200 }),
+            withTiming(0.8, { duration: 200, easing: Easing.out(Easing.cubic) }),
+            withTiming(1, { duration: 1000 })
+          ),
+          -1
+        );
+      } else {
+        const targetX = expectedAction === 'right' ? 120 : -120;
+        fingerX.value = 0;
+        fingerScale.value = 1;
+        
+        fingerOpacity.value = withRepeat(
+          withSequence(
+            withTiming(0.8, { duration: 300 }),
+            withTiming(0.8, { duration: 800 }),
+            withTiming(0, { duration: 300 }),
+            withTiming(0, { duration: 600 })
+          ),
+          -1
+        );
+        
+        fingerX.value = withRepeat(
+          withSequence(
+            withTiming(0, { duration: 300 }),
+            withTiming(targetX, { duration: 800, easing: Easing.out(Easing.cubic) }),
+            withTiming(targetX, { duration: 300 }),
+            withTiming(0, { duration: 0 }),
+            withTiming(0, { duration: 600 })
+          ),
+          -1
+        );
+      }
+    } else {
+      cancelAnimation(fingerOpacity);
+      cancelAnimation(fingerX);
+      cancelAnimation(fingerScale);
+      fingerOpacity.value = withTiming(0, { duration: 200 });
     }
-  }, [completed]);
+  }, [showHint, expectedAction, phase]);
+
+  const handleStartTutorial = () => {
+    setPhase(1);
+  };
 
   const handleStartDemo = () => {
-    if (hasStartedDemo) return;
-    setHasStartedDemo(true);
-    
-    demoButtonOpacity.value = withTiming(0, { duration: 300 });
-    
-    introProgress.value = withTiming(1, { duration: 900, easing: Easing.inOut(Easing.cubic) });
-    headerOpacity.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
-    categoryOpacity.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
-    categoryTranslateY.value = withTiming(0, { duration: 900, easing: Easing.out(Easing.cubic) });
-    
-    cardOpacity.value = withTiming(1, { duration: 800, easing: Easing.out(Easing.cubic) });
+    setPhase(2);
+    demoProgress.value = withTiming(1, { duration: 800, easing: Easing.inOut(Easing.cubic) });
     cardScale.value = withSpring(1, { damping: 20, stiffness: 80 });
-    cardTranslateY.value = withSpring(0, { damping: 20, stiffness: 80 });
-    
-    setTimeout(() => startIdleHint(expectedDirection), 1000);
+    setTimeout(() => startIdleHint(expectedAction), 1000);
+  };
+
+  const moveToNextStep = () => {
+    if (stepIndex === 0) {
+      // Swipe Right completed
+      setStepIndex(1);
+      resetStateForNextCard();
+    } else if (stepIndex === 1) {
+      // Swipe Left completed -> Modal
+      setPhase(2.5);
+      cancelAnimation(idlePullX);
+      setShowHint(false);
+    } else if (stepIndex === 2) {
+      // Tap Undo completed
+      setPhase(3);
+      cancelAnimation(idlePullX);
+      setShowHint(false);
+    }
+  };
+
+  const resetStateForNextCard = () => {
+    dragX.value = 0;
+    isDragging.value = 0;
+    cardScale.value = 0.92;
+    cardScale.value = withSpring(1, { damping: 24, stiffness: 85 });
+    resetHintTimer();
+  };
+
+  const finishDiscussionModal = () => {
+    setPhase(2);
+    setStepIndex(2); // Go to the Tap Undo step
+    resetStateForNextCard();
   };
 
   const handleFinish = async () => {
@@ -149,78 +257,74 @@ export default function OnboardingScreen() {
     router.replace('/home');
   };
 
-  const moveToNextStep = () => {
-    if (stepIndex === TUTORIAL_STEPS.length - 1) {
-      cancelAnimation(idlePullX);
-      idlePullX.value = 0;
-      setCompleted(true);
-      return;
-    }
-    
-    dragX.value = 0;
-    isDragging.value = 0;
-    cardOpacity.value = 0;
-    cardScale.value = 0.92;
-    cardTranslateY.value = 20;
-
-    setStepIndex((prev) => prev + 1);
-    
-    cardOpacity.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
-    cardScale.value = withSpring(1, { damping: 24, stiffness: 85 });
-    cardTranslateY.value = withSpring(0, { damping: 26, stiffness: 80 });
-  };
-
   const panGesture = Gesture.Pan()
-    .enabled(!completed && hasStartedDemo)
+    .enabled(phase === 2)
     .onBegin(() => {
       isDragging.value = 1;
       cancelAnimation(idlePullX);
+      runOnJS(setShowHint)(false);
+      if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
     })
     .onUpdate((event) => {
-      dragX.value = event.translationX;
+      // If we are expecting a tap, add heavy resistance to swiping
+      if (expectedAction === 'tap') {
+        dragX.value = event.translationX * 0.15; 
+      } else {
+        dragX.value = event.translationX;
+      }
     })
-    .onEnd(() => {
-      const passedThreshold = Math.abs(dragX.value) > SWIPE_THRESHOLD;
+    .onEnd((e) => {
+      if (expectedAction === 'tap') {
+        // Snap back instantly
+        dragX.value = withSpring(0, { damping: 20, stiffness: 200 });
+        isDragging.value = 0;
+        runOnJS(startIdleHint)(expectedAction);
+        runOnJS(resetHintTimer)();
+        return;
+      }
+
+      const absTranslation = Math.abs(dragX.value);
+      const absVelocity = Math.abs(e.velocityX);
+      const passedThreshold = absTranslation > SWIPE_THRESHOLD || absVelocity > 600;
       const direction = dragX.value > 0 ? 'right' : 'left';
-      const matchesStep = direction === expectedDirection;
+      const matchesStep = direction === expectedAction;
 
       if (passedThreshold && matchesStep) {
-        const finalX = direction === 'right' ? SCREEN_WIDTH * 1.5 : -SCREEN_WIDTH * 1.5;
-        dragX.value = withSpring(finalX, { damping: 25, stiffness: 60 });
+        const finalX = direction === 'right' ? SCREEN_WIDTH * 1.2 : -SCREEN_WIDTH * 1.2;
         
-        cardOpacity.value = withTiming(0, { duration: 450 });
-        cardScale.value = withTiming(0.8, { duration: 450 }, (isFinished) => {
+        // Smooth exit
+        dragX.value = withTiming(finalX, { duration: 300, easing: Easing.out(Easing.cubic) });
+        cardScale.value = withTiming(0.8, { duration: 200 }, (isFinished) => {
           if (isFinished) runOnJS(moveToNextStep)();
         });
         return;
       }
       
-      dragX.value = withSpring(0, { damping: 26, stiffness: 78 });
+      dragX.value = withSpring(0, { damping: 20, stiffness: 200 });
       isDragging.value = 0;
-      runOnJS(startIdleHint)(expectedDirection);
+      runOnJS(startIdleHint)(expectedAction);
+      runOnJS(resetHintTimer)();
     });
 
-  const headerAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: headerOpacity.value,
-  }));
+  const tapGesture = Gesture.Tap()
+    .enabled(phase === 2 && expectedAction === 'tap')
+    .maxDuration(250)
+    .onEnd(() => {
+      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Simulate the undo "pop-in" effect
+      cardScale.value = 0.8;
+      cardScale.value = withSpring(1, { damping: 20, stiffness: 200 });
+      
+      runOnJS(moveToNextStep)();
+    });
 
-  const categoryAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: categoryOpacity.value,
-    transform: [{ translateY: categoryTranslateY.value }],
-  }));
-
-  const demoButtonAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      opacity: demoButtonOpacity.value,
-      transform: [{ translateY: interpolate(demoButtonOpacity.value, [0, 1], [30, 0]) }],
-    };
-  });
+  const composedGesture = Gesture.Exclusive(panGesture, tapGesture);
 
   const guidanceAnimatedStyle = useAnimatedStyle(() => {
-    const fontSize = interpolate(introProgress.value, [0, 1], [34, 15]);
-    const lineHeight = interpolate(introProgress.value, [0, 1], [42, 22]);
-    const translateY = interpolate(introProgress.value, [0, 1], [SCREEN_HEIGHT * 0.22, 0]);
-    
+    const fontSize = interpolate(demoProgress.value, [0, 1], [36, 20]);
+    const lineHeight = interpolate(demoProgress.value, [0, 1], [44, 28]);
+    const translateY = interpolate(demoProgress.value, [0, 1], [0, -210]);
     return {
       opacity: guidanceOpacity.value,
       fontSize,
@@ -229,84 +333,126 @@ export default function OnboardingScreen() {
     };
   });
 
+  const demoButtonAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(demoProgress.value, [0, 0.5], [1, 0]);
+    const translateY = interpolate(demoProgress.value, [0, 1], [110, 150]);
+    return { opacity, transform: [{ translateY }] };
+  });
+
+  const hintsAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: demoProgress.value,
+    transform: [{ translateY: interpolate(demoProgress.value, [0, 1], [40, 0]) }],
+  }));
+
+  const ruleAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: demoProgress.value,
+    transform: [{ translateY: interpolate(demoProgress.value, [0, 1], [20, 0]) }],
+  }));
+
   const cardAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: cardOpacity.value,
+    opacity: demoProgress.value,
     transform: [
-      { translateY: cardTranslateY.value },
       { translateX: dragX.value + idlePullX.value * (1 - isDragging.value) },
-      { rotate: `${interpolate(dragX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-10, 0, 10])}deg` },
+      { translateY: interpolate(demoProgress.value, [0, 1], [60, 0]) },
+      { rotate: `${interpolate(dragX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-8, 0, 8])}deg` },
       { scale: cardScale.value },
     ],
   }));
 
-  const skipRippleStyle = useAnimatedStyle(() => ({
+  const swipeHintAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: fingerOpacity.value,
     transform: [
-      { scale: interpolate(dragX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.01, 15], Extrapolate.CLAMP) }
+      { translateX: fingerX.value },
+      { scale: fingerScale.value }
     ],
+  }));
+
+  const skipRippleStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(dragX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }],
     opacity: interpolate(dragX.value, [0, SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP),
   }));
 
   const keepRippleStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: interpolate(dragX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.01, 15], Extrapolate.CLAMP) }
-    ],
+    transform: [{ scale: interpolate(dragX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }],
     opacity: interpolate(dragX.value, [0, -SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP),
   }));
 
   const skipIconStyle = useAnimatedStyle(() => ({
     opacity: interpolate(dragX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD * 0.8], [0, 1], Extrapolate.CLAMP),
-    transform: [
-      { scale: interpolate(dragX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.5, 1.2], Extrapolate.CLAMP) }
-    ]
+    transform: [{ scale: interpolate(dragX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.5, 1.1], Extrapolate.CLAMP) }]
   }));
 
   const keepIconStyle = useAnimatedStyle(() => ({
     opacity: interpolate(dragX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD * 0.8], [0, 1], Extrapolate.CLAMP),
-    transform: [
-      { scale: interpolate(dragX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.5, 1.2], Extrapolate.CLAMP) }
-    ]
+    transform: [{ scale: interpolate(dragX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.5, 1.1], Extrapolate.CLAMP) }]
   }));
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
-      
-      <Animated.View style={[styles.header, headerAnimatedStyle]}>
-        <Text style={styles.eyebrow}>How to play</Text>
-        <Text style={styles.title}>Swipe into better conversations</Text>
-        <Text style={styles.subtitle}>
-          Pass the phone around. The system learns the room's vibe and curates future questions based on your swipes.
-        </Text>
-      </Animated.View>
 
-      <View style={styles.deck}>
-        <Animated.View style={[styles.categoryReveal, categoryAnimatedStyle]}>
-          <Sparkles size={16} color={colors.primary} />
-          <Text style={styles.categoryRevealText}>Icebreakers</Text>
+      {phase === 0 && (
+        <Animated.View style={styles.introContainer} entering={FadeIn} exiting={FadeOut}>
+          <Text style={styles.scienceQuote}>
+            "Psychological studies show that escalating, reciprocal vulnerability creates profound interpersonal closeness in just 45 minutes."
+          </Text>
+
+          <View style={styles.bigRulesContainer}>
+            <View style={styles.bigRuleCard}>
+              <View style={styles.bigRuleIcon}>
+                <MessageCircle size={28} color={colors.primary} />
+              </View>
+              <Text style={styles.bigRuleTitle}>The Circle Rule</Text>
+              <Text style={styles.bigRuleDesc}>Read aloud. Answer it yourself first. Pass to the left.</Text>
+            </View>
+
+            <View style={styles.bigRuleCard}>
+              <View style={styles.bigRuleIcon}>
+                <Flame size={28} color={colors.primary} />
+              </View>
+              <Text style={styles.bigRuleTitle}>The AI Adapts</Text>
+              <Text style={styles.bigRuleDesc}>Swipe left to answer, right to skip. Tap the card to undo. The game learns your group's unique boundaries.</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.primaryButton} onPress={handleStartTutorial} activeOpacity={0.85}>
+            <Text style={styles.primaryButtonText}>Show me how</Text>
+            <ArrowRight size={20} color={colors.background} />
+          </TouchableOpacity>
         </Animated.View>
+      )}
 
-        {!completed ? (
-          <>
+      {(phase === 1 || phase === 2) && (
+        <View style={styles.demoWrapper}>
+          
+          <View style={styles.demoTopBar}>
+            <Text style={styles.eyebrow}>How to play</Text>
+          </View>
+
+          <View style={styles.demoCenterStage}>
+            
             <Animated.Text style={[styles.guidance, guidanceAnimatedStyle]}>
               {renderedGuidance}
             </Animated.Text>
-            
-            <Animated.View 
-              style={[styles.demoButtonContainer, demoButtonAnimatedStyle]} 
-              pointerEvents={hasStartedDemo ? 'none' : 'auto'}
-            >
-              <TouchableOpacity style={styles.demoButton} onPress={handleStartDemo} activeOpacity={0.85}>
-                <Text style={styles.demoButtonText}>Take me to the demo</Text>
+
+            <Animated.View style={[styles.absoluteCenter, demoButtonAnimatedStyle]} pointerEvents={phase === 1 ? 'auto' : 'none'}>
+              <TouchableOpacity style={styles.primaryButton} onPress={handleStartDemo} activeOpacity={0.85}>
+                <Text style={styles.primaryButtonText}>Start the demo</Text>
                 <ArrowRight size={20} color={colors.background} />
               </TouchableOpacity>
             </Animated.View>
 
-            <GestureDetector gesture={panGesture}>
+            <Animated.View style={[styles.swipeHintContainer, swipeHintAnimatedStyle]} pointerEvents="none">
+              <View style={styles.fingerCircle} />
+              <Hand size={40} color="#ffffff" strokeWidth={2} style={styles.fingerIcon} />
+            </Animated.View>
+
+            <GestureDetector gesture={composedGesture}>
               <Animated.View style={[styles.card, cardAnimatedStyle]}>
                 
                 <View style={styles.cardContent}>
                   <View style={styles.cardTop}>
-                    <MessageCircle size={16} color={colors.primary} />
+                    <Sparkles size={16} color={colors.primary} />
                     <Text style={styles.cardTopText}>Demo Question</Text>
                   </View>
                   <Text style={styles.cardQuestion}>{activeStep.question}</Text>
@@ -324,98 +470,172 @@ export default function OnboardingScreen() {
 
               </Animated.View>
             </GestureDetector>
-          </>
-        ) : (
-          <Animated.View style={styles.done} entering={FadeIn.duration(600)}>
-            <Text style={styles.doneTitle}>You're ready.</Text>
-            
-            <View style={styles.ruleBox}>
-              <View style={styles.ruleIconWrap}>
-                <Users size={22} color={colors.primary} />
-              </View>
-              <View style={styles.ruleContent}>
-                <Text style={styles.ruleTitle}>The Circle</Text>
-                <Text style={styles.ruleText}>Swipe to find a question you like. Read it aloud, answer it first, then pass the phone around the room.</Text>
-              </View>
-            </View>
 
-            <View style={styles.ruleBox}>
-              <View style={styles.ruleIconWrap}>
-                <Sparkles size={22} color={colors.primary} />
+            <Animated.Text style={[styles.skipRuleText, ruleAnimatedStyle]}>
+              If you don't have an answer, just skip it.
+            </Animated.Text>
+          </View>
+
+          <Animated.View style={[styles.bottomSection, hintsAnimatedStyle]} pointerEvents="none">
+            <View style={styles.hintContainer}>
+              <View style={styles.hintPill}>
+                <CornerDownLeft size={16} color="#10B981" />
+                <Text style={[styles.hintTitle, { color: '#10B981' }]}>Answer</Text>
               </View>
-              <View style={styles.ruleContent}>
-                <Text style={styles.ruleTitle}>Calibration Phase</Text>
-                <Text style={styles.ruleText}>The first 3 swipes teach the game your group's exact vibe. After that, the system generates highly curated, personalized questions.</Text>
+              
+              <View style={styles.hintPill}>
+                <RotateCcw size={16} color={colors.textSecondary} />
+                <Text style={[styles.hintTitle, { color: colors.textSecondary }]}>Undo</Text>
+              </View>
+
+              <View style={styles.hintPill}>
+                <Text style={[styles.hintTitle, { color: '#EF4444' }]}>Skip</Text>
+                <CornerDownRight size={16} color="#EF4444" />
               </View>
             </View>
           </Animated.View>
-        )}
-      </View>
 
-      <Animated.View style={[{ width: '100%' }, headerAnimatedStyle]}>
-        <TouchableOpacity
-          style={[styles.cta, !completed && styles.ctaDisabled]}
-          disabled={!completed}
-          onPress={handleFinish}
-          activeOpacity={0.85}
+        </View>
+      )}
+
+      {phase === 2.5 && (
+        <Animated.View 
+          style={styles.discussionOverlay}
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(200)}
         >
-          <View style={styles.ctaContent}>
-            <Flame size={16} color={colors.background} />
-            <Text style={styles.ctaText}>Go to dashboard</Text>
+          <View style={styles.discussionContent}>
+            <Animated.View 
+              entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))} 
+              exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
+            >
+              <View style={styles.discussionBadge}>
+                <MessageCircle size={20} color={colors.primary} />
+                <Text style={styles.discussionBadgeText}>Group Discussion</Text>
+              </View>
+              
+              <Text style={styles.discussionQuestion}>{TUTORIAL_STEPS[1].question}</Text>
+              
+              <Text style={styles.discussionHint}>
+                Pass the phone around. Let everyone answer before moving on.
+              </Text>
+
+              <TouchableOpacity 
+                style={styles.nextButton}
+                onPress={finishDiscussionModal}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.nextButtonText}>Got it, what's next?</Text>
+                <ArrowRight size={20} color={colors.background} />
+              </TouchableOpacity>
+            </Animated.View>
           </View>
-        </TouchableOpacity>
-      </Animated.View>
+        </Animated.View>
+      )}
+
+      {phase === 3 && (
+        <Animated.View style={styles.doneContainer} entering={FadeIn.duration(600)}>
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <Text style={styles.doneTitle}>You're ready.</Text>
+            <Text style={styles.doneSubtitle}>Pick a category and let the AI find the perfect questions for your group.</Text>
+          </View>
+
+          <TouchableOpacity style={[styles.primaryButton, { width: '100%', marginBottom: 16 }]} onPress={handleFinish} activeOpacity={0.85}>
+            <Text style={styles.primaryButtonText}>Go to categories</Text>
+            <ArrowRight size={20} color={colors.background} />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 24 },
-  header: { paddingTop: 8, paddingBottom: 4 },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginBottom: 8,
+  
+  introContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingBottom: 20,
   },
-  title: { fontSize: 30, fontWeight: '800', color: colors.text, marginBottom: 8 },
-  subtitle: { fontSize: 15, lineHeight: 22, color: colors.textSecondary },
-  deck: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  categoryReveal: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+  scienceQuote: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.text,
+    lineHeight: 34,
+    marginBottom: 48,
+    fontStyle: 'italic',
+  },
+  bigRulesContainer: {
+    gap: 16,
+    marginBottom: 48,
+  },
+  bigRuleCard: {
+    backgroundColor: colors.backgroundCard,
+    borderRadius: 24,
+    padding: 24,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.backgroundElevated,
   },
-  categoryRevealText: { color: colors.text, fontSize: 13, fontWeight: '700' },
-  guidance: {
-    color: colors.textSecondary,
-    fontWeight: '700',
-    textAlign: 'center',
+  bigRuleIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.backgroundElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  bigRuleTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  bigRuleDesc: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    lineHeight: 24,
+  },
+
+  demoWrapper: { flex: 1 },
+  demoTopBar: { paddingTop: 20, alignItems: 'center' },
+  eyebrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  demoCenterStage: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  guidance: {
+    position: 'absolute',
+    color: colors.text,
+    fontWeight: '800',
+    textAlign: 'center',
     width: SCREEN_WIDTH * 0.9,
     paddingHorizontal: 20,
     zIndex: 10,
   },
-  demoButtonContainer: {
+  absoluteCenter: {
     position: 'absolute',
-    top: '60%', 
-    alignSelf: 'center',
+    zIndex: 11,
   },
-  demoButton: {
+  
+  primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
     paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingVertical: 18,
     borderRadius: 999,
     gap: 8,
     shadowColor: colors.primary,
@@ -424,20 +644,38 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  demoButtonText: {
-    color: colors.background,
-    fontSize: 16,
-    fontWeight: '800',
+  primaryButtonText: { color: colors.background, fontSize: 17, fontWeight: '800' },
+
+  swipeHintContainer: {
+    position: 'absolute',
+    zIndex: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  fingerCircle: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+  },
+  fingerIcon: {
+    marginTop: 40,
+    marginLeft: 20,
+  },
+
   card: {
     width: SCREEN_WIDTH - 56,
-    minHeight: 290,
+    height: 320,
     borderRadius: 28,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.backgroundCard,
     overflow: 'hidden',
     position: 'absolute',
+    zIndex: 5,
   },
   cardContent: {
     flex: 1,
@@ -478,68 +716,105 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 3,
   },
-  done: { 
-    width: '100%',
-    height: 440, 
-    justifyContent: 'center', 
+
+  skipRuleText: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: 180, 
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textMuted,
+    textAlign: 'center',
   },
-  doneTitle: { 
-    fontSize: 28, 
-    fontWeight: '800', 
-    color: colors.text, 
-    marginBottom: 32,
-    textAlign: 'center' 
-  },
-  ruleBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.backgroundCard,
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 16,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  ruleIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.backgroundElevated,
-    justifyContent: 'center',
+
+  bottomSection: {
+    paddingBottom: 32,
     alignItems: 'center',
-    marginRight: 16,
+  },
+  hintContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  hintPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundElevated,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    gap: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  ruleContent: {
-    flex: 1,
+  hintTitle: {
+    fontSize: 14,
+    fontWeight: '700',
   },
-  ruleTitle: {
-    fontSize: 18,
+
+  discussionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.96)',
+    zIndex: 100,
+  },
+  discussionContent: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 60,
+  },
+  discussionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.backgroundElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    gap: 8,
+    marginBottom: 24,
+  },
+  discussionBadgeText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  discussionQuestion: {
+    fontSize: 32,
     fontWeight: '800',
     color: colors.text,
-    marginBottom: 6,
+    lineHeight: 42,
+    marginBottom: 24,
   },
-  ruleText: {
-    fontSize: 14,
+  discussionHint: {
+    fontSize: 16,
     color: colors.textSecondary,
-    lineHeight: 22,
+    lineHeight: 24,
   },
-  cta: {
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: colors.primary,
     paddingVertical: 18,
-    borderRadius: 28,
-    alignItems: 'center',
-    marginBottom: 16,
-    width: '100%',
+    borderRadius: 20,
+    gap: 12,
+    marginTop: 40,
   },
-  ctaDisabled: { opacity: 0.4 },
-  ctaContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  ctaText: { color: colors.background, fontSize: 17, fontWeight: '700' },
+  nextButtonText: {
+    color: colors.background,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  doneContainer: {
+    flex: 1,
+    paddingBottom: 20,
+  },
+  doneTitle: { fontSize: 40, fontWeight: '800', color: colors.text, marginBottom: 16 },
+  doneSubtitle: { fontSize: 18, color: colors.textSecondary, lineHeight: 26 },
 });

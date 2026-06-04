@@ -5,16 +5,15 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowRight, Ghost, Layers, MessageCircle } from 'lucide-react-native';
+import { ArrowRight, ChevronLeft, CornerDownLeft, CornerDownRight, RotateCcw, MessageCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 import { colors } from '../src/constants/colors';
-import { getCategoryById } from '../src/constants/categories';
+import { getCategoryById, PRESET_QUESTIONS } from '../src/constants/categories';
 import { SwipableCardStack, SwipableCardData } from '../src/components/SwipableCardStack';
 import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
@@ -29,56 +28,28 @@ export default function DeckScreen() {
 
   const [queue, setQueue] = useState<Prompt[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fetchingMore, setFetchingMore] = useState(false);
   
-  // Discussion State
   const [activeDiscussion, setActiveDiscussion] = useState<Prompt | null>(null);
-
   const profileId = user?.profileId;
 
-  // Background queue management
-  const fetchMorePrompts = useCallback(async (count: number) => {
-    if (!profileId || fetchingMore) return;
-    setFetchingMore(true);
-    try {
-      const result = await apiService.getNextPrompts(profileId, count);
-      if (result.prompts && result.prompts.length > 0) {
-        setQueue(prev => [...prev, ...result.prompts]);
-      }
-    } catch (e: any) {
-      console.log('Background fetch failed:', e.message);
-    } finally {
-      setFetchingMore(false);
-    }
-  }, [profileId, fetchingMore]);
-
-  // Initial load
   useEffect(() => {
     if (!category) {
       router.replace('/home');
       return;
     }
-    const init = async () => {
-      try {
-        const result = await apiService.getNextPrompts(profileId!, 3);
-        setQueue(result.prompts);
-      } catch (e: any) {
-        Alert.alert('Could not load cards', e.message);
-        router.back();
-      } finally {
-        setLoading(false);
-      }
-    };
-    init();
-  }, [category, profileId, router]);
+    
+    const presetList = PRESET_QUESTIONS[category.id] || PRESET_QUESTIONS['icebreakers'];
+    const shuffled = [...presetList].sort(() => Math.random() - 0.5);
+    
+    const initialQueue = shuffled.map((text, index) => ({
+      id: `local-${category.id}-${index}`,
+      text: text,
+      category: category.title
+    }));
 
-  // Check queue health on every change
-  useEffect(() => {
-    // Always stay at least 2 questions ahead
-    if (!loading && queue.length < 3 && !fetchingMore) {
-      fetchMorePrompts(3 - queue.length);
-    }
-  }, [queue.length, loading, fetchingMore, fetchMorePrompts]);
+    setQueue(initialQueue);
+    setLoading(false);
+  }, [category, router]);
 
   const deckCards: SwipableCardData[] = useMemo(() => {
     return queue.map(p => ({
@@ -89,22 +60,16 @@ export default function DeckScreen() {
   }, [queue]);
 
   const handleSwipe = async (swipedId: string, swipedLeft: boolean) => {
-    if (!profileId) return;
-
-    // Remove swiped card from queue immediately for UI snap
     const swipedPrompt = queue.find(q => q.id === swipedId);
-    setQueue(prev => prev.filter(q => q.id !== swipedId));
 
-    // If they kept it (Swipe Left), enter Discussion Mode
     if (swipedLeft && swipedPrompt) {
       setActiveDiscussion(swipedPrompt);
     }
 
-    // Record it asynchronously
-    try {
-      await apiService.recordSwipe(profileId, swipedId, swipedLeft);
-    } catch (e: any) {
-      console.log('Sync failed', e.message);
+    if (profileId) {
+      try {
+        apiService.recordSwipe(profileId, swipedId, swipedLeft).catch(() => {});
+      } catch (e: any) {}
     }
   };
 
@@ -119,47 +84,73 @@ export default function DeckScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      {/* Background UI */}
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.back} hitSlop={12}>
-          <Ghost size={22} color={colors.text} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
+          <ChevronLeft size={24} color={colors.text} />
+          <Text style={styles.backBtnText}>Categories</Text>
         </TouchableOpacity>
+        
         <View style={styles.headerCenter}>
-          <View style={styles.categoryIconWrap}>
-            <Layers size={16} color={colors.primary} />
-          </View>
           <Text style={styles.categoryTitle}>{category.title}</Text>
         </View>
-        <View style={styles.back} />
+
+        <View style={{ width: 100 }} />
       </View>
 
       <View style={styles.deck}>
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} />
         ) : (
-          <SwipableCardStack
-            key={deckCards.length > 0 ? 'loaded' : 'empty'}
-            cards={deckCards}
-            onSwipeLeft={(id) => handleSwipe(id, true)}
-            onSwipeRight={(id) => handleSwipe(id, false)}
-            leftLabel="Answer"
-            rightLabel="Skip"
-            emptyMessage={fetchingMore ? 'Generating perfect questions...' : 'Out of cards'}
-          />
+          <View style={styles.stackWrapper}>
+            <SwipableCardStack
+              key={deckCards.length > 0 ? 'loaded' : 'empty'}
+              cards={deckCards}
+              onSwipeLeft={(id) => handleSwipe(id, true)}
+              onSwipeRight={(id) => handleSwipe(id, false)}
+              leftLabel="Answer"
+              rightLabel="Skip"
+              emptyMessage="You've finished this category! Switch it up."
+            />
+            <Text style={styles.skipRuleText}>
+              If you don't have an answer, just skip it.
+            </Text>
+          </View>
         )}
       </View>
 
-      <Text style={styles.hint}>← answer · skip →</Text>
+      {/* 3-Pill Bottom Section */}
+      <View style={styles.bottomSection}>
+        <View style={styles.hintContainer}>
+          <View style={styles.hintPill}>
+            <CornerDownLeft size={16} color="#10B981" />
+            <Text style={[styles.hintTitle, { color: '#10B981' }]}>Answer</Text>
+          </View>
+
+          <View style={styles.hintPill}>
+            <RotateCcw size={16} color={colors.textSecondary} />
+            <Text style={[styles.hintTitle, { color: colors.textSecondary }]}>Undo</Text>
+          </View>
+
+          <View style={styles.hintPill}>
+            <Text style={[styles.hintTitle, { color: '#EF4444' }]}>Skip</Text>
+            <CornerDownRight size={16} color="#EF4444" />
+          </View>
+        </View>
+      </View>
 
       {/* DISCUSSION OVERLAY MODAL */}
       {activeDiscussion && (
         <Animated.View 
           style={styles.discussionOverlay}
-          entering={FadeIn.duration(300)}
-          exiting={FadeOut.duration(300)}
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(200)}
         >
           <View style={styles.discussionContent}>
-            <Animated.View entering={SlideInDown.springify().damping(24)} exiting={SlideOutDown}>
+            <Animated.View 
+              entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))} 
+              exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
+            >
               <View style={styles.discussionBadge}>
                 <MessageCircle size={20} color={colors.primary} />
                 <Text style={styles.discussionBadgeText}>Group Discussion</Text>
@@ -170,22 +161,17 @@ export default function DeckScreen() {
               <Text style={styles.discussionHint}>
                 Pass the phone around. Let everyone answer before moving on.
               </Text>
+
+              <TouchableOpacity 
+                style={styles.nextButton}
+                onPress={handleFinishDiscussion}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.nextButtonText}>Done, give me a new question</Text>
+                <ArrowRight size={20} color={colors.background} />
+              </TouchableOpacity>
             </Animated.View>
           </View>
-
-          <Animated.View 
-            style={styles.discussionFooter}
-            entering={SlideInDown.delay(200).springify().damping(20)}
-          >
-            <TouchableOpacity 
-              style={styles.nextButton}
-              onPress={handleFinishDiscussion}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.nextButtonText}>Done, give me a new question</Text>
-              <ArrowRight size={20} color={colors.background} />
-            </TouchableOpacity>
-          </Animated.View>
         </Animated.View>
       )}
 
@@ -198,29 +184,67 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
-  back: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  categoryIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.backgroundElevated,
-    justifyContent: 'center',
+  backBtn: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    width: 100, 
+  },
+  backBtnText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 2,
+  },
+  headerCenter: { 
+    flex: 1, 
+    alignItems: 'center' 
+  },
+  categoryTitle: { 
+    fontSize: 17, 
+    fontWeight: '800', 
+    color: colors.text, 
+    letterSpacing: 0.5 
+  },
+  deck: { flex: 1, justifyContent: 'center' },
+  stackWrapper: {
     alignItems: 'center',
   },
-  categoryTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginTop: 2 },
-  deck: { flex: 1, justifyContent: 'center' },
-  hint: {
-    textAlign: 'center',
-    color: colors.textMuted,
+  skipRuleText: {
     fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 24,
+    fontWeight: '500',
+    color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  
+  bottomSection: {
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    alignItems: 'center',
+  },
+  hintContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  hintPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundElevated,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  hintTitle: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   
   // Discussion Modal Styles
@@ -228,12 +252,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.96)',
     zIndex: 100,
-    justifyContent: 'space-between',
   },
   discussionContent: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 32,
+    paddingBottom: 40,
   },
   discussionBadge: {
     flexDirection: 'row',
@@ -256,10 +280,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   discussionQuestion: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '800',
     color: colors.text,
-    lineHeight: 44,
+    lineHeight: 42,
     marginBottom: 24,
   },
   discussionHint: {
@@ -267,19 +291,15 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 24,
   },
-  discussionFooter: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    paddingTop: 20,
-  },
   nextButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    paddingVertical: 20,
+    paddingVertical: 18,
     borderRadius: 20,
     gap: 12,
+    marginTop: 40, 
   },
   nextButtonText: {
     color: colors.background,

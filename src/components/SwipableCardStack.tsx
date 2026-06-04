@@ -9,14 +9,15 @@ import Animated, {
   runOnJS,
   interpolate,
   Extrapolate,
+  Easing,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { colors } from '../constants/colors';
 import { Check, X } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
-const ROTATION_MAX = 12;
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
+const ROTATION_MAX = 8;
 const CARD_SCALE = 0.96;
 
 export interface SwipableCardData {
@@ -32,6 +33,7 @@ interface SwipableCardProps {
   totalCards: number;
   onSwipeLeft: (cardId: string) => void;
   onSwipeRight: (cardId: string) => void;
+  onUndo: () => void;
   isTopCard: boolean;
   leftLabel?: string;
   rightLabel?: string;
@@ -52,9 +54,10 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
   totalCards,
   onSwipeLeft,
   onSwipeRight,
+  onUndo,
   isTopCard,
-  leftLabel = 'Answer & Explore Depth',
-  rightLabel = 'Skip / Change Topic',
+  leftLabel = 'Answer',
+  rightLabel = 'Skip',
 }) => {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -71,7 +74,6 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
   );
 
   const panGesture = Gesture.Pan()
-    .enabled(isTopCard)
     .onStart(() => {
       runOnJS(Haptics.selectionAsync)();
     })
@@ -97,11 +99,10 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
       const absTranslation = Math.abs(translationX);
       const absVelocity = Math.abs(velocity);
 
-      if (absTranslation > SWIPE_THRESHOLD || absVelocity > 500) {
+      // Smooth, bounce-free swipe off
+      if (absTranslation > SWIPE_THRESHOLD || absVelocity > 600) {
         const direction = translationX > 0 ? 'right' : 'left';
-        
-        // Final destination way off screen
-        const finalX = direction === 'right' ? SCREEN_WIDTH * 1.5 : -SCREEN_WIDTH * 1.5;
+        const finalX = direction === 'right' ? SCREEN_WIDTH * 1.2 : -SCREEN_WIDTH * 1.2;
 
         if (direction === 'left') {
           runOnJS(Haptics.notificationAsync)(Haptics.NotificationFeedbackType.Success);
@@ -109,27 +110,30 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
           runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
         }
 
-        // Slow dramatic spring out
-        translateX.value = withSpring(finalX, { damping: 25, stiffness: 60, velocity });
-        translateY.value = withSpring(0);
+        translateX.value = withTiming(finalX, { duration: 300, easing: Easing.out(Easing.cubic) });
+        translateY.value = withTiming(e.translationY * 0.2, { duration: 300, easing: Easing.out(Easing.cubic) });
         
-        // Pronounced dramatic rotation
-        rotation.value = withTiming(direction === 'right' ? ROTATION_MAX * 2 : -ROTATION_MAX * 2, { duration: 450 });
-        
-        // Give the user time to see the solid color cover everything before it disappears
-        opacity.value = withTiming(0, { duration: 450 });
-        scale.value = withTiming(0.8, { duration: 450 }, (isFinished) => {
+        opacity.value = withTiming(0, { duration: 200 }, (isFinished) => {
           if (isFinished) {
             runOnJS(handleSwipeComplete)(direction);
           }
         });
       } else {
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-        rotation.value = withSpring(0);
-        scale.value = withSpring(1);
+        translateX.value = withSpring(0, { damping: 20, stiffness: 200 });
+        translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
+        rotation.value = withSpring(0, { damping: 20, stiffness: 200 });
+        scale.value = withSpring(1, { damping: 20, stiffness: 200 });
       }
     });
+
+  const tapGesture = Gesture.Tap()
+    .maxDuration(250)
+    .onEnd(() => {
+      runOnJS(onUndo)();
+    });
+
+  // Pan takes priority over tap, allowing clean swipes while enabling undo taps
+  const composedGesture = Gesture.Exclusive(panGesture, tapGesture);
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [
@@ -138,38 +142,29 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
       { rotate: `${rotation.value}deg` },
       { scale: index === 0 ? scale.value : 1 - index * 0.04 },
     ],
-    opacity: index === 0 ? opacity.value : 1 - index * 0.15,
+    // Only top card changes opacity during swipe, preventing visual ghosting behind it
+    opacity: index === 0 ? opacity.value : 1, 
     zIndex: totalCards - index,
   }));
 
-  // Swipe Left -> Keep (Green Check) solid spread
   const leftRippleStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: interpolate(translateX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.01, 15], Extrapolate.CLAMP) }
-    ],
+    transform: [{ scale: interpolate(translateX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }],
     opacity: interpolate(translateX.value, [0, -SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP),
   }));
 
   const leftIconStyle = useAnimatedStyle(() => ({
     opacity: interpolate(translateX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD * 0.8], [0, 1], Extrapolate.CLAMP),
-    transform: [
-      { scale: interpolate(translateX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.5, 1.2], Extrapolate.CLAMP) }
-    ]
+    transform: [{ scale: interpolate(translateX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.5, 1.1], Extrapolate.CLAMP) }]
   }));
 
-  // Swipe Right -> Skip (Red X) solid spread
   const rightRippleStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: interpolate(translateX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.01, 15], Extrapolate.CLAMP) }
-    ],
+    transform: [{ scale: interpolate(translateX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }],
     opacity: interpolate(translateX.value, [0, SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP),
   }));
 
   const rightIconStyle = useAnimatedStyle(() => ({
     opacity: interpolate(translateX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD * 0.8], [0, 1], Extrapolate.CLAMP),
-    transform: [
-      { scale: interpolate(translateX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.5, 1.2], Extrapolate.CLAMP) }
-    ]
+    transform: [{ scale: interpolate(translateX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.5, 1.1], Extrapolate.CLAMP) }]
   }));
 
   return (
@@ -177,7 +172,7 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
       style={[styles.cardContainer, cardStyle, { position: index === 0 ? 'relative' : 'absolute' }]}
       pointerEvents={index === 0 ? 'auto' : 'none'}
     >
-      <GestureDetector gesture={panGesture}>
+      <GestureDetector gesture={isTopCard ? composedGesture : Gesture.Pan().enabled(false)}>
         <Animated.View style={[styles.card]}>
           
           <View style={styles.cardContent}>
@@ -186,11 +181,9 @@ const SwipableCard: React.FC<SwipableCardProps> = ({
             {card.description ? <Text style={styles.cardDescription}>{card.description}</Text> : null}
           </View>
 
-          {/* Spreading Solid Colors (Will cover text entirely) */}
           <Animated.View style={[styles.ripple, styles.keepRipple, leftRippleStyle]} />
           <Animated.View style={[styles.ripple, styles.skipRipple, rightRippleStyle]} />
 
-          {/* Action Icons and Labels Over Top */}
           <Animated.View style={[styles.actionOverlay, leftIconStyle]}>
             <Check size={72} color="#ffffff" strokeWidth={3} />
             {leftLabel ? <Text style={styles.actionLabel}>{leftLabel}</Text> : null}
@@ -215,11 +208,11 @@ export const SwipableCardStack: React.FC<SwipableCardStackProps> = ({
   leftLabel,
   rightLabel,
 }) => {
-  const [swipedCards, setSwipedCards] = useState<Set<string>>(new Set());
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const handleSwipeLeft = useCallback(
     (cardId: string) => {
-      setSwipedCards((prev) => new Set(prev).add(cardId));
+      setCurrentIndex((prev) => prev + 1);
       onSwipeLeft(cardId);
     },
     [onSwipeLeft]
@@ -227,16 +220,22 @@ export const SwipableCardStack: React.FC<SwipableCardStackProps> = ({
 
   const handleSwipeRight = useCallback(
     (cardId: string) => {
-      setSwipedCards((prev) => new Set(prev).add(cardId));
+      setCurrentIndex((prev) => prev + 1);
       onSwipeRight(cardId);
     },
     [onSwipeRight]
   );
 
-  const visibleCards = cards.filter((card) => !swipedCards.has(card.id));
-  const remainingCards = visibleCards.slice(0, 3);
+  const handleUndo = useCallback(() => {
+    if (currentIndex > 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setCurrentIndex((prev) => prev - 1);
+    }
+  }, [currentIndex]);
 
-  if (visibleCards.length === 0) {
+  const remainingCards = cards.slice(currentIndex, currentIndex + 3);
+
+  if (remainingCards.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>{emptyMessage}</Text>
@@ -246,15 +245,16 @@ export const SwipableCardStack: React.FC<SwipableCardStackProps> = ({
 
   return (
     <View style={styles.stackContainer}>
-      {remainingCards.map((card, index) => (
+      {remainingCards.map((card, idx) => (
         <SwipableCard
           key={card.id}
           card={card}
-          index={index}
+          index={idx}
           totalCards={remainingCards.length}
           onSwipeLeft={handleSwipeLeft}
           onSwipeRight={handleSwipeRight}
-          isTopCard={index === 0}
+          onUndo={handleUndo}
+          isTopCard={idx === 0}
           leftLabel={leftLabel}
           rightLabel={rightLabel}
         />
