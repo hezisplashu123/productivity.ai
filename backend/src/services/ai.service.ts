@@ -75,29 +75,60 @@ export async function generatePersonalizedPrompts(
   weights: Record<string, number>,
   recentHistory: PromptPlayRecord[],
   traitProfile: string | null,
-  count: number = 2
+  count: number = 3
 ): Promise<{ updatedProfile: string; prompts: { text: string; category: string; tags: string[] }[] } | null> {
   
-  const liked = recentHistory.filter((h) => h.swipedLeft).map((h) => h.prompt.text).slice(-4);
-  const skipped = recentHistory.filter((h) => !h.swipedLeft).map((h) => h.prompt.text).slice(-4);
+  // Tag Engagement Analysis Algorithm
+  const tagStats: Record<string, { seen: number; answered: number }> = {};
+  recentHistory.forEach(play => {
+    play.prompt.tags.forEach(tag => {
+      if (!tagStats[tag]) tagStats[tag] = { seen: 0, answered: 0 };
+      tagStats[tag].seen += 1;
+      if (play.swipedLeft) tagStats[tag].answered += 1;
+    });
+  });
+
+  const tagRates = Object.entries(tagStats).map(([tag, stats]) => ({
+    tag,
+    rate: stats.answered / stats.seen,
+    seen: stats.seen
+  }));
+
+  // Identify what's working and what isn't
+  const lovedTags = tagRates.filter(t => t.rate >= 0.5).sort((a,b) => b.rate - a.rate).map(t => t.tag).slice(0, 4);
+  const hatedTags = tagRates.filter(t => t.rate < 0.5).sort((a,b) => a.rate - b.rate).map(t => t.tag).slice(0, 3);
+
+  // Look strictly at the last 3 swipes for immediate context buffering
+  const last3 = recentHistory.slice(-3).map(h => 
+    `${h.swipedLeft ? 'ANSWERED (Liked)' : 'SKIPPED (Disliked)'}: "${h.prompt.text}" [Tags: ${h.prompt.tags.join(', ')}]`
+  );
 
   const systemPrompt = `
 You are the AI Game Master for a deep conversation card game. 
-Your goal is to build a psychological profile of the user based on their swipes, and generate highly targeted questions.
+Your goal is to build a psychological profile of the user and generate a highly targeted batch of questions.
 
 CURRENT TRAIT PROFILE: ${traitProfile || 'New User, no data yet.'}
-RECENT QUESTIONS THEY LIKED: ${liked.join(' | ') || 'None'}
-RECENT QUESTIONS THEY SKIPPED: ${skipped.join(' | ') || 'None'}
+
+IMMEDIATE HISTORY (Last 3 Swipes):
+${last3.length > 0 ? last3.join('\n') : 'No recent swipes yet.'}
+
+TAG ANALYSIS:
+- High Engagement Tags (Focus on these): ${lovedTags.length > 0 ? lovedTags.join(', ') : 'None yet'}
+- Low Engagement Tags (Avoid these): ${hatedTags.length > 0 ? hatedTags.join(', ') : 'None yet'}
 
 TASK:
-1. Update the Trait Profile. Based on their likes/skips, deduce their psychological preferences (e.g., "Avoids small talk, deeply nostalgic, prefers ethical dilemmas"). Keep it under 2 sentences.
-2. Generate ${count} new, highly personalized, open-ended questions (under 200 chars) that perfectly target this updated profile. Do not make them sound like robot prompts. Make them human, warm, and provocative.
+1. Update the Trait Profile (under 2 sentences) based on their tag engagement and recent choices.
+2. Generate EXACTLY ${count} new, highly personalized, open-ended questions (under 200 chars).
+3. Interleave the questions: Focus heavily on the "High Engagement Tags" but mix in slight variations so it doesn't get repetitive.
+4. Make them sound human, provocative, and conversational. Do not sound like a robot.
 
 OUTPUT JSON FORMAT:
 {
   "updatedTraitProfile": "...",
   "prompts": [
-    { "text": "...", "category": "Existential", "tags": ["tag1", "tag2"] }
+    { "text": "...", "category": "Deep Talk", "tags": ["tag1", "tag2"] },
+    { "text": "...", "category": "Deep Talk", "tags": ["tag3", "tag4"] },
+    { "text": "...", "category": "Deep Talk", "tags": ["tag1", "tag5"] }
   ]
 }
 `;
@@ -119,7 +150,7 @@ OUTPUT JSON FORMAT:
         text: String(p.text),
         category: String(p.category || 'Deep Talk'),
         tags: Array.isArray(p.tags) ? p.tags.map(String) : [],
-      })),
+      })).slice(0, count), // ensure exactly the count requested
     };
   } catch (error) {
     console.error('Personalized prompt generation failed:', error);
@@ -142,11 +173,10 @@ export async function getNextPromptsForProfile(input: {
   const playedIds = new Set(input.playedPromptIds);
   let results: QuestionPromptCandidate[] = [];
 
-  // Phase 1: Try to use Presets (DB Prompts) first (Max 3 times per category usually)
+  // Phase 1: Only use DB presets if this is their VERY first time playing (history < 3)
   const availableDbPrompts = input.dbPrompts.filter(p => !playedIds.has(p.id));
   
   if (input.history.length < 3 && availableDbPrompts.length > 0) {
-    // Score and pick top from DB
     const ranked = availableDbPrompts
       .map(p => {
         let score = weights[p.category] ?? 0.3;
@@ -161,7 +191,7 @@ export async function getNextPromptsForProfile(input: {
     }
   }
 
-  // Phase 2: AI Generation (if DB prompts are exhausted or we are past the preset phase)
+  // Phase 2: AI Generation (Always happens in batches of 3 once they have swipe history)
   let newTraitProfile = input.traitProfile || '';
   if (results.length < input.count) {
     const needed = input.count - results.length;

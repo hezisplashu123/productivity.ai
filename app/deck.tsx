@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,9 @@ import { apiService } from '../src/services/api';
 
 type Prompt = { id: string; text: string; category: string };
 
+const BATCH_SIZE = 3; // How many AI questions to generate at a time
+const BUFFER_THRESHOLD = 2; // Fetch more when only 2 cards are left in the queue
+
 export default function DeckScreen() {
   const router = useRouter();
   const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
@@ -27,29 +30,83 @@ export default function DeckScreen() {
   const category = getCategoryById(String(categoryId || ''));
 
   const [queue, setQueue] = useState<Prompt[]>([]);
+  const [swipedCount, setSwipedCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   
   const [activeDiscussion, setActiveDiscussion] = useState<Prompt | null>(null);
   const profileId = user?.profileId;
 
+  // Helper to fetch fallback local presets if network/AI fails
+  const getFallbackPrompts = useCallback((count: number) => {
+    const presetList = PRESET_QUESTIONS[category?.id || ''] || PRESET_QUESTIONS['icebreakers'];
+    const shuffled = [...presetList].sort(() => Math.random() - 0.5).slice(0, count);
+    return shuffled.map((text, index) => ({
+      id: `local-${category?.id}-${Date.now()}-${index}`,
+      text: text,
+      category: category?.title || 'Questions'
+    }));
+  }, [category]);
+
+  // Initial Load - Get the first 3 cards
   useEffect(() => {
     if (!category) {
       router.replace('/home');
       return;
     }
-    
-    const presetList = PRESET_QUESTIONS[category.id] || PRESET_QUESTIONS['icebreakers'];
-    const shuffled = [...presetList].sort(() => Math.random() - 0.5);
-    
-    const initialQueue = shuffled.map((text, index) => ({
-      id: `local-${category.id}-${index}`,
-      text: text,
-      category: category.title
-    }));
 
-    setQueue(initialQueue);
-    setLoading(false);
-  }, [category, router]);
+    const fetchInitialPrompts = async () => {
+      try {
+        if (profileId) {
+          const res = await apiService.getNextPrompts(profileId, BATCH_SIZE); 
+          const aiQueue = res.prompts.map((p: any) => ({
+            id: p.id,
+            text: p.text,
+            category: p.category
+          }));
+          setQueue(aiQueue);
+        } else {
+          setQueue(getFallbackPrompts(BATCH_SIZE));
+        }
+      } catch (error) {
+        console.warn("Initial AI Fetch failed, falling back to presets:", error);
+        setQueue(getFallbackPrompts(BATCH_SIZE));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialPrompts();
+  }, [category, profileId, router, getFallbackPrompts]);
+
+  // Buffer System - Watch the queue and fetch 3 more quietly in the background
+  useEffect(() => {
+    const cardsRemaining = queue.length - swipedCount;
+
+    if (cardsRemaining <= BUFFER_THRESHOLD && queue.length > 0 && !isFetchingMore && !loading && profileId) {
+      const fetchBuffer = async () => {
+        setIsFetchingMore(true);
+        try {
+          const res = await apiService.getNextPrompts(profileId, BATCH_SIZE);
+          const aiQueue = res.prompts.map((p: any) => ({
+            id: p.id,
+            text: p.text,
+            category: p.category
+          }));
+          
+          // Seamlessly append the 3 new cards to the bottom of the deck
+          setQueue(prev => [...prev, ...aiQueue]);
+        } catch (error) {
+          console.warn("Buffer AI Fetch failed, appending presets:", error);
+          setQueue(prev => [...prev, ...getFallbackPrompts(BATCH_SIZE)]);
+        } finally {
+          setIsFetchingMore(false);
+        }
+      };
+
+      fetchBuffer();
+    }
+  }, [swipedCount, queue.length, isFetchingMore, loading, profileId, getFallbackPrompts]);
 
   const deckCards: SwipableCardData[] = useMemo(() => {
     return queue.map(p => ({
@@ -60,6 +117,9 @@ export default function DeckScreen() {
   }, [queue]);
 
   const handleSwipe = async (swipedId: string, swipedLeft: boolean) => {
+    // Increment our tracking so the buffer knows we are running out of cards
+    setSwipedCount(prev => prev + 1);
+
     const swipedPrompt = queue.find(q => q.id === swipedId);
 
     if (swipedLeft && swipedPrompt) {
@@ -68,6 +128,7 @@ export default function DeckScreen() {
 
     if (profileId) {
       try {
+        // Teach the AI in the background
         apiService.recordSwipe(profileId, swipedId, swipedLeft).catch(() => {});
       } catch (e: any) {}
     }
@@ -95,7 +156,11 @@ export default function DeckScreen() {
           <Text style={styles.categoryTitle}>{category.title}</Text>
         </View>
 
-        <View style={{ width: 100 }} />
+        <View style={{ width: 100 }}>
+          {isFetchingMore && (
+             <ActivityIndicator size="small" color={colors.primary} style={{ alignSelf: 'flex-end', marginRight: 16 }} />
+          )}
+        </View>
       </View>
 
       <View style={styles.deck}>
@@ -110,7 +175,7 @@ export default function DeckScreen() {
               onSwipeRight={(id) => handleSwipe(id, false)}
               leftLabel="Answer"
               rightLabel="Skip"
-              emptyMessage="You've finished this category! Switch it up."
+              emptyMessage="Loading more questions..."
             />
             <Text style={styles.skipRuleText}>
               If you don't have an answer, just skip it.
@@ -247,7 +312,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   
-  // Discussion Modal Styles
   discussionOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.96)',
