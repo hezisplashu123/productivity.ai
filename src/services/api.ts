@@ -27,7 +27,7 @@ const handleResponse = async (response: Response) => {
 };
 
 const fetchWithTimeout = async (url: string, options: any = {}) => {
-  const { timeout = 25000 } = options;
+  const { timeout = 35000 } = options; 
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -79,13 +79,12 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // UPDATED METHOD: Returns an array of prompts
-  async getNextPrompts(profileId: string, count: number = 2) {
+  // NOW INCLUDES CATEGORY ID
+  async getNextPrompts(profileId: string, gamemode: string, categoryId: string, count: number = 5) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/next-prompt`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ profileId, count }),
-      timeout: 35000,
+      body: JSON.stringify({ profileId, count, gamemode, categoryId }),
     });
     return handleResponse(res);
   },

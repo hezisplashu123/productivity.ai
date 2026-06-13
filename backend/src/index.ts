@@ -103,7 +103,9 @@ app.get('/users/:email', async (req, res) => {
     const user = await prisma.user.findUnique({ where: { email }, include: { profile: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
-  } catch (error) { res.status(500).json({ error: 'Failed to fetch user' }); }
+  } catch (error) { 
+    res.status(500).json({ error: 'Failed to fetch user' }); 
+  }
 });
 
 app.delete('/users/:email', async (req, res) => {
@@ -113,7 +115,9 @@ app.delete('/users/:email', async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     await prisma.user.delete({ where: { id: user.id } });
     res.json({ success: true });
-  } catch (error) { res.status(500).json({ error: 'Failed to delete user' }); }
+  } catch (error) { 
+    res.status(500).json({ error: 'Failed to delete user' }); 
+  }
 });
 
 app.post('/profile/ensure', async (req, res) => {
@@ -122,14 +126,16 @@ app.post('/profile/ensure', async (req, res) => {
   try {
     const profile = await ensureProfile(String(userId), seedWeights);
     res.json(profile);
-  } catch (error) { res.status(500).json({ error: 'Failed to ensure profile' }); }
+  } catch (error) { 
+    res.status(500).json({ error: 'Failed to ensure profile' }); 
+  }
 });
 
 // ==========================================
 // BATCH PROMPT FETCHING
 // ==========================================
 app.post('/profile/next-prompt', async (req, res) => {
-  const { profileId, count = 2 } = req.body;
+  const { profileId, gamemode = 'friendship', count = 5 } = req.body;
   if (!profileId) return res.status(400).json({ error: 'profileId is required' });
 
   try {
@@ -157,6 +163,7 @@ app.post('/profile/next-prompt', async (req, res) => {
       history,
       dbPrompts,
       playedPromptIds,
+      gamemode,
       count,
     });
 

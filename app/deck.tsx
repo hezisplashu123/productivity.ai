@@ -1,293 +1,241 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowRight, ChevronLeft, CornerDownLeft, CornerDownRight, RotateCcw, MessageCircle } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw, MessageCircle, ArrowRight } from 'lucide-react-native';
+// ADDED 'Easing' to this import line!
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
-import { colors } from '../src/constants/colors';
-import { getCategoryById, PRESET_QUESTIONS } from '../src/constants/categories';
 import { SwipableCardStack, SwipableCardData } from '../src/components/SwipableCardStack';
 import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
-
-type Prompt = { id: string; text: string; category: string };
-
-const BATCH_SIZE = 3; // How many AI questions to generate at a time
-const BUFFER_THRESHOLD = 2; // Fetch more when only 2 cards are left in the queue
+import { storage } from '../src/utils/storage';
+import { Theme } from '../src/constants/colors';
+import { PRESET_QUESTIONS } from '../src/constants/categories';
 
 export default function DeckScreen() {
   const router = useRouter();
-  const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
-  const { user } = useApp();
-  const category = getCategoryById(String(categoryId || ''));
-
-  const [queue, setQueue] = useState<Prompt[]>([]);
-  const [swipedCount, setSwipedCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const params = useLocalSearchParams();
+  const { user, gamemode, theme } = useApp();
+  const styles = getStyles(theme);
   
-  const [activeDiscussion, setActiveDiscussion] = useState<Prompt | null>(null);
-  const profileId = user?.profileId;
+  const categoryId = (params.categoryId as string) || 'friends-deep-talk';
 
-  // Helper to fetch fallback local presets if network/AI fails
-  const getFallbackPrompts = useCallback((count: number) => {
-    const presetList = PRESET_QUESTIONS[category?.id || ''] || PRESET_QUESTIONS['icebreakers'];
-    const shuffled = [...presetList].sort(() => Math.random() - 0.5).slice(0, count);
-    return shuffled.map((text, index) => ({
-      id: `local-${category?.id}-${Date.now()}-${index}`,
-      text: text,
-      category: category?.title || 'Questions'
-    }));
-  }, [category]);
+  const [cards, setCards] = useState<SwipableCardData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeDiscussion, setActiveDiscussion] = useState<SwipableCardData | null>(null);
 
-  // Initial Load - Get the first 3 cards
+  const isFetching = useRef(false);
+  const currentIndexRef = useRef(0);
+
   useEffect(() => {
-    if (!category) {
-      router.replace('/home');
-      return;
-    }
+    loadDeck();
+  }, [categoryId]);
 
-    const fetchInitialPrompts = async () => {
-      try {
-        if (profileId) {
-          const res = await apiService.getNextPrompts(profileId, BATCH_SIZE); 
-          const aiQueue = res.prompts.map((p: any) => ({
-            id: p.id,
-            text: p.text,
-            category: p.category
-          }));
-          setQueue(aiQueue);
-        } else {
-          setQueue(getFallbackPrompts(BATCH_SIZE));
-        }
-      } catch (error) {
-        console.warn("Initial AI Fetch failed, falling back to presets:", error);
-        setQueue(getFallbackPrompts(BATCH_SIZE));
-      } finally {
-        setLoading(false);
+  const loadDeck = async () => {
+    setLoading(true);
+    
+    // 1. Try to resume from cache
+    const cachedCards = await storage.getCachedQueue(gamemode, categoryId);
+    
+    if (cachedCards && cachedCards.length > 0) {
+      setCards(cachedCards);
+      
+      // If our cache is running low on mount, fetch more immediately
+      if (cachedCards.length <= 3) {
+        fetchAICardsBackground(cachedCards);
       }
-    };
+    } else {
+      // 2. No cache. Load initial local cards so the deck is instantly ready
+      const localQuestions = PRESET_QUESTIONS[categoryId] || PRESET_QUESTIONS['friends-deep-talk'];
+      
+      const initialCards = localQuestions.map((text, idx) => ({
+        id: `local-${categoryId}-${idx}`,
+        label: text,
+        category: 'Start'
+      }));
+      
+      setCards(initialCards);
+      
+      // Tell AI to start generating the next cards behind the scenes
+      fetchAICardsBackground(initialCards);
+    }
+    
+    setLoading(false);
+  };
 
-    fetchInitialPrompts();
-  }, [category, profileId, router, getFallbackPrompts]);
+  const fetchAICardsBackground = async (currentCards: SwipableCardData[]) => {
+    if (isFetching.current) return;
+    isFetching.current = true;
 
-  // Buffer System - Watch the queue and fetch 3 more quietly in the background
-  useEffect(() => {
-    const cardsRemaining = queue.length - swipedCount;
-
-    if (cardsRemaining <= BUFFER_THRESHOLD && queue.length > 0 && !isFetchingMore && !loading && profileId) {
-      const fetchBuffer = async () => {
-        setIsFetchingMore(true);
-        try {
-          const res = await apiService.getNextPrompts(profileId, BATCH_SIZE);
-          const aiQueue = res.prompts.map((p: any) => ({
+    try {
+      if (user?.profileId) {
+        const res = await apiService.getNextPrompts(user.profileId, gamemode, categoryId, 5);
+        if (res && res.prompts) {
+          const aiCards = res.prompts.map((p: any) => ({
             id: p.id,
-            text: p.text,
+            label: p.text,
             category: p.category
           }));
           
-          // Seamlessly append the 3 new cards to the bottom of the deck
-          setQueue(prev => [...prev, ...aiQueue]);
-        } catch (error) {
-          console.warn("Buffer AI Fetch failed, appending presets:", error);
-          setQueue(prev => [...prev, ...getFallbackPrompts(BATCH_SIZE)]);
-        } finally {
-          setIsFetchingMore(false);
+          setCards(prev => {
+            const next = [...prev, ...aiCards];
+            // Immediately save the updated queue to cache
+            storage.saveCachedQueue(gamemode, categoryId, next.slice(currentIndexRef.current));
+            return next;
+          });
         }
-      };
-
-      fetchBuffer();
-    }
-  }, [swipedCount, queue.length, isFetchingMore, loading, profileId, getFallbackPrompts]);
-
-  const deckCards: SwipableCardData[] = useMemo(() => {
-    return queue.map(p => ({
-      id: p.id,
-      label: p.text,
-      category: p.category,
-    }));
-  }, [queue]);
-
-  const handleSwipe = async (swipedId: string, swipedLeft: boolean) => {
-    // Increment our tracking so the buffer knows we are running out of cards
-    setSwipedCount(prev => prev + 1);
-
-    const swipedPrompt = queue.find(q => q.id === swipedId);
-
-    if (swipedLeft && swipedPrompt) {
-      setActiveDiscussion(swipedPrompt);
-    }
-
-    if (profileId) {
-      try {
-        // Teach the AI in the background
-        apiService.recordSwipe(profileId, swipedId, swipedLeft).catch(() => {});
-      } catch (e: any) {}
+      }
+    } catch (e) {
+      console.log('Background AI fetch failed.');
+    } finally {
+      isFetching.current = false;
     }
   };
 
-  const handleFinishDiscussion = () => {
-    Haptics.selectionAsync();
+  const handleIndexChange = (newIndex: number) => {
+    currentIndexRef.current = newIndex;
+    const remaining = cards.length - newIndex;
+    
+    // Save state so if they close the app, they resume exactly here
+    storage.saveCachedQueue(gamemode, categoryId, cards.slice(newIndex));
+
+    // If we only have 3 cards left in the queue, fetch 5 more silently
+    if (remaining <= 3 && !isFetching.current) {
+      fetchAICardsBackground(cards.slice(newIndex));
+    }
+  };
+
+  const handleSwipeLeft = (card: SwipableCardData) => {
+    // Show the Discussion Screen
+    setActiveDiscussion(card);
+
+    // Record swipe data to backend if it's a generated card
+    if (user?.profileId && !card.id.startsWith('local-')) {
+      apiService.recordSwipe(user.profileId, card.id, true).catch(() => {});
+    }
+  };
+
+  const handleSwipeRight = (card: SwipableCardData) => {
+    // Record skip data to backend if it's a generated card
+    if (user?.profileId && !card.id.startsWith('local-')) {
+      apiService.recordSwipe(user.profileId, card.id, false).catch(() => {});
+    }
+  };
+
+  const closeDiscussion = () => {
     setActiveDiscussion(null);
   };
-
-  if (!category) return null;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      {/* Header */}
+      {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-          <ChevronLeft size={24} color={colors.text} />
-          <Text style={styles.backBtnText}>Categories</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft color={theme.text} size={28} />
         </TouchableOpacity>
-        
-        <View style={styles.headerCenter}>
-          <Text style={styles.categoryTitle}>{category.title}</Text>
-        </View>
-
-        <View style={{ width: 100 }}>
-          {isFetchingMore && (
-             <ActivityIndicator size="small" color={colors.primary} style={{ alignSelf: 'flex-end', marginRight: 16 }} />
-          )}
-        </View>
       </View>
-
-      <View style={styles.deck}>
+      
+      {/* MAIN GAMEPLAY CONTENT */}
+      <View style={styles.content}>
         {loading ? (
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={theme.primary} />
         ) : (
-          <View style={styles.stackWrapper}>
+          <>
             <SwipableCardStack
-              key={deckCards.length > 0 ? 'loaded' : 'empty'}
-              cards={deckCards}
-              onSwipeLeft={(id) => handleSwipe(id, true)}
-              onSwipeRight={(id) => handleSwipe(id, false)}
-              leftLabel="Answer"
-              rightLabel="Skip"
-              emptyMessage="Loading more questions..."
+              cards={cards}
+              onSwipeLeft={handleSwipeLeft}
+              onSwipeRight={handleSwipeRight}
+              onIndexChange={handleIndexChange}
+              emptyMessage="Out of cards! Generating more..."
             />
-            <Text style={styles.skipRuleText}>
-              If you don't have an answer, just skip it.
-            </Text>
-          </View>
+            <Text style={styles.skipRuleText}>If you don't have an answer, just skip it.</Text>
+          </>
         )}
       </View>
 
-      {/* 3-Pill Bottom Section */}
-      <View style={styles.bottomSection}>
+      {/* PERSISTENT LEGEND */}
+      <View style={styles.bottomSection} pointerEvents="none">
         <View style={styles.hintContainer}>
           <View style={styles.hintPill}>
-            <CornerDownLeft size={16} color="#10B981" />
-            <Text style={[styles.hintTitle, { color: '#10B981' }]}>Answer</Text>
+            <CornerDownLeft size={16} color={theme.success} />
+            <Text style={[styles.hintTitle, { color: theme.success }]}>Answer</Text>
           </View>
-
           <View style={styles.hintPill}>
-            <RotateCcw size={16} color={colors.textSecondary} />
-            <Text style={[styles.hintTitle, { color: colors.textSecondary }]}>Undo</Text>
+            <RotateCcw size={16} color={theme.textSecondary} />
+            <Text style={[styles.hintTitle, { color: theme.textSecondary }]}>Undo</Text>
           </View>
-
           <View style={styles.hintPill}>
-            <Text style={[styles.hintTitle, { color: '#EF4444' }]}>Skip</Text>
-            <CornerDownRight size={16} color="#EF4444" />
+            <Text style={[styles.hintTitle, { color: theme.error }]}>Skip</Text>
+            <CornerDownRight size={16} color={theme.error} />
           </View>
         </View>
       </View>
 
-      {/* DISCUSSION OVERLAY MODAL */}
+      {/* FULL SCREEN DISCUSSION OVERLAY (Triggers when swiping left) */}
       {activeDiscussion && (
-        <Animated.View 
-          style={styles.discussionOverlay}
-          entering={FadeIn.duration(200)}
-          exiting={FadeOut.duration(200)}
-        >
-          <View style={styles.discussionContent}>
-            <Animated.View 
-              entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))} 
-              exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
-            >
+        <Animated.View style={styles.discussionOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
+          <SafeAreaView style={styles.discussionContent}>
+            
+            <Animated.View style={styles.discussionInner} entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))} exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}>
               <View style={styles.discussionBadge}>
-                <MessageCircle size={20} color={colors.primary} />
+                <MessageCircle size={20} color={theme.primary} />
                 <Text style={styles.discussionBadgeText}>Group Discussion</Text>
               </View>
               
-              <Text style={styles.discussionQuestion}>{activeDiscussion.text}</Text>
+              <Text style={styles.discussionQuestion}>{activeDiscussion.label}</Text>
               
-              <Text style={styles.discussionHint}>
-                Pass the phone around. Let everyone answer before moving on.
-              </Text>
-
-              <TouchableOpacity 
-                style={styles.nextButton}
-                onPress={handleFinishDiscussion}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.nextButtonText}>Done, give me a new question</Text>
-                <ArrowRight size={20} color={colors.background} />
+              <TouchableOpacity style={styles.nextButton} onPress={closeDiscussion} activeOpacity={0.8}>
+                <Text style={styles.nextButtonText}>Next Question</Text>
+                <ArrowRight size={20} color={theme.background} />
               </TouchableOpacity>
             </Animated.View>
-          </View>
+
+          </SafeAreaView>
         </Animated.View>
       )}
-
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+const getStyles = (theme: Theme) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
   header: {
-    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+    zIndex: 10,
+  },
+  backButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.backgroundElevated,
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
-  backBtn: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    width: 100, 
-  },
-  backBtnText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 2,
-  },
-  headerCenter: { 
-    flex: 1, 
-    alignItems: 'center' 
-  },
-  categoryTitle: { 
-    fontSize: 17, 
-    fontWeight: '800', 
-    color: colors.text, 
-    letterSpacing: 0.5 
-  },
-  deck: { flex: 1, justifyContent: 'center' },
-  stackWrapper: {
+  content: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   skipRuleText: {
-    fontSize: 13,
+    position: 'absolute',
+    top: '50%',
+    marginTop: 240,
+    fontSize: 14,
     fontWeight: '500',
-    color: colors.textMuted,
+    color: theme.textMuted,
     textAlign: 'center',
-    marginTop: 8,
   },
-  
   bottomSection: {
-    paddingHorizontal: 24,
     paddingBottom: 32,
     alignItems: 'center',
   },
@@ -299,25 +247,29 @@ const styles = StyleSheet.create({
   hintPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.backgroundElevated,
+    backgroundColor: theme.backgroundElevated,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 999,
     gap: 8,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.border,
   },
   hintTitle: {
     fontSize: 14,
     fontWeight: '700',
   },
-  
+
+  // Discussion Modal Styles
   discussionOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.96)',
     zIndex: 100,
   },
   discussionContent: {
+    flex: 1,
+  },
+  discussionInner: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 32,
@@ -327,9 +279,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: colors.backgroundElevated,
+    backgroundColor: theme.backgroundElevated,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: theme.border,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
@@ -337,7 +289,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   discussionBadgeText: {
-    color: colors.primary,
+    color: theme.primary,
     fontSize: 14,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -346,28 +298,22 @@ const styles = StyleSheet.create({
   discussionQuestion: {
     fontSize: 32,
     fontWeight: '800',
-    color: colors.text,
+    color: theme.text,
     lineHeight: 42,
-    marginBottom: 24,
-  },
-  discussionHint: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    lineHeight: 24,
+    marginBottom: 40,
   },
   nextButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: theme.primary,
     paddingVertical: 18,
     borderRadius: 20,
     gap: 12,
-    marginTop: 40, 
   },
   nextButtonText: {
-    color: colors.background,
-    fontSize: 17,
+    color: theme.background,
+    fontSize: 18,
     fontWeight: '800',
-  },
+  }
 });

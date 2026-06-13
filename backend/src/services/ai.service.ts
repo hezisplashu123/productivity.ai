@@ -75,7 +75,8 @@ export async function generatePersonalizedPrompts(
   weights: Record<string, number>,
   recentHistory: PromptPlayRecord[],
   traitProfile: string | null,
-  count: number = 3
+  gamemode: string,
+  count: number = 5
 ): Promise<{ updatedProfile: string; prompts: { text: string; category: string; tags: string[] }[] } | null> {
   
   // Tag Engagement Analysis Algorithm
@@ -107,6 +108,9 @@ export async function generatePersonalizedPrompts(
 You are the AI Game Master for a deep conversation card game. 
 Your goal is to build a psychological profile of the user and generate a highly targeted batch of questions.
 
+GAME CONTEXT: The user is playing the game right now with their ${gamemode.toUpperCase()} (e.g. Friends, Romantic Partner, or Family).
+IMPORTANT: ALL generated questions MUST be perfectly tailored to this group dynamic. Do not suggest romantic/spicy prompts for a family game.
+
 CURRENT TRAIT PROFILE: ${traitProfile || 'New User, no data yet.'}
 
 IMMEDIATE HISTORY (Last 3 Swipes):
@@ -127,8 +131,7 @@ OUTPUT JSON FORMAT:
   "updatedTraitProfile": "...",
   "prompts": [
     { "text": "...", "category": "Deep Talk", "tags": ["tag1", "tag2"] },
-    { "text": "...", "category": "Deep Talk", "tags": ["tag3", "tag4"] },
-    { "text": "...", "category": "Deep Talk", "tags": ["tag1", "tag5"] }
+    { "text": "...", "category": "Deep Talk", "tags": ["tag3", "tag4"] }
   ]
 }
 `;
@@ -140,6 +143,7 @@ OUTPUT JSON FORMAT:
       response_format: { type: 'json_object' },
       temperature: 0.85,
     });
+    
     const parsed = JSON.parse(completion.choices[0].message.content || '{}');
     
     if (!parsed.prompts || !Array.isArray(parsed.prompts)) return null;
@@ -164,6 +168,7 @@ export async function getNextPromptsForProfile(input: {
   history: PromptPlayRecord[];
   dbPrompts: QuestionPromptCandidate[];
   playedPromptIds: string[];
+  gamemode: string;
   count: number;
 }): Promise<{
   prompts: QuestionPromptCandidate[];
@@ -191,11 +196,17 @@ export async function getNextPromptsForProfile(input: {
     }
   }
 
-  // Phase 2: AI Generation (Always happens in batches of 3 once they have swipe history)
+  // Phase 2: AI Generation (Always happens in batches once they have swipe history)
   let newTraitProfile = input.traitProfile || '';
   if (results.length < input.count) {
     const needed = input.count - results.length;
-    const generated = await generatePersonalizedPrompts(weights, input.history, input.traitProfile, needed);
+    const generated = await generatePersonalizedPrompts(
+      weights, 
+      input.history, 
+      input.traitProfile, 
+      input.gamemode, 
+      needed
+    );
     
     if (generated) {
       newTraitProfile = generated.updatedProfile;

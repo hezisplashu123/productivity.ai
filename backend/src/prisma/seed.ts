@@ -41,6 +41,14 @@ const starterPrompts = [
   { text: 'How do you know when a friendship has naturally run its course?', category: 'Relationships', tags: ['boundaries', 'growth'] },
   { text: 'What is the most ridiculous reason you’ve ever stopped talking to someone?', category: 'Relationships', tags: ['petty', 'drama'] },
 
+  // --- WHO'S MOST LIKELY ---
+  { text: "Who is most likely to secretly survive a zombie apocalypse because of a weird hyper-fixation?", category: "Who's Most Likely", tags: ['funny', 'scenarios', 'survival'] },
+  { text: "Who is most likely to accidentally join a cult because they liked the free snacks?", category: "Who's Most Likely", tags: ['funny', 'gullible', 'social'] },
+  { text: "Who is most likely to drop their phone in the toilet and pretend it never happened?", category: "Who's Most Likely", tags: ['clumsy', 'funny', 'secrets'] },
+  { text: "Who is most likely to fake their own death to get out of a minor social obligation?", category: "Who's Most Likely", tags: ['introvert', 'funny', 'drastic'] },
+  { text: "Who is most likely to win a reality TV show by aggressively manipulating everyone?", category: "Who's Most Likely", tags: ['smart', 'social', 'strategy'] },
+  { text: "Who is most likely to get arrested for a crime they committed completely by accident?", category: "Who's Most Likely", tags: ['clumsy', 'funny', 'scenarios'] },
+
   // --- FUNNY (Spicy Takes / Icebreakers) ---
   { text: 'What is the pettiest hill you are willing to die on at brunch?', category: 'Funny', tags: ['debate', 'light'] },
   { text: 'What song would play when you walk into a party where your ex is present?', category: 'Funny', tags: ['music', 'awkward'] },
@@ -54,7 +62,7 @@ async function main() {
   console.log('🌱 Seeding Hezi prompts...');
 
   const count = await prisma.questionPrompt.count();
-  if (count < 30) {
+  if (count < 35) {
     console.log(`⚠️ Expanding DB prompts...`);
     for (const prompt of starterPrompts) {
       // Avoid duplicates if some already exist

@@ -1,7 +1,7 @@
 {
   "name": "productivity-ai-backend",
   "version": "1.0.0",
-  "description": "Backend server for Productivity AI",
+  "description": "Backend server for Hezi AI",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
