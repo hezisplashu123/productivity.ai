@@ -2,15 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { apiService } from '../services/api';
 import { getOrCreateDeviceId, storage } from '../utils/storage';
 import { palettes, Theme } from '../constants/colors';
-
-export interface AppUser {
-  id: string;
-  email: string;
-  name: string;
-  profileId?: string;
-}
-
-export type Gamemode = 'friendship' | 'relationship' | 'family';
+import { AppUser, Gamemode } from '../types';
 
 interface AppContextType {
   user: AppUser | null;

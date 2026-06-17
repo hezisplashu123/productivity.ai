@@ -59,6 +59,7 @@ babel.config.js
 backend/.git/COMMIT_EDITMSG
 backend/.git/config
 backend/.git/description
+backend/.git/FETCH_HEAD
 backend/.git/HEAD
 backend/.git/hooks/applypatch-msg.sample
 backend/.git/hooks/commit-msg.sample
@@ -81,6 +82,7 @@ backend/.git/logs/refs/heads/main
 backend/.git/logs/refs/remotes/origin/main
 backend/.git/objects/07/5315df948b102ecfb9223894b17859aa813e2b
 backend/.git/objects/07/c1fdbfabc52866fb08148c668a6d0e35246936
+backend/.git/objects/0a/44b0e620c6f5342ba0abb3d0e3d37148675f82
 backend/.git/objects/0c/ad9decf073b780b77bbd655a5d092cd76f9d71
 backend/.git/objects/0c/d805c09c571bbc0c486fcd59095fba0ef2b49f
 backend/.git/objects/14/c2f9bf61492f6cd69bc25fe4a7cc99fb7ccaaf
@@ -89,28 +91,40 @@ backend/.git/objects/1b/cb0779b621783747e78b32dbc7c7f7c1d2781b
 backend/.git/objects/1c/a428fe3cfdb7016ab5e394afc82d0e5e3139a2
 backend/.git/objects/25/0f0a2954df34a84f5ebc2682eb2eae33a7abe0
 backend/.git/objects/29/0908cfea1023ba23ac81711db8f730bb55e50a
+backend/.git/objects/2a/7db41a4e610992b01f574643aa6607ae75b1b9
 backend/.git/objects/2a/827fe1d11f14a6e0021b018e8f960bfc1e55e5
 backend/.git/objects/2f/278fbc32458fbb44c33e4c78020d7be4a8142f
+backend/.git/objects/3e/3712f3b057c65329c2ef1d20a00f5e97108c89
+backend/.git/objects/4e/f56bbe7f91fa7c8d04a74ca72b03c128aca636
 backend/.git/objects/4f/a72ea4f2bcf32ad638369cf300f6ab6c80404a
+backend/.git/objects/50/bcf1431f6df08090cf491656f7f23d790fa5e2
 backend/.git/objects/53/f2cb596e8181b404a49648d03a674aac7a70b1
 backend/.git/objects/6c/2f6f5f15fde9630726e68dde7cb1c50aa9d288
+backend/.git/objects/6c/606b2e3add5316893ff311011270465947b89e
 backend/.git/objects/6e/9d415d1572656a36b3f23cfa9d18c3a8e029f4
 backend/.git/objects/71/e283c5ee52c22caaa634ccc9e4a8f9db9bdcb5
 backend/.git/objects/71/ffec821579db19a1f905ba6c6037a6f2ec14f4
+backend/.git/objects/7b/2e535fcc40eeb33cbb14261d32be2e729c5d77
 backend/.git/objects/81/390b655591089497102ada4700f709edcce01b
+backend/.git/objects/85/023c28094c55b5395bab8462e104b5e240e04c
 backend/.git/objects/87/67db842918254bc473a1b30cf4a18e5fb62cab
 backend/.git/objects/8f/88a6964fd73b78a737a706ae5da9c9b85c83c0
 backend/.git/objects/91/518da36526a8f7d82402a5a6c57e764c0af4e3
 backend/.git/objects/96/56c456793ffe1b02d0569dfd5d5f43ac5b0e5c
+backend/.git/objects/99/2d56792aeef1edb15f6adbd750727a4037a7c5
 backend/.git/objects/9a/5ae8b4468650b2c41a40f0f5f610787eb1a23c
 backend/.git/objects/a5/ccc271abf8e64544ecb1ae1a0ef4b7c8a3b69a
+backend/.git/objects/a7/ca15e419923abcdde27e4283b00476b2766903
 backend/.git/objects/aa/4e55755712f92528264c64d3a4c6351874a070
 backend/.git/objects/ab/0c636f59b0b338edd75b59123f2daf42fdc9bf
 backend/.git/objects/b5/2cefce85aed67036ee892e3178b674c8cb0dcc
 backend/.git/objects/b7/14b77c8983ad27c3c6ba62bc9736c3e47e0675
 backend/.git/objects/bc/b2fbe0d814210fd5d0d58d5a7e894ded7ccb79
 backend/.git/objects/cc/d017b0eb763918cb4c20050b62986b95c19636
+backend/.git/objects/e0/5a7f781f33dbf5252f7d94e88fcb5905d19bc5
+backend/.git/objects/f3/09117dba480139afdbef13e969c395a922f953
 backend/.git/objects/fb/ffa92c2bb7c748d6fc78f9f9dcac604dabb87d
+backend/.git/ORIG_HEAD
 backend/.git/refs/heads/main
 backend/.git/refs/remotes/origin/main
 backend/.gitignore
@@ -121,9 +135,13 @@ backend/prisma/migrations/migration_lock.toml
 backend/prisma/schema.prisma
 backend/README.md
 backend/repomix-output.xml
+backend/src/controllers/profile.controller.ts
+backend/src/controllers/user.controller.ts
 backend/src/index.ts
 backend/src/lib/prisma.ts
 backend/src/prisma/seed.ts
+backend/src/routes/profile.routes.ts
+backend/src/routes/user.routes.ts
 backend/src/services/ai.service.ts
 backend/tsconfig.json
 eas.json
@@ -133,13 +151,17 @@ README.md
 scripts/get-local-ip.js
 scripts/get-local-ip.ps1
 SETUP.md
+src/components/DiscussionModal.tsx
 src/components/ErrorBoundary.tsx
+src/components/SocialAuthButtons.tsx
 src/components/SwipableCardStack.tsx
 src/config/api.ts
 src/config/firebase.ts
 src/constants/categories.ts
 src/constants/colors.ts
 src/context/AppContext.tsx
+src/hooks/useAuth.ts
+src/hooks/useDeckQueue.ts
 src/services/api.ts
 src/types/index.ts
 src/utils/reanimatedWrapper.ts
@@ -151,7 +173,7 @@ tsconfig.json
 This section contains the contents of the repository's files.
 
 <file path="backend/.git/COMMIT_EDITMSG">
-Upgraded AI algorithm to batch 3 questions and added buffer system
+uwu
 </file>
 
 <file path="backend/.git/config">
@@ -172,6 +194,10 @@ Upgraded AI algorithm to batch 3 questions and added buffer system
 
 <file path="backend/.git/description">
 Unnamed repository; edit this file 'description' to name the repository.
+</file>
+
+<file path="backend/.git/FETCH_HEAD">
+8f88a6964fd73b78a737a706ae5da9c9b85c83c0		branch 'main' of https://github.com/hezisplashu123/hezi-backend
 </file>
 
 <file path="backend/.git/HEAD">
@@ -1103,6 +1129,7 @@ exit 0
 0000000000000000000000000000000000000000 2a827fe1d11f14a6e0021b018e8f960bfc1e55e5 hezisplashu123 <yashrajput1114@gmail.com> 1781053373 -0500	Branch: renamed refs/heads/master to refs/heads/main
 2a827fe1d11f14a6e0021b018e8f960bfc1e55e5 b52cefce85aed67036ee892e3178b674c8cb0dcc hezisplashu123 <yashrajput1114@gmail.com> 1781054482 -0500	commit: Added health check endpoint
 b52cefce85aed67036ee892e3178b674c8cb0dcc 8f88a6964fd73b78a737a706ae5da9c9b85c83c0 hezisplashu123 <yashrajput1114@gmail.com> 1781055382 -0500	commit: Upgraded AI algorithm to batch 3 questions and added buffer system
+8f88a6964fd73b78a737a706ae5da9c9b85c83c0 f309117dba480139afdbef13e969c395a922f953 hezisplashu123 <yashrajput1114@gmail.com> 1781331261 -0500	commit: uwu
 </file>
 
 <file path="backend/.git/logs/refs/heads/main">
@@ -1110,20 +1137,802 @@ b52cefce85aed67036ee892e3178b674c8cb0dcc 8f88a6964fd73b78a737a706ae5da9c9b85c83c
 2a827fe1d11f14a6e0021b018e8f960bfc1e55e5 2a827fe1d11f14a6e0021b018e8f960bfc1e55e5 hezisplashu123 <yashrajput1114@gmail.com> 1781053373 -0500	Branch: renamed refs/heads/master to refs/heads/main
 2a827fe1d11f14a6e0021b018e8f960bfc1e55e5 b52cefce85aed67036ee892e3178b674c8cb0dcc hezisplashu123 <yashrajput1114@gmail.com> 1781054482 -0500	commit: Added health check endpoint
 b52cefce85aed67036ee892e3178b674c8cb0dcc 8f88a6964fd73b78a737a706ae5da9c9b85c83c0 hezisplashu123 <yashrajput1114@gmail.com> 1781055382 -0500	commit: Upgraded AI algorithm to batch 3 questions and added buffer system
+8f88a6964fd73b78a737a706ae5da9c9b85c83c0 f309117dba480139afdbef13e969c395a922f953 hezisplashu123 <yashrajput1114@gmail.com> 1781331261 -0500	commit: uwu
 </file>
 
 <file path="backend/.git/logs/refs/remotes/origin/main">
 0000000000000000000000000000000000000000 2a827fe1d11f14a6e0021b018e8f960bfc1e55e5 hezisplashu123 <yashrajput1114@gmail.com> 1781053376 -0500	update by push
 2a827fe1d11f14a6e0021b018e8f960bfc1e55e5 b52cefce85aed67036ee892e3178b674c8cb0dcc hezisplashu123 <yashrajput1114@gmail.com> 1781054484 -0500	update by push
 b52cefce85aed67036ee892e3178b674c8cb0dcc 8f88a6964fd73b78a737a706ae5da9c9b85c83c0 hezisplashu123 <yashrajput1114@gmail.com> 1781055384 -0500	update by push
+8f88a6964fd73b78a737a706ae5da9c9b85c83c0 f309117dba480139afdbef13e969c395a922f953 hezisplashu123 <yashrajput1114@gmail.com> 1781331264 -0500	update by push
+</file>
+
+<file path="backend/.git/ORIG_HEAD">
+f309117dba480139afdbef13e969c395a922f953
 </file>
 
 <file path="backend/.git/refs/heads/main">
-8f88a6964fd73b78a737a706ae5da9c9b85c83c0
+f309117dba480139afdbef13e969c395a922f953
 </file>
 
 <file path="backend/.git/refs/remotes/origin/main">
-8f88a6964fd73b78a737a706ae5da9c9b85c83c0
+f309117dba480139afdbef13e969c395a922f953
+</file>
+
+<file path="backend/src/controllers/profile.controller.ts">
+import { Request, Response } from 'express';
+import { prisma } from '../lib/prisma';
+import {
+  DEFAULT_VIBE_WEIGHTS,
+  applySwipeFeedback,
+  applySeedWeights,
+  getNextPromptsForProfile,
+  parseVibeWeights,
+} from '../services/ai.service';
+
+export async function ensureProfile(userId: string, seedWeights?: Record<string, number>) {
+  let profile = await prisma.userProfile.findUnique({ where: { userId } });
+  if (!profile) {
+    profile = await prisma.userProfile.create({
+      data: {
+        userId,
+        vibeWeights: seedWeights ? applySeedWeights(seedWeights) : DEFAULT_VIBE_WEIGHTS,
+        traitProfile: null,
+      },
+    });
+  }
+  return profile;
+}
+
+export async function ensureProfileHandler(req: Request, res: Response) {
+  const { userId, seedWeights } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+  try {
+    const profile = await ensureProfile(String(userId), seedWeights);
+    res.json(profile);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to ensure profile' });
+  }
+}
+
+export async function getNextPrompt(req: Request, res: Response) {
+  const { profileId, gamemode = 'friendship', categoryId = 'friends-deep-talk', count = 5 } = req.body;
+  if (!profileId) return res.status(400).json({ error: 'profileId is required' });
+
+  try {
+    const profile = await prisma.userProfile.findUnique({
+      where: { id: profileId },
+      include: {
+        history: {
+          orderBy: { timestamp: 'asc' },
+          include: { prompt: true },
+        },
+      },
+    });
+    if (!profile) return res.status(404).json({ error: 'Profile not found' });
+
+    const dbPrompts = await prisma.questionPrompt.findMany();
+    
+    const history = profile.history.map((play) => ({
+      swipedLeft: play.swipedLeft,
+      prompt: { text: play.prompt.text, category: play.prompt.category, tags: play.prompt.tags },
+    }));
+    const playedPromptIds = profile.history.map((play) => play.promptId);
+
+    const result = await getNextPromptsForProfile({
+      vibeWeights: profile.vibeWeights,
+      traitProfile: profile.traitProfile,
+      history,
+      dbPrompts,
+      playedPromptIds,
+      gamemode,
+      categoryId,
+      count,
+    });
+
+    // Save generated items to DB with the exact Title defined by the backend map
+    const savedPrompts = await Promise.all(
+      result.prompts.map(async (p) => {
+        if (p.id.startsWith('generated-') || p.id.startsWith('fallback-')) {
+          return await prisma.questionPrompt.create({
+            data: { text: p.text, category: result.config.title, tags: p.tags }, 
+          });
+        }
+        return p;
+      })
+    );
+
+    await prisma.userProfile.update({
+      where: { id: profileId },
+      data: { traitProfile: result.updatedTraitProfile },
+    });
+
+    res.json({ prompts: savedPrompts, traitProfile: result.updatedTraitProfile });
+  } catch (error) {
+    console.error('Next prompt error:', error);
+    res.status(500).json({ error: 'Failed to get next prompts' });
+  }
+}
+
+export async function recordSwipe(req: Request, res: Response) {
+  const { profileId } = req.params;
+  const { promptId, swipedLeft } = req.body;
+
+  if (!promptId || typeof swipedLeft !== 'boolean') {
+    return res.status(400).json({ error: 'promptId and swipedLeft are required' });
+  }
+
+  try {
+    const profile = await prisma.userProfile.findUnique({ where: { id: profileId } });
+    const prompt = await prisma.questionPrompt.findUnique({ where: { id: promptId } });
+    if (!profile || !prompt) return res.status(404).json({ error: 'Profile or prompt not found' });
+
+    const updatedWeights = applySwipeFeedback(
+      parseVibeWeights(profile.vibeWeights),
+      prompt.category,
+      prompt.tags,
+      swipedLeft
+    );
+
+    const play = await prisma.promptPlay.create({
+      data: { profileId, promptId, swipedLeft },
+    });
+    await prisma.userProfile.update({
+      where: { id: profileId },
+      data: { vibeWeights: updatedWeights },
+    });
+
+    res.json({ play, vibeWeights: updatedWeights });
+  } catch (error) {
+    console.error('Swipe error:', error);
+    res.status(500).json({ error: 'Failed to record swipe' });
+  }
+}
+
+export async function resetWeights(req: Request, res: Response) {
+  const { profileId } = req.params;
+  const { seedWeights } = req.body;
+  try {
+    const weights = seedWeights ? applySeedWeights(seedWeights) : DEFAULT_VIBE_WEIGHTS;
+    const profile = await prisma.userProfile.update({
+      where: { id: profileId },
+      data: { vibeWeights: weights },
+    });
+    res.json(profile);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reset weights' });
+  }
+}
+</file>
+
+<file path="backend/src/controllers/user.controller.ts">
+import { Request, Response } from 'express';
+import { prisma } from '../lib/prisma';
+import { ensureProfile } from './profile.controller';
+
+export async function syncUser(req: Request, res: Response) {
+  const { email, name, provider, socialId } = req.body;
+
+  if (!email && !socialId) {
+    return res.status(400).json({ error: 'email or socialId is required' });
+  }
+
+  try {
+    const isGuest = typeof email === 'string' && email.endsWith('@hezi.app') && email.startsWith('guest_');
+    const displayName = name || (isGuest ? 'Guest' : 'Player');
+    const authProvider = provider || (isGuest ? 'guest' : 'email');
+
+    let user;
+    if (socialId) user = await prisma.user.findUnique({ where: { socialId } });
+    if (!user && email) user = await prisma.user.findUnique({ where: { email } });
+
+    if (user) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          name: displayName,
+          socialId: socialId || user.socialId,
+          provider: authProvider,
+        },
+      });
+    } else {
+      const finalEmail = email || `${socialId}@${authProvider}.com`;
+      user = await prisma.user.create({
+        data: {
+          email: finalEmail,
+          name: displayName,
+          provider: authProvider,
+          socialId: socialId ?? null,
+        },
+      });
+    }
+
+    const profile = await ensureProfile(user.id);
+    const populatedUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      include: { profile: true },
+    });
+
+    res.json({
+      ...populatedUser,
+      profile: populatedUser?.profile ?? profile,
+      profileId: populatedUser?.profile?.id ?? profile.id,
+    });
+  } catch (error) {
+    console.error('Sync error:', error);
+    res.status(500).json({ error: 'Failed to sync user', details: String(error) });
+  }
+}
+
+export async function getUserByEmail(req: Request, res: Response) {
+  const { email } = req.params;
+  try {
+    const user = await prisma.user.findUnique({ where: { email }, include: { profile: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+}
+
+export async function deleteUserByEmail(req: Request, res: Response) {
+  const { email } = req.params;
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    await prisma.user.delete({ where: { id: user.id } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+}
+</file>
+
+<file path="backend/src/routes/profile.routes.ts">
+import { Router } from 'express';
+import {
+  ensureProfileHandler,
+  getNextPrompt,
+  recordSwipe,
+  resetWeights,
+} from '../controllers/profile.controller';
+
+const router = Router();
+
+router.post('/ensure', ensureProfileHandler);
+router.post('/next-prompt', getNextPrompt);
+router.post('/:profileId/swipe', recordSwipe);
+router.post('/:profileId/reset-weights', resetWeights);
+
+export default router;
+</file>
+
+<file path="backend/src/routes/user.routes.ts">
+import { Router } from 'express';
+import { syncUser, getUserByEmail, deleteUserByEmail } from '../controllers/user.controller';
+
+const router = Router();
+
+router.post('/sync', syncUser);
+router.get('/:email', getUserByEmail);
+router.delete('/:email', deleteUserByEmail);
+
+export default router;
+</file>
+
+<file path="src/components/DiscussionModal.tsx">
+import React from 'react';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MessageCircle, ArrowRight } from 'lucide-react-native';
+import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
+import { Theme } from '../constants/colors';
+import { SwipableCardData } from '../types';
+
+interface DiscussionModalProps {
+  activeDiscussion: SwipableCardData;
+  onClose: () => void;
+  theme: Theme;
+}
+
+export const DiscussionModal: React.FC<DiscussionModalProps> = ({ activeDiscussion, onClose, theme }) => {
+  const styles = getStyles(theme);
+
+  return (
+    <Animated.View style={styles.discussionOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
+      <SafeAreaView style={styles.discussionContent}>
+        <Animated.View
+          style={styles.discussionInner}
+          entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))}
+          exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
+        >
+          <View style={styles.discussionBadge}>
+            <MessageCircle size={20} color={theme.primary} />
+            <Text style={styles.discussionBadgeText}>Group Discussion</Text>
+          </View>
+
+          <Text style={styles.discussionQuestion}>{activeDiscussion.label}</Text>
+
+          <TouchableOpacity style={styles.nextButton} onPress={onClose} activeOpacity={0.8}>
+            <Text style={styles.nextButtonText}>Next Question</Text>
+            <ArrowRight size={20} color={theme.background} />
+          </TouchableOpacity>
+        </Animated.View>
+      </SafeAreaView>
+    </Animated.View>
+  );
+};
+
+const getStyles = (theme: Theme) => StyleSheet.create({
+  discussionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.96)',
+    zIndex: 100,
+  },
+  discussionContent: {
+    flex: 1,
+  },
+  discussionInner: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 40,
+  },
+  discussionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: theme.backgroundElevated,
+    borderWidth: 1,
+    borderColor: theme.border,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    gap: 8,
+    marginBottom: 24,
+  },
+  discussionBadgeText: {
+    color: theme.primary,
+    fontSize: 14,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  discussionQuestion: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: theme.text,
+    lineHeight: 42,
+    marginBottom: 40,
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.primary,
+    paddingVertical: 18,
+    borderRadius: 20,
+    gap: 12,
+  },
+  nextButtonText: {
+    color: theme.background,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+});
+</file>
+
+<file path="src/components/SocialAuthButtons.tsx">
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { Theme } from '../constants/colors';
+
+interface SocialAuthButtonsProps {
+  theme: Theme;
+  googleRequestReady: boolean;
+  onApplePress: () => void;
+  onGooglePress: () => void;
+}
+
+export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({
+  theme,
+  googleRequestReady,
+  onApplePress,
+  onGooglePress,
+}) => {
+  const styles = getStyles(theme);
+
+  return (
+    <View style={styles.socialButtonsContainer}>
+      {Platform.OS === 'ios' && (
+        <TouchableOpacity style={styles.appleCustomButton} onPress={onApplePress}>
+          <View style={styles.iconContainer}>
+            <Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF">
+              <Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" />
+            </Svg>
+          </View>
+          <Text style={styles.appleButtonText}>Continue with Apple</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity
+        style={[styles.googleButton, !googleRequestReady && { opacity: 0.5 }]}
+        onPress={onGooglePress}
+        disabled={!googleRequestReady}
+      >
+        <View style={styles.iconContainer}>
+          <Svg width={24} height={24} viewBox="0 0 48 48">
+            <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+            <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+            <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+            <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+          </Svg>
+        </View>
+        <Text style={styles.googleButtonText}>Continue with Google</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const getStyles = (theme: Theme) => StyleSheet.create({
+  socialButtonsContainer: { gap: 12 },
+  appleCustomButton: { width: '100%', height: 56, backgroundColor: '#000000', borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
+  appleButtonText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
+  googleButton: { width: '100%', height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  iconContainer: { marginRight: 12, justifyContent: 'center', alignItems: 'center' },
+  googleButtonText: { fontSize: 17, fontWeight: '600', color: '#1A1A1A' },
+});
+</file>
+
+<file path="src/hooks/useAuth.ts">
+import { useState, useEffect, useCallback } from 'react';
+import { Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import {
+  auth,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithCredential,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  deleteUser,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+} from '../config/firebase';
+import { apiService } from '../services/api';
+
+WebBrowser.maybeCompleteAuthSession();
+
+interface UseAuthOptions {
+  isDeleteMode: boolean;
+  prefillEmail?: string;
+  initialIsLogin?: boolean;
+}
+
+export function useAuth({ isDeleteMode, prefillEmail = '', initialIsLogin = true }: UseAuthOptions) {
+  const router = useRouter();
+
+  const [isLogin, setIsLogin] = useState(initialIsLogin);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState(prefillEmail);
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    iosClientId: '204716304779-266i58dfvid6mg70reivvtdqqrpv2v9p.apps.googleusercontent.com',
+    webClientId: '204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com',
+  });
+
+  const executeAccountDeletion = useCallback(async (firebaseUser: { email: string | null; delete: () => Promise<void> }) => {
+    try {
+      if (firebaseUser.email) await apiService.deleteUser(firebaseUser.email);
+      await deleteUser(firebaseUser as Parameters<typeof deleteUser>[0]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Account Deleted', 'Your account has been permanently removed.');
+      if (router.canGoBack()) router.dismissAll();
+      router.replace('/');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not delete account.';
+      Alert.alert('Deletion Failed', message);
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
+  const syncUserWithBackend = useCallback(async (
+    firebaseUser: { email: string | null; uid: string; displayName: string | null },
+    provider: string,
+    nameOverride?: string,
+    emailOverride?: string
+  ) => {
+    try {
+      await apiService.syncUser({
+        email: emailOverride || firebaseUser.email || '',
+        socialId: firebaseUser.uid,
+        name: nameOverride || firebaseUser.displayName || name || 'Player',
+        provider,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/onboarding');
+    } catch (error) {
+      Alert.alert('Sync Error', 'Logged in, but failed to connect to the backend.');
+    } finally {
+      setLoading(false);
+    }
+  }, [name, router]);
+
+  const handleGoogleSignIn = useCallback(async (idToken: string) => {
+    setLoading(true);
+    try {
+      const userCredential = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+      if (isDeleteMode) return await executeAccountDeletion(userCredential.user);
+      await syncUserWithBackend(
+        userCredential.user,
+        'google',
+        userCredential.user.displayName || 'Google User',
+        userCredential.user.email || ''
+      );
+    } catch (error: unknown) {
+      setLoading(false);
+      const message = error instanceof Error ? error.message : 'Login failed';
+      Alert.alert('Login Failed', message);
+    }
+  }, [isDeleteMode, executeAccountDeletion, syncUserWithBackend]);
+
+  useEffect(() => {
+    if (response?.type === 'success') handleGoogleSignIn(response.params.id_token);
+  }, [response, handleGoogleSignIn]);
+
+  const handleAppleLogin = useCallback(async () => {
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      setLoading(true);
+      if (!credential.identityToken) throw new Error('Apple Sign-In failed');
+      const firebaseCredential = new OAuthProvider('apple.com').credential({ idToken: credential.identityToken });
+      const userCredential = await signInWithCredential(auth, firebaseCredential);
+      if (isDeleteMode) return await executeAccountDeletion(userCredential.user);
+      const displayName = credential.fullName?.givenName
+        ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim()
+        : (userCredential.user.displayName || 'Apple User');
+      await syncUserWithBackend(
+        userCredential.user,
+        'apple',
+        displayName,
+        userCredential.user.email || credential.email || ''
+      );
+    } catch (e: unknown) {
+      setLoading(false);
+      const err = e as { code?: string; message?: string };
+      if (err.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Login Failed', err.message || 'Could not sign in with Apple.');
+      }
+    }
+  }, [isDeleteMode, executeAccountDeletion, syncUserWithBackend]);
+
+  const handleForgotPassword = useCallback(async () => {
+    if (!email.trim()) {
+      setEmailError('Enter your email first.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
+    setEmailError('');
+    setPasswordError('');
+    try {
+      setLoading(true);
+      await sendPasswordResetEmail(auth, email.trim());
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Reset Link Sent', `Check ${email.trim()} for a link.`);
+    } catch (error) {
+      setEmailError('Failed to send reset link. Try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [email]);
+
+  const handleSubmit = useCallback(async () => {
+    setEmailError('');
+    setPasswordError('');
+    let hasError = false;
+    if (!email.trim()) {
+      setEmailError('Email is required.');
+      hasError = true;
+    } else if (!email.includes('@')) {
+      setEmailError('Please enter a valid email.');
+      hasError = true;
+    }
+    if (!password) {
+      setPasswordError('Password is required.');
+      hasError = true;
+    } else if (!isLogin && password.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      hasError = true;
+    }
+    if (!isLogin && !name.trim()) {
+      Alert.alert('Missing Info', 'Please enter your name.');
+      return;
+    }
+    if (hasError) return Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+    setLoading(true);
+    Haptics.selectionAsync();
+    try {
+      let userCredential;
+      if (isLogin) {
+        userCredential = await signInWithEmailAndPassword(auth, email, password);
+        if (isDeleteMode) return await executeAccountDeletion(userCredential.user);
+        if (!userCredential.user.emailVerified) {
+          setLoading(false);
+          return router.push({ pathname: '/verify-email', params: { email, name } });
+        }
+        await syncUserWithBackend(userCredential.user, 'email');
+      } else {
+        userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (auth.currentUser) {
+          await updateProfile(auth.currentUser, { displayName: name });
+          await sendEmailVerification(auth.currentUser);
+        }
+        setLoading(false);
+        router.push({ pathname: '/verify-email', params: { email, name } });
+      }
+    } catch (error) {
+      setLoading(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setPasswordError('Authentication failed. Please try again.');
+    }
+  }, [email, password, isLogin, name, isDeleteMode, executeAccountDeletion, syncUserWithBackend, router]);
+
+  const toggleLoginMode = useCallback(() => {
+    setIsLogin(!isLogin);
+    setEmailError('');
+    setPasswordError('');
+  }, [isLogin]);
+
+  return {
+    isLogin,
+    name,
+    setName,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    loading,
+    emailError,
+    setEmailError,
+    passwordError,
+    setPasswordError,
+    request,
+    promptAsync,
+    handleGoogleSignIn,
+    handleAppleLogin,
+    handleForgotPassword,
+    handleSubmit,
+    toggleLoginMode,
+  };
+}
+</file>
+
+<file path="src/hooks/useDeckQueue.ts">
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { apiService } from '../services/api';
+import { storage } from '../utils/storage';
+import { PRESET_QUESTIONS } from '../constants/categories';
+import { SwipableCardData, Gamemode } from '../types';
+
+interface UseDeckQueueOptions {
+  categoryId: string;
+  gamemode: Gamemode;
+  profileId?: string;
+}
+
+export function useDeckQueue({ categoryId, gamemode, profileId }: UseDeckQueueOptions) {
+  const [cards, setCards] = useState<SwipableCardData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const isFetching = useRef(false);
+  const currentIndexRef = useRef(0);
+
+  const fetchAICardsBackground = useCallback(async (currentCards: SwipableCardData[]) => {
+    if (isFetching.current) return;
+    isFetching.current = true;
+
+    try {
+      if (profileId) {
+        const res = await apiService.getNextPrompts(profileId, gamemode, categoryId, 5);
+        if (res && res.prompts) {
+          const aiCards = res.prompts.map((p: { id: string; text: string; category: string }) => ({
+            id: p.id,
+            label: p.text,
+            category: p.category, 
+          }));
+
+          setCards((prev) => {
+            const next = [...prev, ...aiCards];
+            storage.saveCachedQueue(gamemode, categoryId, next.slice(currentIndexRef.current));
+            return next;
+          });
+        }
+      }
+    } catch (e) {
+      console.log('Background AI fetch failed.');
+    } finally {
+      isFetching.current = false;
+    }
+  }, [profileId, gamemode, categoryId]);
+
+  const loadDeck = useCallback(async () => {
+    setLoading(true);
+
+    const cachedCards = await storage.getCachedQueue(gamemode, categoryId);
+
+    if (cachedCards && cachedCards.length > 0) {
+      setCards(cachedCards);
+
+      if (cachedCards.length <= 3) {
+        fetchAICardsBackground(cachedCards);
+      }
+    } else {
+      const localQuestions = PRESET_QUESTIONS[categoryId] || PRESET_QUESTIONS['friends-deep-talk'];
+
+      const initialCards = localQuestions.map((text, idx) => ({
+        id: `local-${categoryId}-${idx}`,
+        label: text,
+        category: 'Start', 
+      }));
+
+      setCards(initialCards);
+      fetchAICardsBackground(initialCards);
+    }
+
+    setLoading(false);
+  }, [categoryId, gamemode, fetchAICardsBackground]);
+
+  useEffect(() => {
+    loadDeck();
+  }, [loadDeck]);
+
+  const handleIndexChange = useCallback((newIndex: number) => {
+    currentIndexRef.current = newIndex;
+    const remaining = cards.length - newIndex;
+
+    storage.saveCachedQueue(gamemode, categoryId, cards.slice(newIndex));
+
+    if (remaining <= 3 && !isFetching.current) {
+      fetchAICardsBackground(cards.slice(newIndex));
+    }
+  }, [cards, gamemode, categoryId, fetchAICardsBackground]);
+
+  const handleSwipeLeft = useCallback((card: SwipableCardData) => {
+    if (profileId && !card.id.startsWith('local-')) {
+      apiService.recordSwipe(profileId, card.id, true).catch(() => {});
+    }
+  }, [profileId]);
+
+  const handleSwipeRight = useCallback((card: SwipableCardData) => {
+    if (profileId && !card.id.startsWith('local-')) {
+      apiService.recordSwipe(profileId, card.id, false).catch(() => {});
+    }
+  }, [profileId]);
+
+  return {
+    cards,
+    loading,
+    handleIndexChange,
+    handleSwipeLeft,
+    handleSwipeRight,
+  };
+}
 </file>
 
 <file path=".easignore">
@@ -1295,43 +2104,6 @@ services:
 
 volumes:
   postgres_data:
-</file>
-
-<file path="backend/package.json">
-{
-  "name": "productivity-ai-backend",
-  "version": "1.0.0",
-  "description": "Backend server for Hezi AI",
-  "main": "dist/index.js",
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx src/prisma/seed.ts"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@prisma/client": "^5.19.0",
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "openai": "^4.28.0"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.14.0",
-    "prisma": "^5.19.0",
-    "tsx": "^4.16.0",
-    "typescript": "^5.3.3"
-  },
-  "prisma": {
-    "seed": "tsx src/prisma/seed.ts"
-  }
-}
 </file>
 
 <file path="backend/README.md">
@@ -2486,42 +3258,6 @@ export async function getNextPromptsForProfile(input: {
 </files>
 </file>
 
-<file path="backend/src/lib/prisma.ts">
-import { PrismaClient } from '@prisma/client';
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ['query', 'error', 'warn'],
-  });
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
-</file>
-
-<file path="backend/tsconfig.json">
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
-    "lib": ["ES2020"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "moduleResolution": "node"
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-}
-</file>
-
 <file path="QUICK_START.md">
 # ⚡ Quick Start Guide
 
@@ -2908,132 +3644,6 @@ productivity.ai/
 - 🎉 You're ready to build your app!
 </file>
 
-<file path="src/constants/categories.ts">
-export type ConversationCategory = {
-  id: string;
-  title: string;
-  subtitle: string;
-  icon: string;
-  seedWeights: Record<string, number>;
-};
-
-export const CONVERSATION_CATEGORIES: ConversationCategory[] = [
-  {
-    id: 'deep-talk',
-    title: 'Deep Talk',
-    subtitle: 'Meaning, identity, and the questions that linger',
-    icon: '🌌',
-    seedWeights: { Existential: 0.95, Vulnerability: 0.85, Relationships: 0.5 },
-  },
-  {
-    id: 'icebreakers',
-    title: 'Icebreakers',
-    subtitle: 'Low-stakes sparks to warm up the room',
-    icon: '✨',
-    seedWeights: { Funny: 0.9, Scenarios: 0.6, Nostalgia: 0.4 },
-  },
-  {
-    id: 'what-ifs',
-    title: 'What Ifs',
-    subtitle: 'Hypotheticals that reveal how people think',
-    icon: '🎲',
-    seedWeights: { Scenarios: 0.95, Funny: 0.5, Existential: 0.35 },
-  },
-  {
-    id: 'relationships',
-    title: 'Relationships',
-    subtitle: 'Trust, chemistry, and the stories between people',
-    icon: '💬',
-    seedWeights: { Relationships: 0.95, Vulnerability: 0.7, Nostalgia: 0.45 },
-  },
-  {
-    id: 'nostalgia',
-    title: 'Nostalgia',
-    subtitle: 'Memory lanes, old selves, and shared eras',
-    icon: '📼',
-    seedWeights: { Nostalgia: 0.95, Relationships: 0.5, Funny: 0.35 },
-  },
-  {
-    id: 'most-likely',
-    title: "Who's Most Likely",
-    subtitle: "Point fingers, make accusations, and state your case",
-    icon: '🎯',
-    seedWeights: { Funny: 0.85, Relationships: 0.7, Scenarios: 0.6 },
-  },
-  {
-    id: 'spicy',
-    title: 'Spicy Takes',
-    subtitle: 'Playful heat without killing the vibe',
-    icon: '🔥',
-    seedWeights: { Funny: 0.85, Scenarios: 0.7, Relationships: 0.55 },
-  },
-];
-
-export const PRESET_QUESTIONS: Record<string, string[]> = {
-  'deep-talk': [
-    "What is a belief you held strongly in college that you have quietly abandoned?",
-    "If you could know the absolute, undeniable truth to one question, what would you ask?",
-    "What part of your personality do you fake the most for the sake of other people?",
-    "When did you last cry in front of someone—and what did it cost you?",
-    "What is an insecurity you have that you know is totally irrational?",
-    "Who is the one person you owe an apology to, but haven’t given one?"
-  ],
-  'icebreakers': [
-    "What is the pettiest hill you are willing to die on at brunch?",
-    "What song would play when you walk into a party where your ex is present?",
-    "What is a food that everyone pretends to like but is actually terrible?",
-    "Which conspiracy theory do you genuinely believe might be true?",
-    "What is the weirdest thing you do when you are completely alone in your house?",
-    "If animals could talk, which species would be the rudest?"
-  ],
-  'what-ifs': [
-    "If everyone here swapped phones for one hour, what would surprise the group most?",
-    "Would you rather relive one perfect day or erase one terrible one?",
-    "If you had to disappear and start a new life in another country tomorrow, where do you go?",
-    "You can pause time for exactly 24 hours. What do you do?",
-    "If you could permanently remove one minor inconvenience from your life, what would it be?",
-    "What if you found out you were the main character in a Truman Show situation?"
-  ],
-  'relationships': [
-    "Who in this room would you call first with good news—and who with bad news?",
-    "What compliment do you secretly crave but never know how to accept?",
-    "How do you know when a friendship has naturally run its course?",
-    "What is the hardest boundary you've had to set with a family member?",
-    "What makes you feel instantly safe with a new person?",
-    "Who is someone you admire, but would never want to actually be?"
-  ],
-  'nostalgia': [
-    "Which childhood smell instantly transports you back—and to which room?",
-    "Which family tradition would you erase without guilt?",
-    "What was your absolute favorite TV show when you were 12 years old?",
-    "What was your first ever username or email address?",
-    "What is a song that immediately makes you think of your first crush?",
-    "What is a distinct memory from recess or the playground?"
-  ],
-  'most-likely': [
-    "Who is most likely to secretly survive a zombie apocalypse because of a weird hyper-fixation?",
-    "Who is most likely to accidentally join a cult because they liked the free snacks?",
-    "Who is most likely to drop their phone in the toilet and pretend it never happened?",
-    "Who is most likely to become a local cryptid or urban legend in their old age?",
-    "Who is most likely to fake their own death to get out of a minor social obligation?",
-    "Who is most likely to win a reality TV show by aggressively manipulating everyone?",
-    "Who is most likely to get arrested for a crime they committed completely by accident?"
-  ],
-  'spicy': [
-    "What popular movie or TV show is incredibly overrated?",
-    "What is a socially acceptable behavior that you think should be banned?",
-    "Which celebrity do you genuinely believe is a bad person?",
-    "What is a food combination you love that others find disgusting?",
-    "Do you think soulmates exist, or is it just timing and proximity?",
-    "What is an opinion you hold that would get you 'canceled' on the internet?"
-  ]
-};
-
-export function getCategoryById(id: string): ConversationCategory | undefined {
-  return CONVERSATION_CATEGORIES.find((c) => c.id === id);
-}
-</file>
-
 <file path="tsconfig.json">
 {
   "extends": "expo/tsconfig.base",
@@ -3124,6 +3734,79 @@ web-build/
 backend/node_modules/
 backend/dist/
 backend/.env
+</file>
+
+<file path="backend/package.json">
+{
+  "name": "productivity-ai-backend",
+  "version": "1.0.0",
+  "description": "Backend server for Hezi AI",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "tsx src/prisma/seed.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.19.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "openai": "^4.28.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "prisma": "^5.19.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.3.3"
+  },
+  "prisma": {
+    "seed": "tsx src/prisma/seed.ts"
+  }
+}
+</file>
+
+<file path="backend/src/lib/prisma.ts">
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ['query', 'error', 'warn'],
+  });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+</file>
+
+<file path="backend/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
 </file>
 
 <file path="src/components/ErrorBoundary.tsx">
@@ -3263,6 +3946,69 @@ const styles = StyleSheet.create({
 });
 </file>
 
+<file path="src/constants/categories.ts">
+export interface ConversationCategory {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: string;
+  seedWeights: Record<string, number>;
+}
+
+export const VIBE_CATEGORIES: Record<string, ConversationCategory[]> = {
+  friendship: [
+    { id: 'friends-icebreakers', title: 'Icebreakers', subtitle: 'Low-stakes sparks to warm up the room', icon: '✨', seedWeights: { Funny: 0.9, Scenarios: 0.6 } },
+    { id: 'friends-most-likely', title: "Who's Most Likely", subtitle: 'Point fingers and state your case', icon: '🎯', seedWeights: { Funny: 0.85, Relationships: 0.7 } },
+    { id: 'friends-what-ifs', title: 'What Ifs', subtitle: 'Hypotheticals that reveal how you think', icon: '🎲', seedWeights: { Scenarios: 0.95, Funny: 0.5 } },
+    { id: 'friends-nostalgia', title: 'Nostalgia', subtitle: 'Memory lanes and shared eras', icon: '📼', seedWeights: { Nostalgia: 0.95, Relationships: 0.5 } },
+    { id: 'friends-deep-talk', title: 'Deep Talk', subtitle: 'Identity, fears, and the real stuff', icon: '🌌', seedWeights: { Existential: 0.95, Vulnerability: 0.85 } },
+    { id: 'friends-spicy', title: 'Spicy Takes', subtitle: 'Playful heat without killing the vibe', icon: '🔥', seedWeights: { Funny: 0.85, Scenarios: 0.7 } },
+  ],
+  relationship: [
+    { id: 'lovers-warm-up', title: 'Warm Up', subtitle: 'Light questions to get talking', icon: '✨', seedWeights: { Funny: 0.8, Scenarios: 0.5 } },
+    { id: 'lovers-our-story', title: 'Our Story', subtitle: 'Looking back at how it started', icon: '📼', seedWeights: { Nostalgia: 0.9, Relationships: 0.8 } },
+    { id: 'lovers-us-talk', title: 'The "Us" Talk', subtitle: 'Love, trust, and connection', icon: '💬', seedWeights: { Relationships: 0.95, Vulnerability: 0.7 } },
+    { id: 'lovers-deep-talk', title: 'Deep Talk', subtitle: 'Fears, dreams, and meaning', icon: '🌌', seedWeights: { Existential: 0.9, Vulnerability: 0.9 } },
+    { id: 'lovers-spicy', title: 'Spicy Takes', subtitle: 'A little heat for the two of you', icon: '🔥', seedWeights: { Funny: 0.8, Scenarios: 0.8 } },
+    { id: 'lovers-what-ifs', title: 'What Ifs', subtitle: 'Alternate realities together', icon: '🎲', seedWeights: { Scenarios: 0.95, Relationships: 0.6 } },
+  ],
+  family: [
+    { id: 'family-icebreakers', title: 'Icebreakers', subtitle: 'Easy questions for the table', icon: '✨', seedWeights: { Funny: 0.9, Scenarios: 0.5 } },
+    { id: 'family-growing-up', title: 'Growing Up', subtitle: 'Childhood memories and nostalgia', icon: '📼', seedWeights: { Nostalgia: 0.95, Funny: 0.5 } },
+    { id: 'family-dynamics', title: 'Family Dynamics', subtitle: "Who's most likely to...", icon: '🎯', seedWeights: { Funny: 0.8, Relationships: 0.7 } },
+    { id: 'family-life-lessons', title: 'Life Lessons', subtitle: 'Wisdom, regrets, and growth', icon: '🌌', seedWeights: { Existential: 0.9, Vulnerability: 0.6 } },
+    { id: 'family-what-ifs', title: 'What Ifs', subtitle: 'Hypothetical family scenarios', icon: '🎲', seedWeights: { Scenarios: 0.9, Funny: 0.6 } },
+    { id: 'family-generational', title: 'Generational', subtitle: 'Bridging the age gap', icon: '💬', seedWeights: { Relationships: 0.8, Nostalgia: 0.7 } },
+  ]
+};
+
+export const PRESET_QUESTIONS: Record<string, string[]> = {
+  // Friends
+  'friends-icebreakers': ["What is the pettiest hill you are willing to die on?", "What song would play when you walk into a party?", "What food does everyone pretend to like?"],
+  'friends-most-likely': ["Who is most likely to secretly survive a zombie apocalypse?", "Who is most likely to accidentally join a cult?", "Who is most likely to drop their phone in the toilet?"],
+  'friends-what-ifs': ["If you had to disappear and start a new life, where do you go?", "You can pause time for 24 hours. What do you do?", "If everyone swapped phones for an hour, what would surprise us?"],
+  'friends-nostalgia': ["What childhood smell instantly transports you back?", "What was your absolute favorite TV show when you were 12?", "What was your first ever username?"],
+  'friends-deep-talk': ["What is a belief you held strongly that you have quietly abandoned?", "When did you last cry in front of someone?", "What part of your personality do you fake the most?"],
+  'friends-spicy': ["What popular movie is incredibly overrated?", "What socially acceptable behavior should be banned?", "What opinion would get you 'canceled'?"],
+  
+  // Lovers
+  'lovers-warm-up': ["What's a weird habit of mine that you secretly find endearing?", "If we could teleport to any restaurant right now, where are we going?", "What was your exact first impression of me?"],
+  'lovers-our-story': ["What is a small, random moment from early in our relationship that you still think about?", "When did you realize you were falling for me?", "What was the most nerve-wracking part of our first few dates?"],
+  'lovers-us-talk': ["What makes you feel the most loved by me?", "In what way do you think we balance each other out perfectly?", "What is something you want us to be better at together?"],
+  'lovers-deep-talk': ["What is an insecurity you have that I can help soothe?", "What is a dream you have that you rarely talk about?", "How has your definition of love changed since we met?"],
+  'lovers-spicy': ["What is a movie scene that permanently rewired your brain?", "What is something I do innocently that you find extremely attractive?", "What is a completely non-physical trait that gets you?"],
+  'lovers-what-ifs': ["If we had to quit our jobs and open a business together, what is it?", "If we were characters in a horror movie, how far do we make it?", "If we had to live in a different decade, which one fits our vibe best?"],
+
+  // Family
+  'family-icebreakers': ["If our family was a TV sitcom, what would the title be?", "Who in the family has the worst driving skills?", "What is a food that always reminds you of home?"],
+  'family-growing-up': ["What is the most ridiculous thing you believed as a kid?", "What was the strictest rule in the house growing up?", "Which family vacation was an absolute disaster at the time, but funny now?"],
+  'family-dynamics': ["Who is most likely to give completely unsolicited advice?", "Who is most likely to keep a secret from everyone else?", "Who is most likely to win in a ruthless game of Monopoly?"],
+  'family-life-lessons': ["What is a piece of advice you ignored when you were younger, but now realize was right?", "What is the hardest lesson you've had to learn the hard way?", "What is something you wish you started doing earlier in life?"],
+  'family-what-ifs': ["If our family had to win a talent show, what is our act?", "If you could witness any moment from family history before you were born, what would it be?", "If money was no object, what kind of family compound would we build?"],
+  'family-generational': ["What is a slang word or trend from today that makes absolutely zero sense to you?", "What did you get away with as a teen that teens today could never do?", "What is one thing you think my generation actually got right?"]
+};
+</file>
+
 <file path="src/constants/colors.ts">
 export interface Theme {
   background: string;
@@ -3373,112 +4119,221 @@ export const colors = palettes.friendship;
 </file>
 
 <file path="app/deck.tsx">
-export interface Theme {
-  background: string;
-  backgroundElevated: string;
-  backgroundLight: string;
-  backgroundCard: string;
-  backgroundCardHover: string;
-  primary: string;
-  primaryLight: string;
-  primaryDark: string;
-  primaryGlow: string;
-  text: string;
-  textSecondary: string;
-  textMuted: string;
-  textLight: string;
-  border: string;
-  borderSubtle: string;
-  swipeKeep: string;
-  swipeKeepGlow: string;
-  swipeSkip: string;
-  swipeSkipGlow: string;
-  success: string;
-  error: string;
-  overlay: string;
-  glow: string;
+import React, { useState } from 'react';
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw } from 'lucide-react-native';
+import { SwipableCardStack } from '../src/components/SwipableCardStack';
+import { DiscussionModal } from '../src/components/DiscussionModal';
+import { useApp } from '../src/context/AppContext';
+import { useDeckQueue } from '../src/hooks/useDeckQueue';
+import { Theme } from '../src/constants/colors';
+import { SwipableCardData } from '../src/types';
+
+export default function DeckScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const { user, gamemode, theme } = useApp();
+  const styles = getStyles(theme);
+
+  const categoryId = (params.categoryId as string) || 'friends-deep-talk';
+
+  const { cards, loading, handleIndexChange, handleSwipeLeft: recordSwipeLeft, handleSwipeRight } = useDeckQueue({
+    categoryId,
+    gamemode,
+    profileId: user?.profileId,
+  });
+
+  const [activeDiscussion, setActiveDiscussion] = useState<SwipableCardData | null>(null);
+
+  const handleSwipeLeft = (card: SwipableCardData) => {
+    setActiveDiscussion(card);
+    recordSwipeLeft(card);
+  };
+
+  const closeDiscussion = () => {
+    setActiveDiscussion(null);
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
+
+      {/* HEADER */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft color={theme.text} size={28} />
+        </TouchableOpacity>
+      </View>
+
+      {/* MAIN GAMEPLAY CONTENT */}
+      <View style={styles.content}>
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.primary} />
+        ) : (
+          <>
+            <SwipableCardStack
+              cards={cards}
+              onSwipeLeft={handleSwipeLeft}
+              onSwipeRight={handleSwipeRight}
+              onIndexChange={handleIndexChange}
+              emptyMessage="Out of cards! Generating more..."
+            />
+            <Text style={styles.skipRuleText}>If you don't have an answer, just skip it.</Text>
+          </>
+        )}
+      </View>
+
+      {/* PERSISTENT LEGEND */}
+      <View style={styles.bottomSection} pointerEvents="none">
+        <View style={styles.hintContainer}>
+          <View style={styles.hintPill}>
+            <CornerDownLeft size={16} color={theme.success} />
+            <Text style={[styles.hintTitle, { color: theme.success }]}>Answer</Text>
+          </View>
+          <View style={styles.hintPill}>
+            <RotateCcw size={16} color={theme.textSecondary} />
+            <Text style={[styles.hintTitle, { color: theme.textSecondary }]}>Undo</Text>
+          </View>
+          <View style={styles.hintPill}>
+            <Text style={[styles.hintTitle, { color: theme.error }]}>Skip</Text>
+            <CornerDownRight size={16} color={theme.error} />
+          </View>
+        </View>
+      </View>
+
+      {activeDiscussion && (
+        <DiscussionModal
+          activeDiscussion={activeDiscussion}
+          onClose={closeDiscussion}
+          theme={theme}
+        />
+      )}
+    </SafeAreaView>
+  );
 }
 
-export const palettes: Record<'friendship' | 'relationship' | 'family', Theme> = {
-  friendship: {
-    background: '#040B16', // Deep dark blue
-    backgroundElevated: 'rgba(255, 255, 255, 0.08)',
-    backgroundLight: 'rgba(255, 255, 255, 0.12)',
-    backgroundCard: 'rgba(255, 255, 255, 0.04)',
-    backgroundCardHover: 'rgba(255, 255, 255, 0.08)',
-    primary: '#38BDF8', // Blue
-    primaryLight: '#7DD3FC',
-    primaryDark: '#0EA5E9',
-    primaryGlow: 'rgba(56, 189, 248, 0.35)',
-    text: '#F8FAFC',
-    textSecondary: '#94A3B8',
-    textMuted: '#64748B',
-    textLight: '#64748B',
-    border: 'rgba(255, 255, 255, 0.08)',
-    borderSubtle: 'rgba(255, 255, 255, 0.04)',
-    swipeKeep: '#38BDF8',
-    swipeKeepGlow: 'rgba(56, 189, 248, 0.25)',
-    swipeSkip: '#F97316',
-    swipeSkipGlow: 'rgba(249, 115, 22, 0.25)',
-    success: '#38BDF8',
-    error: '#F97316',
-    overlay: 'rgba(0, 0, 0, 0.72)',
-    glow: 'rgba(56, 189, 248, 0.15)',
+const getStyles = (theme: Theme) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.background,
   },
-  relationship: {
-    background: '#1A050B', // Deep romantic burgundy
-    backgroundElevated: 'rgba(255, 255, 255, 0.08)',
-    backgroundLight: 'rgba(255, 255, 255, 0.12)',
-    backgroundCard: 'rgba(255, 255, 255, 0.04)',
-    backgroundCardHover: 'rgba(255, 255, 255, 0.08)',
-    primary: '#F472B6', // Pink
-    primaryLight: '#FBCFE8',
-    primaryDark: '#DB2777',
-    primaryGlow: 'rgba(244, 114, 182, 0.35)',
-    text: '#FDF2F8',
-    textSecondary: '#F9A8D4',
-    textMuted: '#EC4899',
-    textLight: '#EC4899',
-    border: 'rgba(255, 255, 255, 0.08)',
-    borderSubtle: 'rgba(255, 255, 255, 0.04)',
-    swipeKeep: '#F472B6',
-    swipeKeepGlow: 'rgba(244, 114, 182, 0.25)',
-    swipeSkip: '#64748B',
-    swipeSkipGlow: 'rgba(100, 116, 139, 0.25)',
-    success: '#F472B6',
-    error: '#EF4444',
-    overlay: 'rgba(0, 0, 0, 0.72)',
-    glow: 'rgba(244, 114, 182, 0.15)',
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+    zIndex: 10,
   },
-  family: {
-    background: '#04160C', // Deep forest green
-    backgroundElevated: 'rgba(255, 255, 255, 0.08)',
-    backgroundLight: 'rgba(255, 255, 255, 0.12)',
-    backgroundCard: 'rgba(255, 255, 255, 0.04)',
-    backgroundCardHover: 'rgba(255, 255, 255, 0.08)',
-    primary: '#4ADE80', // Green
-    primaryLight: '#86EFAC',
-    primaryDark: '#16A34A',
-    primaryGlow: 'rgba(74, 222, 128, 0.35)',
-    text: '#F0FDF4',
-    textSecondary: '#A7F3D0',
-    textMuted: '#34D399',
-    textLight: '#34D399',
-    border: 'rgba(255, 255, 255, 0.08)',
-    borderSubtle: 'rgba(255, 255, 255, 0.04)',
-    swipeKeep: '#4ADE80',
-    swipeKeepGlow: 'rgba(74, 222, 128, 0.25)',
-    swipeSkip: '#F59E0B',
-    swipeSkipGlow: 'rgba(245, 158, 11, 0.25)',
-    success: '#4ADE80',
-    error: '#EF4444',
-    overlay: 'rgba(0, 0, 0, 0.72)',
-    glow: 'rgba(74, 222, 128, 0.15)',
-  }
+  backButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: theme.backgroundElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  skipRuleText: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: 240,
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.textMuted,
+    textAlign: 'center',
+  },
+  bottomSection: {
+    paddingBottom: 32,
+    alignItems: 'center',
+  },
+  hintContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  hintPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.backgroundElevated,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  hintTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+});
+</file>
+
+<file path="src/config/firebase.ts">
+import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
+import { 
+  initializeAuth, 
+  getReactNativePersistence, 
+  GoogleAuthProvider, 
+  OAuthProvider, // Added
+  signInWithCredential, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile,
+  getAuth,
+  deleteUser,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  Auth
+} from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAw7dKdWkr7WBO_BUG8EFqLOYw-wr0n2Z8",
+  authDomain: "hesi-ai.firebaseapp.com",
+  projectId: "hesi-ai",
+  storageBucket: "hesi-ai.firebasestorage.app",
+  messagingSenderId: "204716304779",
+  appId: "1:204716304779:web:b9876e929e0a60a717a78e"
 };
 
-// Default export used before Context mounts
-export const colors = palettes.friendship;
+let app: FirebaseApp;
+let auth: Auth;
+
+if (getApps().length > 0) {
+  app = getApp();
+} else {
+  app = initializeApp(firebaseConfig);
+}
+
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage)
+  });
+} catch (e) {
+  auth = getAuth(app);
+}
+
+export { 
+  auth, 
+  GoogleAuthProvider, 
+  OAuthProvider, // Exported
+  signInWithCredential, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile,
+  deleteUser,
+  sendPasswordResetEmail,
+  sendEmailVerification
+};
 </file>
 
 <file path="app/verify-email.tsx">
@@ -3600,63 +4455,46 @@ const getStyles = (theme: Theme) => StyleSheet.create({
 });
 </file>
 
-<file path="src/config/firebase.ts">
-import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
-import { 
-  initializeAuth, 
-  getReactNativePersistence, 
-  GoogleAuthProvider, 
-  OAuthProvider, // Added
-  signInWithCredential, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  updateProfile,
-  getAuth,
-  deleteUser,
-  sendPasswordResetEmail,
-  sendEmailVerification,
-  Auth
-} from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+<file path="src/config/api.ts">
+// ⚠️ IMPORTANT:
+// 1. Open your Command Prompt (cmd.exe)
+// 2. Type 'ipconfig' and hit Enter
+// 3. Find "IPv4 Address" (it looks like 192.168.1.5 or 10.0.0.14)
+// 4. Paste that number below inside the quotes
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAw7dKdWkr7WBO_BUG8EFqLOYw-wr0n2Z8",
-  authDomain: "hesi-ai.firebaseapp.com",
-  projectId: "hesi-ai",
-  storageBucket: "hesi-ai.firebasestorage.app",
-  messagingSenderId: "204716304779",
-  appId: "1:204716304779:web:b9876e929e0a60a717a78e"
-};
 
-let app: FirebaseApp;
-let auth: Auth;
+export const API_BASE_URL = `https://hezi-backend.onrender.com`;
+</file>
 
-if (getApps().length > 0) {
-  app = getApp();
-} else {
-  app = initializeApp(firebaseConfig);
+<file path="src/types/index.ts">
+export interface QuestionPrompt {
+  id: string;
+  text: string;
+  category: string;
+  tags: string[];
 }
 
-try {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage)
-  });
-} catch (e) {
-  auth = getAuth(app);
+export interface UserProfile {
+  id: string;
+  userId: string;
+  vibeWeights: Record<string, number>;
 }
 
-export { 
-  auth, 
-  GoogleAuthProvider, 
-  OAuthProvider, // Exported
-  signInWithCredential, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  updateProfile,
-  deleteUser,
-  sendPasswordResetEmail,
-  sendEmailVerification
-};
+export interface SwipableCardData {
+  id: string;
+  label: string;
+  description?: string;
+  category?: string;
+}
+
+export interface AppUser {
+  id: string;
+  email: string;
+  name: string;
+  profileId?: string;
+}
+
+export type Gamemode = 'friendship' | 'relationship' | 'family';
 </file>
 
 <file path="src/components/SwipableCardStack.tsx">
@@ -3668,21 +4506,25 @@ import * as Haptics from 'expo-haptics';
 import { Check, X } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { Theme } from '../constants/colors';
+import { SwipableCardData } from '../types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 const ROTATION_MAX = 8;
 const CARD_SCALE = 0.96;
 
-export interface SwipableCardData { id: string; label: string; description?: string; category?: string; }
-
 interface SwipableCardProps {
-  card: SwipableCardData; index: number; totalCards: number;
-  onSwipeLeft: (cardId: string) => void; onSwipeRight: (cardId: string) => void; onUndo: () => void;
-  isTopCard: boolean; leftLabel?: string; rightLabel?: string; theme: Theme;
+  card: SwipableCardData; 
+  index: number; 
+  totalCards: number;
+  onSwipeLeft: (card: SwipableCardData) => void; 
+  onSwipeRight: (card: SwipableCardData) => void; 
+  onUndo: () => void;
+  isTopCard: boolean; 
+  theme: Theme;
 }
 
-const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, onSwipeLeft, onSwipeRight, onUndo, isTopCard, leftLabel = 'Answer', rightLabel = 'Skip', theme }) => {
+const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, onSwipeLeft, onSwipeRight, onUndo, isTopCard, theme }) => {
   const styles = getStyles(theme);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -3691,13 +4533,14 @@ const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, on
   const scale = useSharedValue(1);
 
   const handleSwipeComplete = useCallback((direction: 'left' | 'right') => {
-    direction === 'left' ? onSwipeLeft(card.id) : onSwipeRight(card.id);
-  }, [card.id, onSwipeLeft, onSwipeRight]);
+    direction === 'left' ? onSwipeLeft(card) : onSwipeRight(card);
+  }, [card, onSwipeLeft, onSwipeRight]);
 
   const panGesture = Gesture.Pan()
     .onStart(() => runOnJS(Haptics.selectionAsync)())
     .onUpdate((e) => {
-      translateX.value = e.translationX; translateY.value = e.translationY * 0.08;
+      translateX.value = e.translationX; 
+      translateY.value = e.translationY * 0.08;
       rotation.value = interpolate(translateX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-ROTATION_MAX, 0, ROTATION_MAX], Extrapolate.CLAMP);
       scale.value = interpolate(Math.abs(translateX.value), [0, SCREEN_WIDTH * 0.5], [1, CARD_SCALE], Extrapolate.CLAMP);
     })
@@ -3755,30 +4598,62 @@ const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, on
           </View>
           <Animated.View style={[styles.ripple, { backgroundColor: theme.success }, leftRippleStyle]} />
           <Animated.View style={[styles.ripple, { backgroundColor: theme.error }, rightRippleStyle]} />
-          <Animated.View style={[styles.actionOverlay, leftIconStyle]}><Check size={72} color="#ffffff" strokeWidth={3} />{leftLabel && <Text style={styles.actionLabel}>{leftLabel}</Text>}</Animated.View>
-          <Animated.View style={[styles.actionOverlay, rightIconStyle]}><X size={72} color="#ffffff" strokeWidth={3} />{rightLabel && <Text style={styles.actionLabel}>{rightLabel}</Text>}</Animated.View>
+          <Animated.View style={[styles.actionOverlay, leftIconStyle]}><Check size={72} color="#ffffff" strokeWidth={3} /><Text style={styles.actionLabel}>Answer</Text></Animated.View>
+          <Animated.View style={[styles.actionOverlay, rightIconStyle]}><X size={72} color="#ffffff" strokeWidth={3} /><Text style={styles.actionLabel}>Skip</Text></Animated.View>
         </Animated.View>
       </GestureDetector>
     </Animated.View>
   );
 };
 
-export const SwipableCardStack: React.FC<{ cards: SwipableCardData[]; onSwipeLeft: (cardId: string) => void; onSwipeRight: (cardId: string) => void; emptyMessage?: string; leftLabel?: string; rightLabel?: string; }> = ({ cards, onSwipeLeft, onSwipeRight, emptyMessage = 'No more cards', leftLabel, rightLabel }) => {
+export const SwipableCardStack: React.FC<{ 
+  cards: SwipableCardData[]; 
+  onSwipeLeft: (card: SwipableCardData) => void; 
+  onSwipeRight: (card: SwipableCardData) => void; 
+  onIndexChange?: (index: number) => void;
+  emptyMessage?: string; 
+}> = ({ cards, onSwipeLeft, onSwipeRight, onIndexChange, emptyMessage = 'No more cards' }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const { theme } = useApp();
   const styles = getStyles(theme);
 
-  const handleSwipeLeft = useCallback((cardId: string) => { setCurrentIndex((prev) => prev + 1); onSwipeLeft(cardId); }, [onSwipeLeft]);
-  const handleSwipeRight = useCallback((cardId: string) => { setCurrentIndex((prev) => prev + 1); onSwipeRight(cardId); }, [onSwipeRight]);
-  const handleUndo = useCallback(() => { if (currentIndex > 0) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentIndex((prev) => prev - 1); } }, [currentIndex]);
+  const handleSwipeLeft = useCallback((card: SwipableCardData) => { 
+    setCurrentIndex((prev) => {
+      const next = prev + 1;
+      onIndexChange?.(next);
+      return next;
+    }); 
+    onSwipeLeft(card); 
+  }, [onSwipeLeft, onIndexChange]);
+
+  const handleSwipeRight = useCallback((card: SwipableCardData) => { 
+    setCurrentIndex((prev) => {
+      const next = prev + 1;
+      onIndexChange?.(next);
+      return next;
+    }); 
+    onSwipeRight(card); 
+  }, [onSwipeRight, onIndexChange]);
+
+  const handleUndo = useCallback(() => { 
+    if (currentIndex > 0) { 
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); 
+      setCurrentIndex((prev) => {
+        const next = prev - 1;
+        onIndexChange?.(next);
+        return next;
+      }); 
+    } 
+  }, [currentIndex, onIndexChange]);
 
   const remainingCards = cards.slice(currentIndex, currentIndex + 3);
+  
   if (remainingCards.length === 0) return <View style={styles.emptyContainer}><Text style={styles.emptyText}>{emptyMessage}</Text></View>;
 
   return (
     <View style={styles.stackContainer}>
       {remainingCards.map((card, idx) => (
-        <SwipableCard key={card.id} card={card} index={idx} totalCards={remainingCards.length} onSwipeLeft={handleSwipeLeft} onSwipeRight={handleSwipeRight} onUndo={handleUndo} isTopCard={idx === 0} leftLabel={leftLabel} rightLabel={rightLabel} theme={theme} />
+        <SwipableCard key={card.id} card={card} index={idx} totalCards={remainingCards.length} onSwipeLeft={handleSwipeLeft} onSwipeRight={handleSwipeRight} onUndo={handleUndo} isTopCard={idx === 0} theme={theme} />
       ))}
     </View>
   );
@@ -3786,10 +4661,10 @@ export const SwipableCardStack: React.FC<{ cards: SwipableCardData[]; onSwipeLef
 
 const getStyles = (theme: Theme) => StyleSheet.create({
   stackContainer: { width: '100%', height: 440, alignItems: 'center', justifyContent: 'center' },
-  cardContainer: { width: SCREEN_WIDTH - 40, height: 420, position: 'absolute' },
-  card: { width: '100%', height: '100%', borderRadius: 28, borderWidth: 1.5, backgroundColor: theme.backgroundCard, borderColor: theme.border, shadowColor: theme.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 24, elevation: 12, overflow: 'hidden' },
+  cardContainer: { width: SCREEN_WIDTH - 40, height: 440, position: 'absolute' },
+  card: { width: '100%', height: '100%', borderRadius: 32, borderWidth: 1, backgroundColor: theme.backgroundCard, borderColor: theme.border, shadowColor: '#000', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.3, shadowRadius: 32, elevation: 12, overflow: 'hidden' },
   cardContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-  categoryTag: { fontSize: 11, fontWeight: '800', letterSpacing: 1.4, textTransform: 'uppercase', color: theme.primary, marginBottom: 18 },
+  categoryTag: { fontSize: 12, fontWeight: '800', letterSpacing: 1.4, textTransform: 'uppercase', color: theme.primary, marginBottom: 18 },
   cardLabel: { fontSize: 26, fontWeight: '700', color: theme.text, textAlign: 'center', lineHeight: 36 },
   cardDescription: { fontSize: 16, color: theme.textSecondary, textAlign: 'center', lineHeight: 24, marginTop: 14 },
   ripple: { position: 'absolute', top: '50%', left: '50%', width: 80, height: 80, marginTop: -40, marginLeft: -40, borderRadius: 40, zIndex: 2 },
@@ -3798,32 +4673,6 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   emptyContainer: { height: 440, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
   emptyText: { fontSize: 17, fontWeight: '600', color: theme.textSecondary, textAlign: 'center' },
 });
-</file>
-
-<file path="src/config/api.ts">
-// ⚠️ IMPORTANT:
-// 1. Open your Command Prompt (cmd.exe)
-// 2. Type 'ipconfig' and hit Enter
-// 3. Find "IPv4 Address" (it looks like 192.168.1.5 or 10.0.0.14)
-// 4. Paste that number below inside the quotes
-
-
-export const API_BASE_URL = `https://hezi-backend.onrender.com`;
-</file>
-
-<file path="src/types/index.ts">
-export interface QuestionPrompt {
-  id: string;
-  text: string;
-  category: string;
-  tags: string[];
-}
-
-export interface UserProfile {
-  id: string;
-  userId: string;
-  vibeWeights: Record<string, number>;
-}
 </file>
 
 <file path="src/utils/storage.ts">
@@ -3886,7 +4735,6 @@ export const storage = {
     }
   },
 
-  // --- NEW: Queue Caching System ---
   async getCachedQueue(gamemode: string, categoryId: string): Promise<any[]> {
     try {
       const data = await AsyncStorage.getItem(`@queue_${gamemode}_${categoryId}`);
@@ -3904,10 +4752,19 @@ export const storage = {
     }
   },
 
+  // NEW: Forces a completely fresh deck to show the "Start" cards
+  async clearCachedQueue(gamemode: string, categoryId: string): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(`@queue_${gamemode}_${categoryId}`);
+    } catch (e) {
+      console.warn("Failed to clear queue", e);
+    }
+  },
+
   async clearAllUserData(): Promise<void> {
     try {
       const keys = await AsyncStorage.getAllKeys();
-      await AsyncStorage.multiRemove(keys); // Wipes everything, including cached queues
+      await AsyncStorage.multiRemove(keys);
     } catch (e) {
       console.warn("Failed to clear storage", e);
     }
@@ -4007,49 +4864,135 @@ main()
 
 <file path="app/index.tsx">
 import React, { useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { Flame, ArrowRight } from 'lucide-react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useApp } from '../src/context/AppContext';
 import { storage } from '../src/utils/storage';
 import { colors } from '../src/constants/colors';
 
+const { width } = Dimensions.get('window');
+
 export default function IndexScreen() {
   const router = useRouter();
-  const { isLoading, theme } = useApp();
+  const { theme, isLoading } = useApp();
+  
+  // Fallback to default colors if context is still mounting
+  const activeTheme = theme || colors;
+  const styles = getStyles(activeTheme);
 
   useEffect(() => {
-    if (isLoading) return;
-
-    const route = async () => {
-      const tutorialDone = await storage.isSwipeTutorialComplete();
-      
-      // Adding a tiny 100ms timeout prevents a race condition with the layout router
-      setTimeout(() => {
-        router.replace(tutorialDone ? '/home' : '/onboarding');
-      }, 100);
+    // FOR TESTING: Forces the tutorial to reset every single time you open the app
+    const resetTutorialForTesting = async () => {
+      await storage.setSwipeTutorialComplete(false);
     };
+    resetTutorialForTesting();
+  }, []);
 
-    route();
-  }, [isLoading, router]);
-
-  // Safely fallback to default colors if context is still mounting
-  const bgColor = theme?.background || colors.background;
-  const primaryColor = theme?.primary || colors.primary;
+  if (isLoading) return null;
 
   return (
-    <View style={[styles.loading, { backgroundColor: bgColor }]}>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
-      <ActivityIndicator size="large" color={primaryColor} />
-    </View>
+      
+      <View style={styles.content}>
+        <Animated.View entering={FadeInDown.delay(200).springify().damping(20)} style={styles.logoWrapper}>
+          <View style={styles.iconCircle}>
+            <Flame size={56} color={activeTheme.background} fill={activeTheme.background} />
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(300).springify().damping(20)} style={styles.textWrapper}>
+          <Text style={styles.title}>Hezi</Text>
+          <Text style={styles.subtitle}>Deep conversations.{'\n'}Zero small talk.</Text>
+        </Animated.View>
+      </View>
+
+      <Animated.View entering={FadeIn.delay(600).duration(800)} style={styles.footer}>
+        <TouchableOpacity 
+          style={styles.button} 
+          activeOpacity={0.85}
+          onPress={() => router.replace('/onboarding')}
+        >
+          <Text style={styles.buttonText}>Get Started</Text>
+          <ArrowRight size={20} color={activeTheme.background} strokeWidth={3} />
+        </TouchableOpacity>
+      </Animated.View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  loading: {
+const getStyles = (theme: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  logoWrapper: {
+    marginBottom: 40,
+  },
+  iconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: theme.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  textWrapper: {
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: theme.text,
+    letterSpacing: 2,
+    marginBottom: 16,
+  },
+  subtitle: {
+    fontSize: 20,
+    fontWeight: '500',
+    color: theme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  footer: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    width: '100%',
+  },
+  button: {
+    backgroundColor: theme.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 64,
+    borderRadius: 32,
+    gap: 12,
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  buttonText: {
+    color: theme.background,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });
 </file>
@@ -4059,8 +5002,8 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { Check, Flame, MessageCircle, Sparkles, X, ArrowRight, Hand, CornerDownLeft, CornerDownRight, RotateCcw } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { Check, Flame, MessageCircle, Sparkles, X, ArrowRight, Hand, CornerDownLeft, CornerDownRight, RotateCcw, Layers } from 'lucide-react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, Easing, Extrapolate, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -4082,13 +5025,14 @@ export default function OnboardingScreen() {
   const { theme } = useApp();
   const styles = getStyles(theme);
   
-  const [phase, setPhase] = useState<0 | 1 | 2 | 2.5 | 3>(0);
+  const [phase, setPhase] = useState<0 | 1 | 2 | 3>(0);
   const [stepIndex, setStepIndex] = useState(0);
+  const [typedChars, setTypedChars] = useState(0);
   const [showHint, setShowHint] = useState(false);
-  const [isTypingStep, setIsTypingStep] = useState(-1);
+  
   const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTransitioningRef = useRef(false);
 
-  const demoProgress = useSharedValue(0); 
   const cardScale = useSharedValue(0.9);
   const dragX = useSharedValue(0);
   const idlePullX = useSharedValue(0);
@@ -4096,30 +5040,28 @@ export default function OnboardingScreen() {
   const fingerOpacity = useSharedValue(0);
   const fingerX = useSharedValue(0);
   const fingerScale = useSharedValue(1);
-  const guidanceOpacity = useSharedValue(0);
-  
-  const [typedChars, setTypedChars] = useState(0);
+  const guidanceOpacity = useSharedValue(1);
 
   const activeStep = useMemo(() => TUTORIAL_STEPS[stepIndex], [stepIndex]);
-  const renderedGuidance = useMemo(() => activeStep.guidance.slice(0, typedChars), [activeStep.guidance, typedChars]);
   const expectedAction = activeStep.expectedAction;
-
-  useFocusEffect(
-    React.useCallback(() => {
-      setPhase(0); setStepIndex(0); setShowHint(false); setIsTypingStep(-1); setTypedChars(0);
-      demoProgress.value = 0; cardScale.value = 0.9; dragX.value = 0; idlePullX.value = 0; isDragging.value = 0; fingerOpacity.value = 0; fingerX.value = 0; fingerScale.value = 1; guidanceOpacity.value = 0;
-    }, [])
-  );
-
+  
   useEffect(() => {
-    if ((phase === 1 || phase === 2) && stepIndex !== isTypingStep) {
-      setIsTypingStep(stepIndex); setTypedChars(0);
-      guidanceOpacity.value = 0; guidanceOpacity.value = withTiming(1, { duration: 300 }); 
-      const textLen = TUTORIAL_STEPS[stepIndex].guidance.length;
-      const timer = setInterval(() => { setTypedChars((prev) => { if (prev >= textLen) { clearInterval(timer); return textLen; } return prev + 1; }); }, 35);
-      return () => clearInterval(timer);
+    if (phase === 1) {
+      setTypedChars(0);
+      guidanceOpacity.value = 0;
+      guidanceOpacity.value = withTiming(1, { duration: 300 });
+
+      const fullText = TUTORIAL_STEPS[stepIndex].guidance;
+      let count = 0;
+      const interval = setInterval(() => {
+        count++;
+        setTypedChars(count);
+        if (count >= fullText.length) clearInterval(interval);
+      }, 35);
+      
+      return () => clearInterval(interval);
     }
-  }, [phase, stepIndex, isTypingStep]);
+  }, [phase, stepIndex]);
 
   const startIdleHint = (action: 'left' | 'right' | 'tap') => {
     cancelAnimation(idlePullX);
@@ -4128,19 +5070,26 @@ export default function OnboardingScreen() {
     idlePullX.value = withRepeat(withTiming(target, { duration: 1800, easing: Easing.inOut(Easing.quad) }), -1, true);
   };
 
-  const resetHintTimer = () => {
+  const clearHintTimer = () => {
     if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
+  };
+
+  const resetHintTimer = () => {
+    clearHintTimer();
     setShowHint(false);
-    hintTimeoutRef.current = setTimeout(() => { setShowHint(true); }, 3000); 
+    hintTimeoutRef.current = setTimeout(() => { setShowHint(true); }, 2500); 
   };
 
   useEffect(() => {
-    if (phase === 2) resetHintTimer();
-    return () => { if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current); };
+    if (phase === 1) {
+      startIdleHint(expectedAction);
+      resetHintTimer();
+    }
+    return () => clearHintTimer();
   }, [phase, stepIndex]);
 
   useEffect(() => {
-    if (showHint && phase === 2) {
+    if (showHint && phase === 1) {
       if (expectedAction === 'tap') {
         fingerX.value = 0; fingerScale.value = 1;
         fingerOpacity.value = withRepeat(withSequence(withTiming(0.8, { duration: 200 }), withTiming(0, { duration: 200 }), withTiming(0.8, { duration: 200 }), withTiming(0, { duration: 1000 })), -1);
@@ -4157,27 +5106,41 @@ export default function OnboardingScreen() {
     }
   }, [showHint, expectedAction, phase]);
 
-  const handleStartTutorial = () => setPhase(1);
-
   const handleStartDemo = () => {
-    setPhase(2);
-    demoProgress.value = withTiming(1, { duration: 800, easing: Easing.inOut(Easing.cubic) });
+    setPhase(1);
     cardScale.value = withSpring(1, { damping: 20, stiffness: 80 });
-    setTimeout(() => startIdleHint(expectedAction), 1000);
   };
 
   const moveToNextStep = () => {
-    if (stepIndex === 0) { setStepIndex(1); resetStateForNextCard(); } 
-    else if (stepIndex === 1) { setPhase(2.5); cancelAnimation(idlePullX); setShowHint(false); } 
-    else if (stepIndex === 2) { setPhase(3); cancelAnimation(idlePullX); setShowHint(false); }
+    if (stepIndex === 0) { 
+      setStepIndex(1); 
+      resetStateForNextCard(); 
+    } 
+    else if (stepIndex === 1) { 
+      setPhase(2); 
+      cancelAnimation(idlePullX); 
+      setShowHint(false); 
+    } 
+    else if (stepIndex === 2) { 
+      setPhase(3); 
+      cancelAnimation(idlePullX); 
+      setShowHint(false); 
+    }
   };
 
   const resetStateForNextCard = () => {
-    dragX.value = 0; isDragging.value = 0; cardScale.value = 0.92; cardScale.value = withSpring(1, { damping: 24, stiffness: 85 }); resetHintTimer();
+    dragX.value = 0; 
+    isDragging.value = 0; 
+    cardScale.value = 0.92; 
+    cardScale.value = withSpring(1, { damping: 24, stiffness: 85 }); 
+    isTransitioningRef.current = false;
+    resetHintTimer();
   };
 
   const finishDiscussionModal = () => {
-    setPhase(2); setStepIndex(2); resetStateForNextCard();
+    setPhase(1); 
+    setStepIndex(2); 
+    resetStateForNextCard();
   };
 
   const handleFinish = async () => {
@@ -4185,41 +5148,66 @@ export default function OnboardingScreen() {
     router.replace('/home');
   };
 
-  const panGesture = Gesture.Pan().enabled(phase === 2).onBegin(() => {
-      isDragging.value = 1; cancelAnimation(idlePullX); runOnJS(setShowHint)(false);
-      if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current);
-    }).onUpdate((event) => {
+  // Safe JS function to handle the Undo Timeout without crashing Reanimated
+  const triggerUndoSequence = () => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    setTimeout(() => {
+      moveToNextStep();
+    }, 1200);
+  };
+
+  const panGesture = Gesture.Pan().enabled(phase === 1)
+    .onBegin(() => {
+      isDragging.value = 1; 
+      cancelAnimation(idlePullX); 
+      runOnJS(setShowHint)(false);
+      runOnJS(clearHintTimer)();
+    })
+    .onUpdate((event) => {
       dragX.value = expectedAction === 'tap' ? event.translationX * 0.15 : event.translationX;
-    }).onEnd((e) => {
+    })
+    .onEnd((e) => {
       if (expectedAction === 'tap') {
-        dragX.value = withSpring(0, { damping: 20, stiffness: 200 }); isDragging.value = 0;
-        runOnJS(startIdleHint)(expectedAction); runOnJS(resetHintTimer)();
+        dragX.value = withSpring(0, { damping: 20, stiffness: 200 }); 
+        isDragging.value = 0;
+        runOnJS(startIdleHint)(expectedAction); 
+        runOnJS(resetHintTimer)();
         return;
       }
+      
       const passedThreshold = Math.abs(dragX.value) > SWIPE_THRESHOLD || Math.abs(e.velocityX) > 600;
       const direction = dragX.value > 0 ? 'right' : 'left';
+      
       if (passedThreshold && direction === expectedAction) {
         dragX.value = withTiming(direction === 'right' ? SCREEN_WIDTH * 1.2 : -SCREEN_WIDTH * 1.2, { duration: 300, easing: Easing.out(Easing.cubic) });
         cardScale.value = withTiming(0.8, { duration: 200 }, (isFinished) => { if (isFinished) runOnJS(moveToNextStep)(); });
         return;
       }
-      dragX.value = withSpring(0, { damping: 20, stiffness: 200 }); isDragging.value = 0;
-      runOnJS(startIdleHint)(expectedAction); runOnJS(resetHintTimer)();
+      
+      dragX.value = withSpring(0, { damping: 20, stiffness: 200 }); 
+      isDragging.value = 0;
+      runOnJS(startIdleHint)(expectedAction); 
+      runOnJS(resetHintTimer)();
     });
 
-  const tapGesture = Gesture.Tap().enabled(phase === 2 && expectedAction === 'tap').maxDuration(250).onEnd(() => {
-      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-      cardScale.value = 0.8; cardScale.value = withSpring(1, { damping: 20, stiffness: 200 });
-      runOnJS(moveToNextStep)();
+  const tapGesture = Gesture.Tap()
+    .enabled(phase === 1 && expectedAction === 'tap')
+    .maxDuration(250)
+    .onEnd(() => {
+      // Spring animation happens immediately on the UI thread
+      cardScale.value = 0.8; 
+      cardScale.value = withSpring(1, { damping: 20, stiffness: 200 });
+      // Call the safe JS function
+      runOnJS(triggerUndoSequence)();
     });
 
   const composedGesture = Gesture.Exclusive(panGesture, tapGesture);
 
-  const guidanceAnimatedStyle = useAnimatedStyle(() => ({ opacity: guidanceOpacity.value, fontSize: interpolate(demoProgress.value, [0, 1], [36, 20]), lineHeight: interpolate(demoProgress.value, [0, 1], [44, 28]), transform: [{ translateY: interpolate(demoProgress.value, [0, 1], [0, -210]) }] }));
-  const demoButtonAnimatedStyle = useAnimatedStyle(() => ({ opacity: interpolate(demoProgress.value, [0, 0.5], [1, 0]), transform: [{ translateY: interpolate(demoProgress.value, [0, 1], [110, 150]) }] }));
-  const hintsAnimatedStyle = useAnimatedStyle(() => ({ opacity: demoProgress.value, transform: [{ translateY: interpolate(demoProgress.value, [0, 1], [40, 0]) }] }));
-  const ruleAnimatedStyle = useAnimatedStyle(() => ({ opacity: demoProgress.value, transform: [{ translateY: interpolate(demoProgress.value, [0, 1], [20, 0]) }] }));
-  const cardAnimatedStyle = useAnimatedStyle(() => ({ opacity: demoProgress.value, transform: [{ translateX: dragX.value + idlePullX.value * (1 - isDragging.value) }, { translateY: interpolate(demoProgress.value, [0, 1], [60, 0]) }, { rotate: `${interpolate(dragX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-8, 0, 8])}deg` }, { scale: cardScale.value }] }));
+  const guidanceAnimatedStyle = useAnimatedStyle(() => ({ opacity: guidanceOpacity.value }));
+  const cardAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateX: dragX.value + idlePullX.value * (1 - isDragging.value) }, { rotate: `${interpolate(dragX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-8, 0, 8])}deg` }, { scale: cardScale.value }] }));
   const swipeHintAnimatedStyle = useAnimatedStyle(() => ({ opacity: fingerOpacity.value, transform: [{ translateX: fingerX.value }, { scale: fingerScale.value }] }));
   const skipRippleStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(dragX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }], opacity: interpolate(dragX.value, [0, SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP) }));
   const keepRippleStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(dragX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }], opacity: interpolate(dragX.value, [0, -SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP) }));
@@ -4234,58 +5222,89 @@ export default function OnboardingScreen() {
         <Animated.View style={styles.introContainer} entering={FadeIn} exiting={FadeOut}>
           <Text style={styles.scienceQuote}>"Psychological studies show that escalating, reciprocal vulnerability creates profound interpersonal closeness in just 45 minutes."</Text>
           <View style={styles.bigRulesContainer}>
-            <View style={styles.bigRuleCard}><View style={styles.bigRuleIcon}><MessageCircle size={28} color={theme.primary} /></View><Text style={styles.bigRuleTitle}>The Circle Rule</Text><Text style={styles.bigRuleDesc}>Read aloud. Answer it yourself first. Pass to the left.</Text></View>
-            <View style={styles.bigRuleCard}><View style={styles.bigRuleIcon}><Flame size={28} color={theme.primary} /></View><Text style={styles.bigRuleTitle}>The AI Adapts</Text><Text style={styles.bigRuleDesc}>Swipe left to answer, right to skip. Tap the card to undo. The game learns your group's unique boundaries.</Text></View>
+            <View style={styles.bigRuleCard}>
+              <View style={styles.bigRuleIcon}><MessageCircle size={28} color={theme.primary} /></View>
+              <Text style={styles.bigRuleTitle}>The Circle Rule</Text>
+              <Text style={styles.bigRuleDesc}>Read aloud. Answer it yourself first. Pass to the left.</Text>
+            </View>
+            <View style={styles.bigRuleCard}>
+              <View style={styles.bigRuleIcon}><Layers size={28} color={theme.primary} /></View>
+              <Text style={styles.bigRuleTitle}>The Iceberg Effect</Text>
+              <Text style={styles.bigRuleDesc}>The deck starts light. As you swipe left to answer, the AI pulls you gradually deeper.</Text>
+            </View>
           </View>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleStartTutorial} activeOpacity={0.85}><Text style={styles.primaryButtonText}>Show me how</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleStartDemo} activeOpacity={0.85}><Text style={styles.primaryButtonText}>Show me how</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
         </Animated.View>
       )}
 
-      {(phase === 1 || phase === 2) && (
-        <View style={styles.demoWrapper}>
+      {phase === 1 && (
+        <Animated.View style={styles.demoWrapper} entering={FadeIn.duration(400)}>
           <View style={styles.demoTopBar}><Text style={styles.eyebrow}>How to play</Text></View>
+          
           <View style={styles.demoCenterStage}>
-            <Animated.Text style={[styles.guidance, guidanceAnimatedStyle]}>{renderedGuidance}</Animated.Text>
-            <Animated.View style={[styles.absoluteCenter, demoButtonAnimatedStyle]} pointerEvents={phase === 1 ? 'auto' : 'none'}><TouchableOpacity style={styles.primaryButton} onPress={handleStartDemo} activeOpacity={0.85}><Text style={styles.primaryButtonText}>Start the demo</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity></Animated.View>
-            <Animated.View style={[styles.swipeHintContainer, swipeHintAnimatedStyle]} pointerEvents="none"><View style={styles.fingerCircle} /><Hand size={40} color="#ffffff" strokeWidth={2} style={styles.fingerIcon} /></Animated.View>
+            <Animated.Text style={[styles.guidance, guidanceAnimatedStyle]}>
+              {activeStep.guidance.slice(0, typedChars)}
+            </Animated.Text>
+            
+            <Animated.View style={[styles.swipeHintContainer, swipeHintAnimatedStyle]} pointerEvents="none">
+              <View style={styles.fingerCircle} />
+              <Hand size={40} color="#ffffff" strokeWidth={2} style={styles.fingerIcon} />
+            </Animated.View>
+            
             <GestureDetector gesture={composedGesture}>
               <Animated.View style={[styles.card, cardAnimatedStyle]}>
-                <View style={styles.cardContent}><View style={styles.cardTop}><Sparkles size={16} color={theme.primary} /><Text style={styles.cardTopText}>Demo Question</Text></View><Text style={styles.cardQuestion}>{activeStep.question}</Text></View>
+                <View style={styles.cardContent}>
+                  <View style={styles.cardTop}><Sparkles size={16} color={theme.primary} /><Text style={styles.cardTopText}>Demo Question</Text></View>
+                  <Text style={styles.cardQuestion}>{activeStep.question}</Text>
+                </View>
                 <Animated.View style={[styles.ripple, { backgroundColor: theme.success }, keepRippleStyle]} />
                 <Animated.View style={[styles.ripple, { backgroundColor: theme.error }, skipRippleStyle]} />
-                <Animated.View style={[styles.actionOverlay, keepIconStyle]}><Check size={72} color="#ffffff" strokeWidth={3} /></Animated.View>
-                <Animated.View style={[styles.actionOverlay, skipIconStyle]}><X size={72} color="#ffffff" strokeWidth={3} /></Animated.View>
+                <Animated.View style={[styles.actionOverlay, keepIconStyle]}><Check size={72} color="#ffffff" strokeWidth={3} /><Text style={styles.actionLabel}>Answer</Text></Animated.View>
+                <Animated.View style={[styles.actionOverlay, skipIconStyle]}><X size={72} color="#ffffff" strokeWidth={3} /><Text style={styles.actionLabel}>Skip</Text></Animated.View>
               </Animated.View>
             </GestureDetector>
-            <Animated.Text style={[styles.skipRuleText, ruleAnimatedStyle]}>If you don't have an answer, just skip it.</Animated.Text>
+            
+            <Text style={styles.skipRuleText}>If you don't have an answer, just skip it.</Text>
           </View>
-          <Animated.View style={[styles.bottomSection, hintsAnimatedStyle]} pointerEvents="none">
+          
+          <View style={styles.bottomSection} pointerEvents="none">
             <View style={styles.hintContainer}>
               <View style={styles.hintPill}><CornerDownLeft size={16} color={theme.success} /><Text style={[styles.hintTitle, { color: theme.success }]}>Answer</Text></View>
               <View style={styles.hintPill}><RotateCcw size={16} color={theme.textSecondary} /><Text style={[styles.hintTitle, { color: theme.textSecondary }]}>Undo</Text></View>
               <View style={styles.hintPill}><Text style={[styles.hintTitle, { color: theme.error }]}>Skip</Text><CornerDownRight size={16} color={theme.error} /></View>
             </View>
-          </Animated.View>
-        </View>
+          </View>
+        </Animated.View>
       )}
 
-      {phase === 2.5 && (
+      {/* DISCUSSION SCREEN OVERLAY */}
+      {phase === 2 && (
         <Animated.View style={styles.discussionOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
-          <View style={styles.discussionContent}>
-            <Animated.View entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))} exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}>
-              <View style={styles.discussionBadge}><MessageCircle size={20} color={theme.primary} /><Text style={styles.discussionBadgeText}>Group Discussion</Text></View>
+          <SafeAreaView style={styles.discussionContent}>
+            <Animated.View style={styles.discussionInner} entering={SlideInDown.duration(400).easing(Easing.out(Easing.cubic))} exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}>
+              <View style={styles.discussionBadge}>
+                <MessageCircle size={20} color={theme.primary} />
+                <Text style={styles.discussionBadgeText}>Group Discussion</Text>
+              </View>
               <Text style={styles.discussionQuestion}>{TUTORIAL_STEPS[1].question}</Text>
-              <Text style={styles.discussionHint}>Pass the phone around. Let everyone answer before moving on.</Text>
-              <TouchableOpacity style={styles.nextButton} onPress={finishDiscussionModal} activeOpacity={0.8}><Text style={styles.nextButtonText}>Got it, what's next?</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
+              
+              <Text style={styles.discussionNote}>
+                Once everyone has answered and you are ready for a new prompt, tap next.
+              </Text>
+              
+              <TouchableOpacity style={styles.nextButton} onPress={finishDiscussionModal} activeOpacity={0.8}>
+                <Text style={styles.nextButtonText}>Next Question</Text>
+                <ArrowRight size={20} color={theme.background} />
+              </TouchableOpacity>
             </Animated.View>
-          </View>
+          </SafeAreaView>
         </Animated.View>
       )}
 
       {phase === 3 && (
         <Animated.View style={styles.doneContainer} entering={FadeIn.duration(600)}>
-          <View style={{ flex: 1, justifyContent: 'center' }}><Text style={styles.doneTitle}>You're ready.</Text><Text style={styles.doneSubtitle}>Pick a category and let the AI find the perfect questions for your group.</Text></View>
-          <TouchableOpacity style={[styles.primaryButton, { width: '100%', marginBottom: 16 }]} onPress={handleFinish} activeOpacity={0.85}><Text style={styles.primaryButtonText}>Go to categories</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
+          <View style={{ flex: 1, justifyContent: 'center' }}><Text style={styles.doneTitle}>You're ready.</Text><Text style={styles.doneSubtitle}>Pick a vibe and let the AI find the perfect questions for your group.</Text></View>
+          <TouchableOpacity style={[styles.primaryButton, { width: '100%', marginBottom: 16 }]} onPress={handleFinish} activeOpacity={0.85}><Text style={styles.primaryButtonText}>View Topics</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
         </Animated.View>
       )}
     </SafeAreaView>
@@ -4301,37 +5320,49 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   bigRuleIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: theme.border },
   bigRuleTitle: { fontSize: 22, fontWeight: '800', color: theme.text, marginBottom: 8 },
   bigRuleDesc: { fontSize: 16, color: theme.textSecondary, lineHeight: 24 },
-  demoWrapper: { flex: 1 },
+  
+  demoWrapper: { flex: 1, marginHorizontal: -24 }, 
   demoTopBar: { paddingTop: 20, alignItems: 'center' },
   eyebrow: { fontSize: 12, fontWeight: '800', color: theme.primary, letterSpacing: 2, textTransform: 'uppercase' },
+  
   demoCenterStage: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  guidance: { position: 'absolute', color: theme.text, fontWeight: '800', textAlign: 'center', width: SCREEN_WIDTH * 0.9, paddingHorizontal: 20, zIndex: 10 },
-  absoluteCenter: { position: 'absolute', zIndex: 11 },
+  guidance: { position: 'absolute', top: 30, color: theme.text, fontSize: 22, lineHeight: 30, fontWeight: '800', textAlign: 'center', width: SCREEN_WIDTH * 0.9, paddingHorizontal: 20, zIndex: 10 },
   primaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.primary, paddingHorizontal: 24, paddingVertical: 18, borderRadius: 999, gap: 8, shadowColor: theme.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 },
   primaryButtonText: { color: theme.background, fontSize: 17, fontWeight: '800' },
+  
   swipeHintContainer: { position: 'absolute', zIndex: 20, alignItems: 'center', justifyContent: 'center' },
   fingerCircle: { position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255, 255, 255, 0.2)', borderWidth: 2, borderColor: 'rgba(255, 255, 255, 0.6)' },
   fingerIcon: { marginTop: 40, marginLeft: 20 },
-  card: { width: SCREEN_WIDTH - 56, height: 320, borderRadius: 28, borderWidth: 1.5, borderColor: theme.border, backgroundColor: theme.backgroundCard, overflow: 'hidden', position: 'absolute', zIndex: 5 },
-  cardContent: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 28 },
+  
+  card: { width: SCREEN_WIDTH - 40, height: 440, borderRadius: 32, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.backgroundCard, overflow: 'hidden', position: 'absolute', zIndex: 5 },
+  cardContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   cardTopText: { color: theme.primary, fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '800' },
-  cardQuestion: { color: theme.text, fontSize: 28, lineHeight: 36, fontWeight: '700' },
+  cardQuestion: { color: theme.text, fontSize: 26, lineHeight: 36, fontWeight: '700', textAlign: 'center' },
+  
   ripple: { position: 'absolute', top: '50%', left: '50%', width: 80, height: 80, marginTop: -40, marginLeft: -40, borderRadius: 40, zIndex: 2 },
   actionOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 3 },
-  skipRuleText: { position: 'absolute', top: '50%', marginTop: 180, fontSize: 13, fontWeight: '500', color: theme.textMuted, textAlign: 'center' },
+  actionLabel: { color: '#ffffff', fontSize: 18, fontWeight: '800', textAlign: 'center', marginTop: 16 },
+  
+  skipRuleText: { position: 'absolute', top: '50%', marginTop: 240, fontSize: 14, fontWeight: '500', color: theme.textMuted, textAlign: 'center' },
+  
   bottomSection: { paddingBottom: 32, alignItems: 'center' },
   hintContainer: { flexDirection: 'row', justifyContent: 'center', gap: 12 },
   hintPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.backgroundElevated, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, gap: 8, borderWidth: 1, borderColor: theme.border },
   hintTitle: { fontSize: 14, fontWeight: '700' },
+  
   discussionOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.96)', zIndex: 100 },
-  discussionContent: { flex: 1, justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 60 },
+  discussionContent: { flex: 1 },
+  discussionInner: { flex: 1, justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 40 },
   discussionBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: theme.backgroundElevated, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, gap: 8, marginBottom: 24 },
   discussionBadgeText: { color: theme.primary, fontSize: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.2 },
-  discussionQuestion: { fontSize: 32, fontWeight: '800', color: theme.text, lineHeight: 42, marginBottom: 24 },
-  discussionHint: { fontSize: 16, color: theme.textSecondary, lineHeight: 24 },
-  nextButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.primary, paddingVertical: 18, borderRadius: 20, gap: 12, marginTop: 40 },
-  nextButtonText: { color: theme.background, fontSize: 17, fontWeight: '800' },
+  discussionQuestion: { fontSize: 32, fontWeight: '800', color: theme.text, lineHeight: 42, marginBottom: 32 },
+  
+  discussionNote: { fontSize: 16, color: theme.textSecondary, textAlign: 'left', marginBottom: 32, lineHeight: 24, fontStyle: 'italic' },
+  
+  nextButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.primary, paddingVertical: 18, borderRadius: 20, gap: 12 },
+  nextButtonText: { color: theme.background, fontSize: 18, fontWeight: '800' },
+  
   doneContainer: { flex: 1, paddingBottom: 20 },
   doneTitle: { fontSize: 40, fontWeight: '800', color: theme.text, marginBottom: 16 },
   doneSubtitle: { fontSize: 18, color: theme.textSecondary, lineHeight: 26 },
@@ -4395,6 +5426,59 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     "typescript": "^5.3.3"
   },
   "private": true
+}
+</file>
+
+<file path="backend/prisma/schema.prisma">
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  socialId  String?  @unique
+  name      String?
+  password  String?
+  provider  String   @default("email")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile UserProfile?
+}
+
+model UserProfile {
+  id           String       @id @default(uuid())
+  userId       String       @unique
+  vibeWeights  Json
+  traitProfile String?      // Stores the AI's psychological profile of the user
+  history      PromptPlay[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model QuestionPrompt {
+  id       String       @id @default(uuid())
+  text     String
+  category String
+  tags     String[]
+  plays    PromptPlay[]
+}
+
+model PromptPlay {
+  id         String   @id @default(uuid())
+  profileId  String
+  promptId   String
+  swipedLeft Boolean
+  timestamp  DateTime @default(now())
+
+  profile UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  prompt  QuestionPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
 }
 </file>
 
@@ -4474,59 +5558,6 @@ export default function RootLayout() {
 }
 </file>
 
-<file path="backend/prisma/schema.prisma">
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  socialId  String?  @unique
-  name      String?
-  password  String?
-  provider  String   @default("email")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  profile UserProfile?
-}
-
-model UserProfile {
-  id           String       @id @default(uuid())
-  userId       String       @unique
-  vibeWeights  Json
-  traitProfile String?      // Stores the AI's psychological profile of the user
-  history      PromptPlay[]
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model QuestionPrompt {
-  id       String       @id @default(uuid())
-  text     String
-  category String
-  tags     String[]
-  plays    PromptPlay[]
-}
-
-model PromptPlay {
-  id         String   @id @default(uuid())
-  profileId  String
-  promptId   String
-  swipedLeft Boolean
-  timestamp  DateTime @default(now())
-
-  profile UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  prompt  QuestionPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
-}
-</file>
-
 <file path="backend/src/services/ai.service.ts">
 import OpenAI from 'openai';
 import { Prisma } from '@prisma/client';
@@ -4601,17 +5632,149 @@ export function applySeedWeights(seed: Record<string, number>): Record<string, n
   return normalizeWeights({ ...DEFAULT_VIBE_WEIGHTS, ...seed });
 }
 
+// 🎯 THE BACKEND SOURCE OF TRUTH FOR CATEGORIES
+// This connects the UI ID -> Exact UI Title -> Database Seeds -> Strict AI Rules
+type CategoryConfig = { title: string, dbCategories: string[], rules: string, fallback: string };
+
+const CATEGORY_MAP: Record<string, CategoryConfig> = {
+  // Friends
+  'friends-icebreakers': {
+    title: 'Icebreakers',
+    dbCategories: ['Funny', 'Scenarios'],
+    rules: 'STRICT RULE: Keep it extremely lighthearted, fun, low-stakes, and easy to answer. These are warm-up questions.',
+    fallback: 'What is the pettiest hill you are willing to die on?'
+  },
+  'friends-most-likely': {
+    title: "Who's Most Likely",
+    dbCategories: ["Who's Most Likely", "Funny"],
+    rules: 'STRICT RULE: EVERY single question MUST begin exactly with "Who is most likely to ". The answer MUST be a person playing the game. DO NOT ask deep or philosophical questions.',
+    fallback: 'Who is most likely to accidentally join a cult because they liked the free snacks?'
+  },
+  'friends-what-ifs': {
+    title: 'What Ifs',
+    dbCategories: ['Scenarios'],
+    rules: 'STRICT RULE: EVERY single question MUST be a hypothetical scenario. Start with "What if...", "You have to...", or "Imagine...".',
+    fallback: 'You can pause time for exactly 24 hours. What do you do?'
+  },
+  'friends-nostalgia': {
+    title: 'Nostalgia',
+    dbCategories: ['Nostalgia'],
+    rules: 'STRICT RULE: Focus ENTIRELY on memories, childhood, pop culture of the past, or nostalgia.',
+    fallback: 'What was your absolute favorite TV show when you were 12 years old?'
+  },
+  'friends-deep-talk': {
+    title: 'Deep Talk',
+    dbCategories: ['Existential', 'Vulnerability', 'Relationships'],
+    rules: 'STRICT RULE: Deeply psychological, vulnerable, and existential. Ask about fears, identity, profound beliefs, or emotional truths.',
+    fallback: 'What part of your personality do you fake the most for the sake of other people?'
+  },
+  'friends-spicy': {
+    title: 'Spicy Takes',
+    dbCategories: ['Funny'],
+    rules: 'STRICT RULE: Edgy, playful, and debate-worthy. Focus on hot takes or unpopular opinions.',
+    fallback: 'What socially acceptable behavior should be completely banned?'
+  },
+  
+  // Lovers
+  'lovers-warm-up': {
+    title: 'Warm Up',
+    dbCategories: ['Funny', 'Relationships'],
+    rules: 'STRICT RULE: Lighthearted, romantic, fun, and easy to answer. Warm-up questions about each other.',
+    fallback: 'What is a weird habit of mine that you secretly find endearing?'
+  },
+  'lovers-our-story': {
+    title: 'Our Story',
+    dbCategories: ['Nostalgia', 'Relationships'],
+    rules: 'STRICT RULE: Focus ENTIRELY on early relationship days, first impressions, and memories together.',
+    fallback: 'What is a small, random moment from early in our relationship that you still think about?'
+  },
+  'lovers-us-talk': {
+    title: 'The "Us" Talk',
+    dbCategories: ['Relationships'],
+    rules: 'STRICT RULE: Focus on love, trust, connection, and relationship dynamics.',
+    fallback: 'What makes you feel the most loved by me?'
+  },
+  'lovers-deep-talk': {
+    title: 'Deep Talk',
+    dbCategories: ['Existential', 'Vulnerability'],
+    rules: 'STRICT RULE: Deeply psychological and vulnerable. Ask about fears, dreams, and meaning.',
+    fallback: 'What is an insecurity you have that I can help soothe?'
+  },
+  'lovers-spicy': {
+    title: 'Spicy Takes',
+    dbCategories: ['Funny', 'Relationships'],
+    rules: 'STRICT RULE: Playful heat, attraction, and romantic tension.',
+    fallback: 'What is a completely non-physical trait that gets you?'
+  },
+  'lovers-what-ifs': {
+    title: 'What Ifs',
+    dbCategories: ['Scenarios'],
+    rules: 'STRICT RULE: EVERY single question MUST be a hypothetical scenario involving both partners. Start with "What if..." or "Imagine...".',
+    fallback: 'If we had to drop everything and open a business together tomorrow, what would it be?'
+  },
+
+  // Family
+  'family-icebreakers': {
+    title: 'Icebreakers',
+    dbCategories: ['Funny', 'Scenarios'],
+    rules: 'STRICT RULE: Lighthearted, fun family-oriented questions. Keep it easy and low-stakes.',
+    fallback: 'If our family was a TV sitcom, what would the title be?'
+  },
+  'family-growing-up': {
+    title: 'Growing Up',
+    dbCategories: ['Nostalgia'],
+    rules: 'STRICT RULE: Focus ENTIRELY on childhood memories, house rules, and growing up in the family.',
+    fallback: 'What was the strictest rule in the house growing up?'
+  },
+  'family-dynamics': {
+    title: 'Family Dynamics',
+    dbCategories: ["Who's Most Likely", "Funny"],
+    rules: 'STRICT RULE: EVERY single question MUST begin exactly with "Who is most likely to " or "Who in the family ". The answer MUST be a family member.',
+    fallback: 'Who is most likely to give completely unsolicited advice?'
+  },
+  'family-life-lessons': {
+    title: 'Life Lessons',
+    dbCategories: ['Existential', 'Vulnerability'],
+    rules: 'STRICT RULE: Focus on wisdom, regrets, personal growth, and life advice.',
+    fallback: 'What is the hardest lesson you\'ve had to learn the hard way?'
+  },
+  'family-what-ifs': {
+    title: 'What Ifs',
+    dbCategories: ['Scenarios'],
+    rules: 'STRICT RULE: EVERY single question MUST be a hypothetical family scenario.',
+    fallback: 'If money was no object, what kind of family compound would we build?'
+  },
+  'family-generational': {
+    title: 'Generational',
+    dbCategories: ['Nostalgia', 'Relationships'],
+    rules: 'STRICT RULE: Focus on differences between generations, aging, and changing times.',
+    fallback: 'What is one thing you think the younger generation actually got right?'
+  }
+};
+
+// Safe fallback getter
+export function getCategoryConfig(categoryId: string): CategoryConfig {
+  if (CATEGORY_MAP[categoryId]) return CATEGORY_MAP[categoryId];
+  // Extreme fallback
+  return {
+    title: 'Deep Talk',
+    dbCategories: ['Existential', 'Vulnerability'],
+    rules: 'STRICT RULE: Deeply psychological and vulnerable questions.',
+    fallback: 'What part of your personality do you fake the most?'
+  };
+}
+
 export async function generatePersonalizedPrompts(
   weights: Record<string, number>,
-  recentHistory: PromptPlayRecord[],
+  categoryHistory: PromptPlayRecord[],
   traitProfile: string | null,
   gamemode: string,
+  config: CategoryConfig,
   count: number = 5
 ): Promise<{ updatedProfile: string; prompts: { text: string; category: string; tags: string[] }[] } | null> {
   
-  // Tag Engagement Analysis Algorithm
   const tagStats: Record<string, { seen: number; answered: number }> = {};
-  recentHistory.forEach(play => {
+  categoryHistory.forEach(play => {
     play.prompt.tags.forEach(tag => {
       if (!tagStats[tag]) tagStats[tag] = { seen: 0, answered: 0 };
       tagStats[tag].seen += 1;
@@ -4625,43 +5788,43 @@ export async function generatePersonalizedPrompts(
     seen: stats.seen
   }));
 
-  // Identify what's working and what isn't
   const lovedTags = tagRates.filter(t => t.rate >= 0.5).sort((a,b) => b.rate - a.rate).map(t => t.tag).slice(0, 4);
   const hatedTags = tagRates.filter(t => t.rate < 0.5).sort((a,b) => a.rate - b.rate).map(t => t.tag).slice(0, 3);
 
-  // Look strictly at the last 3 swipes for immediate context buffering
-  const last3 = recentHistory.slice(-3).map(h => 
-    `${h.swipedLeft ? 'ANSWERED (Liked)' : 'SKIPPED (Disliked)'}: "${h.prompt.text}" [Tags: ${h.prompt.tags.join(', ')}]`
+  const last3 = categoryHistory.slice(-3).map(h => 
+    `${h.swipedLeft ? 'ANSWERED (Liked)' : 'SKIPPED (Disliked)'}: "${h.prompt.text}"`
   );
 
   const systemPrompt = `
-You are the AI Game Master for a deep conversation card game. 
+You are the AI Game Master for a conversation card game. 
 Your goal is to build a psychological profile of the user and generate a highly targeted batch of questions.
 
-GAME CONTEXT: The user is playing the game right now with their ${gamemode.toUpperCase()} (e.g. Friends, Romantic Partner, or Family).
-IMPORTANT: ALL generated questions MUST be perfectly tailored to this group dynamic. Do not suggest romantic/spicy prompts for a family game.
+GAME CONTEXT: The user is playing with their ${gamemode.toUpperCase()}. Ensure all questions are appropriate for this group.
+CURRENT CATEGORY: "${config.title}"
 
-CURRENT TRAIT PROFILE: ${traitProfile || 'New User, no data yet.'}
+${config.rules}
 
-IMMEDIATE HISTORY (Last 3 Swipes):
-${last3.length > 0 ? last3.join('\n') : 'No recent swipes yet.'}
+CURRENT OVERALL TRAIT PROFILE: ${traitProfile || 'New User, no data yet.'}
 
-TAG ANALYSIS:
+IMMEDIATE HISTORY FOR THIS CATEGORY (Last 3 Swipes):
+${last3.length > 0 ? last3.join('\n') : 'No recent swipes in this category yet.'}
+
+TAG ANALYSIS FOR THIS CATEGORY:
 - High Engagement Tags (Focus on these): ${lovedTags.length > 0 ? lovedTags.join(', ') : 'None yet'}
 - Low Engagement Tags (Avoid these): ${hatedTags.length > 0 ? hatedTags.join(', ') : 'None yet'}
 
 TASK:
 1. Update the Trait Profile (under 2 sentences) based on their tag engagement and recent choices.
-2. Generate EXACTLY ${count} new, highly personalized, open-ended questions (under 200 chars).
-3. Interleave the questions: Focus heavily on the "High Engagement Tags" but mix in slight variations so it doesn't get repetitive.
-4. Make them sound human, provocative, and conversational. Do not sound like a robot.
+2. Generate EXACTLY ${count} new, open-ended questions (under 150 chars). 
+3. YOU MUST FOLLOW THE "FORMAT" AND "EXAMPLES" PROVIDED IN THE CATEGORY RULES. Do NOT deviate from the category format.
+4. Make them sound human, provocative, and conversational.
 
 OUTPUT JSON FORMAT:
 {
   "updatedTraitProfile": "...",
   "prompts": [
-    { "text": "...", "category": "Deep Talk", "tags": ["tag1", "tag2"] },
-    { "text": "...", "category": "Deep Talk", "tags": ["tag3", "tag4"] }
+    { "text": "...", "tags": ["tag1", "tag2"] },
+    { "text": "...", "tags": ["tag3", "tag4"] }
   ]
 }
 `;
@@ -4682,9 +5845,9 @@ OUTPUT JSON FORMAT:
       updatedProfile: parsed.updatedTraitProfile || traitProfile || '',
       prompts: parsed.prompts.map((p: any) => ({
         text: String(p.text),
-        category: String(p.category || 'Deep Talk'),
+        category: config.title, // Enforce correct UI title
         tags: Array.isArray(p.tags) ? p.tags.map(String) : [],
-      })).slice(0, count), // ensure exactly the count requested
+      })).slice(0, count), 
     };
   } catch (error) {
     console.error('Personalized prompt generation failed:', error);
@@ -4699,19 +5862,31 @@ export async function getNextPromptsForProfile(input: {
   dbPrompts: QuestionPromptCandidate[];
   playedPromptIds: string[];
   gamemode: string;
+  categoryId: string;
   count: number;
 }): Promise<{
   prompts: QuestionPromptCandidate[];
   updatedTraitProfile: string;
+  config: CategoryConfig;
 }> {
   const weights = parseVibeWeights(input.vibeWeights);
   const playedIds = new Set(input.playedPromptIds);
   let results: QuestionPromptCandidate[] = [];
 
-  // Phase 1: Only use DB presets if this is their VERY first time playing (history < 3)
-  const availableDbPrompts = input.dbPrompts.filter(p => !playedIds.has(p.id));
+  const config = getCategoryConfig(input.categoryId);
+
+  // STRICT FILTER: Match DB prompts where the category matches our allowed config.dbCategories
+  const availableDbPrompts = input.dbPrompts.filter(p => 
+    !playedIds.has(p.id) && 
+    config.dbCategories.includes(p.category)
+  );
   
-  if (input.history.length < 3 && availableDbPrompts.length > 0) {
+  // STRICT FILTER: Only look at history from this exact Title
+  const categoryHistory = input.history.filter(h => 
+    h.prompt.category === config.title
+  );
+
+  if (categoryHistory.length < 3 && availableDbPrompts.length > 0) {
     const ranked = availableDbPrompts
       .map(p => {
         let score = weights[p.category] ?? 0.3;
@@ -4722,19 +5897,24 @@ export async function getNextPromptsForProfile(input: {
 
     const amountToTake = Math.min(input.count, ranked.length);
     for (let i = 0; i < amountToTake; i++) {
-      results.push(ranked[i].p);
+      // Overwrite the DB category with the specific UI Title before sending to frontend
+      results.push({
+        ...ranked[i].p,
+        category: config.title 
+      });
     }
   }
 
-  // Phase 2: AI Generation (Always happens in batches once they have swipe history)
   let newTraitProfile = input.traitProfile || '';
   if (results.length < input.count) {
     const needed = input.count - results.length;
+    
     const generated = await generatePersonalizedPrompts(
       weights, 
-      input.history, 
+      categoryHistory, 
       input.traitProfile, 
       input.gamemode, 
+      config,
       needed
     );
     
@@ -4751,38 +5931,30 @@ export async function getNextPromptsForProfile(input: {
     }
   }
 
-  // Fallback if AI fails completely
   if (results.length === 0) {
     results.push({
       id: `fallback-${Date.now()}`,
-      text: 'If you could change one decision from your past, knowing it would change where you are today, would you do it?',
-      category: 'Existential',
-      tags: ['reflection'],
+      text: config.fallback,
+      category: config.title,
+      tags: ['fallback'],
     });
   }
 
-  return { prompts: results, updatedTraitProfile: newTraitProfile };
+  return { prompts: results, updatedTraitProfile: newTraitProfile, config };
 }
 </file>
 
 <file path="app/auth.tsx">
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { apiService } from '../src/services/api';
 import { useApp } from '../src/context/AppContext';
+import { useAuth } from '../src/hooks/useAuth';
+import { SocialAuthButtons } from '../src/components/SocialAuthButtons';
 import { Theme } from '../src/constants/colors';
 import { ArrowRight, Lock, Mail, User, AlertTriangle, Trash2, AlertCircle } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-import Svg, { Path } from 'react-native-svg'; 
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; 
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import { auth, GoogleAuthProvider, OAuthProvider, signInWithCredential, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, deleteUser, sendPasswordResetEmail, sendEmailVerification } from '../src/config/firebase';
-
-WebBrowser.maybeCompleteAuthSession();
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -4792,115 +5964,32 @@ export default function AuthScreen() {
   const styles = getStyles(theme);
 
   const isDeleteMode = params.mode === 'delete_reauth';
-  const prefillEmail = params.email as string || '';
+  const prefillEmail = (params.email as string) || '';
 
-  const [isLogin, setIsLogin] = useState(params.mode === 'login' || isDeleteMode);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState(prefillEmail);
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [emailError, setEmailError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    iosClientId: "204716304779-266i58dfvid6mg70reivvtdqqrpv2v9p.apps.googleusercontent.com",
-    webClientId: "204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com",
+  const {
+    isLogin,
+    name,
+    setName,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    loading,
+    emailError,
+    setEmailError,
+    passwordError,
+    setPasswordError,
+    request,
+    promptAsync,
+    handleAppleLogin,
+    handleForgotPassword,
+    handleSubmit,
+    toggleLoginMode,
+  } = useAuth({
+    isDeleteMode,
+    prefillEmail,
+    initialIsLogin: params.mode === 'login' || isDeleteMode,
   });
-
-  useEffect(() => { if (response?.type === 'success') handleGoogleSignIn(response.params.id_token); }, [response]);
-
-  const executeAccountDeletion = async (firebaseUser: any) => {
-    try {
-      if (firebaseUser.email) await apiService.deleteUser(firebaseUser.email);
-      await deleteUser(firebaseUser);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Account Deleted", "Your account has been permanently removed.");
-      if (router.canGoBack()) router.dismissAll();
-      router.replace('/');
-    } catch (error: any) {
-      Alert.alert("Deletion Failed", error.message || "Could not delete account.");
-    } finally { setLoading(false); }
-  };
-
-  const handleGoogleSignIn = async (idToken: string) => {
-    setLoading(true);
-    try {
-      const userCredential = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
-      if (isDeleteMode) return await executeAccountDeletion(userCredential.user);
-      await syncUserWithBackend(userCredential.user, 'google', userCredential.user.displayName || 'Google User', userCredential.user.email || '');
-    } catch (error: any) {
-      setLoading(false); Alert.alert("Login Failed", error.message);
-    }
-  };
-
-  const handleAppleLogin = async () => {
-    try {
-      const credential = await AppleAuthentication.signInAsync({ requestedScopes: [ AppleAuthentication.AppleAuthenticationScope.FULL_NAME, AppleAuthentication.AppleAuthenticationScope.EMAIL ] });
-      setLoading(true);
-      if (!credential.identityToken) throw new Error('Apple Sign-In failed');
-      const firebaseCredential = new OAuthProvider('apple.com').credential({ idToken: credential.identityToken });
-      const userCredential = await signInWithCredential(auth, firebaseCredential);
-      if (isDeleteMode) return await executeAccountDeletion(userCredential.user);
-      const displayName = credential.fullName?.givenName ? `${credential.fullName.givenName} ${credential.fullName.familyName || ''}`.trim() : (userCredential.user.displayName || "Apple User");
-      await syncUserWithBackend(userCredential.user, 'apple', displayName, userCredential.user.email || credential.email || '');
-    } catch (e: any) {
-      setLoading(false);
-      if (e.code !== 'ERR_REQUEST_CANCELED') Alert.alert("Login Failed", e.message || "Could not sign in with Apple.");
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    if (!email.trim()) { setEmailError("Enter your email first."); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); return; }
-    setEmailError(''); setPasswordError('');
-    try {
-      setLoading(true);
-      await sendPasswordResetEmail(auth, email.trim());
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Reset Link Sent", `Check ${email.trim()} for a link.`);
-    } catch (error: any) {
-      setEmailError("Failed to send reset link. Try again.");
-    } finally { setLoading(false); }
-  };
-
-  const handleSubmit = async () => {
-    setEmailError(''); setPasswordError('');
-    let hasError = false;
-    if (!email.trim()) { setEmailError('Email is required.'); hasError = true; }
-    else if (!email.includes('@')) { setEmailError('Please enter a valid email.'); hasError = true; }
-    if (!password) { setPasswordError('Password is required.'); hasError = true; }
-    else if (!isLogin && password.length < 6) { setPasswordError('Password must be at least 6 characters.'); hasError = true; }
-    if (!isLogin && !name.trim()) { Alert.alert('Missing Info', 'Please enter your name.'); return; }
-    if (hasError) return Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-
-    setLoading(true); Haptics.selectionAsync();
-    try {
-      let userCredential;
-      if (isLogin) {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
-        if (isDeleteMode) return await executeAccountDeletion(userCredential.user);
-        if (!userCredential.user.emailVerified) { setLoading(false); return router.push({ pathname: '/verify-email', params: { email, name } }); }
-        await syncUserWithBackend(userCredential.user, 'email');
-      } else {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        if (auth.currentUser) { await updateProfile(auth.currentUser, { displayName: name }); await sendEmailVerification(auth.currentUser); }
-        setLoading(false);
-        router.push({ pathname: '/verify-email', params: { email, name } });
-      }
-    } catch (error: any) {
-      setLoading(false); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setPasswordError('Authentication failed. Please try again.');
-    }
-  };
-
-  const syncUserWithBackend = async (firebaseUser: any, provider: string, nameOverride?: string, emailOverride?: string) => {
-    try {
-      await apiService.syncUser({ email: emailOverride || firebaseUser.email, socialId: firebaseUser.uid, name: nameOverride || firebaseUser.displayName || name || 'Player', provider });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/onboarding');
-    } catch (error) {
-      Alert.alert("Sync Error", "Logged in, but failed to connect to the backend.");
-    } finally { setLoading(false); }
-  };
 
   return (
     <View style={styles.container}>
@@ -4929,7 +6018,7 @@ export default function AuthScreen() {
             </View>
 
             {isLogin && !isDeleteMode && <View style={styles.forgotPasswordContainer}><TouchableOpacity onPress={handleForgotPassword}><Text style={styles.forgotPasswordText}>Forgot Password?</Text></TouchableOpacity></View>}
-            
+
             <TouchableOpacity style={[styles.button, isDeleteMode ? { backgroundColor: theme.error, shadowColor: theme.error } : {}]} onPress={handleSubmit} disabled={loading}>
               {loading ? <ActivityIndicator color="#FFFFFF" /> : <><Text style={styles.buttonText}>{isDeleteMode ? 'Delete Permanently' : (isLogin ? 'Log In' : 'Complete Setup')}</Text>{!isDeleteMode && <ArrowRight size={20} color="#FFFFFF" />}{isDeleteMode && <Trash2 size={20} color="#FFFFFF" />}</>}
             </TouchableOpacity>
@@ -4938,13 +6027,13 @@ export default function AuthScreen() {
           {!isDeleteMode && (
             <View style={styles.footer}>
               <View style={styles.dividerContainer}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or continue with</Text><View style={styles.dividerLine} /></View>
-              <View style={styles.socialButtonsContainer}>
-                {Platform.OS === 'ios' && (
-                  <TouchableOpacity style={styles.appleCustomButton} onPress={handleAppleLogin}><View style={styles.iconContainer}><Svg width={22} height={22} viewBox="0 0 384 512" fill="#FFFFFF"><Path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-54.5-91.9-54.1-91.9zM245.2 75c22.3-24.6 16.2-59.5 16-59.5-26.3-.1-56.6 16.8-71.1 37.8-13 18.2-16.2 47.9-14.7 58.9 29.8 1.9 55.3-19.8 69.8-37.2z" /></Svg></View><Text style={styles.appleButtonText}>Continue with Apple</Text></TouchableOpacity>
-                )}
-                <TouchableOpacity style={[styles.googleButton, !request && { opacity: 0.5 }]} onPress={() => promptAsync()} disabled={!request}><View style={styles.iconContainer}><Svg width={24} height={24} viewBox="0 0 48 48"><Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" /><Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" /><Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" /><Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" /></Svg></View><Text style={styles.googleButtonText}>Continue with Google</Text></TouchableOpacity>
-              </View>
-              <TouchableOpacity style={styles.switchButton} onPress={() => { setIsLogin(!isLogin); setEmailError(''); setPasswordError(''); }}><Text style={styles.switchText}>{isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}</Text></TouchableOpacity>
+              <SocialAuthButtons
+                theme={theme}
+                googleRequestReady={!!request}
+                onApplePress={handleAppleLogin}
+                onGooglePress={() => promptAsync()}
+              />
+              <TouchableOpacity style={styles.switchButton} onPress={toggleLoginMode}><Text style={styles.switchText}>{isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}</Text></TouchableOpacity>
             </View>
           )}
 
@@ -4979,12 +6068,6 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
   dividerLine: { flex: 1, height: 1, backgroundColor: theme.border },
   dividerText: { marginHorizontal: 12, color: theme.textLight, fontSize: 14, fontWeight: '500' },
-  socialButtonsContainer: { gap: 12 },
-  appleCustomButton: { width: '100%', height: 56, backgroundColor: '#000000', borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3 },
-  appleButtonText: { fontSize: 17, fontWeight: '600', color: '#FFFFFF' },
-  googleButton: { width: '100%', height: 56, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  iconContainer: { marginRight: 12, justifyContent: 'center', alignItems: 'center' },
-  googleButtonText: { fontSize: 17, fontWeight: '600', color: '#1A1A1A' },
 });
 </file>
 
@@ -5018,7 +6101,7 @@ const handleResponse = async (response: Response) => {
 };
 
 const fetchWithTimeout = async (url: string, options: any = {}) => {
-  const { timeout = 35000 } = options; // Increased timeout for larger AI batches
+  const { timeout = 35000 } = options; 
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -5070,12 +6153,12 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // Passes gamemode down to the backend
-  async getNextPrompts(profileId: string, gamemode: string, count: number = 5) {
+  // Notice categoryTitle is removed here
+  async getNextPrompts(profileId: string, gamemode: string, categoryId: string, count: number = 5) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/next-prompt`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ profileId, count, gamemode }),
+      body: JSON.stringify({ profileId, count, gamemode, categoryId }),
     });
     return handleResponse(res);
   },
@@ -5103,23 +6186,15 @@ export const apiService = {
 <file path="backend/src/index.ts">
 import express from 'express';
 import cors from 'cors';
-import { PrismaClient } from '@prisma/client';
-import {
-  DEFAULT_VIBE_WEIGHTS,
-  applySwipeFeedback,
-  applySeedWeights,
-  getNextPromptsForProfile,
-  parseVibeWeights,
-} from './services/ai.service';
+import userRoutes from './routes/user.routes';
+import profileRoutes from './routes/profile.routes';
 
-const prisma = new PrismaClient();
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 app.use(cors());
 app.use(express.json());
 
-// Health check for Render Keep-Awake
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
@@ -5129,221 +6204,8 @@ app.use((req, res, next) => {
   next();
 });
 
-async function ensureProfile(userId: string, seedWeights?: Record<string, number>) {
-  let profile = await prisma.userProfile.findUnique({ where: { userId } });
-  if (!profile) {
-    profile = await prisma.userProfile.create({
-      data: {
-        userId,
-        vibeWeights: seedWeights ? applySeedWeights(seedWeights) : DEFAULT_VIBE_WEIGHTS,
-        traitProfile: null,
-      },
-    });
-  }
-  return profile;
-}
-
-// ==========================================
-// AUTH
-// ==========================================
-app.post('/users/sync', async (req, res) => {
-  const { email, name, provider, socialId } = req.body;
-
-  if (!email && !socialId) {
-    return res.status(400).json({ error: 'email or socialId is required' });
-  }
-
-  try {
-    const isGuest = typeof email === 'string' && email.endsWith('@hezi.app') && email.startsWith('guest_');
-    const displayName = name || (isGuest ? 'Guest' : 'Player');
-    const authProvider = provider || (isGuest ? 'guest' : 'email');
-
-    let user;
-    if (socialId) user = await prisma.user.findUnique({ where: { socialId } });
-    if (!user && email) user = await prisma.user.findUnique({ where: { email } });
-
-    if (user) {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          name: displayName,
-          socialId: socialId || user.socialId,
-          provider: authProvider,
-        },
-      });
-    } else {
-      const finalEmail = email || `${socialId}@${authProvider}.com`;
-      user = await prisma.user.create({
-        data: {
-          email: finalEmail,
-          name: displayName,
-          provider: authProvider,
-          socialId: socialId ?? null,
-        },
-      });
-    }
-
-    const profile = await ensureProfile(user.id);
-    const populatedUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: { profile: true },
-    });
-
-    res.json({
-      ...populatedUser,
-      profile: populatedUser?.profile ?? profile,
-      profileId: populatedUser?.profile?.id ?? profile.id,
-    });
-  } catch (error) {
-    console.error('Sync error:', error);
-    res.status(500).json({ error: 'Failed to sync user', details: String(error) });
-  }
-});
-
-app.get('/users/:email', async (req, res) => {
-  const { email } = req.params;
-  try {
-    const user = await prisma.user.findUnique({ where: { email }, include: { profile: true } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json(user);
-  } catch (error) { 
-    res.status(500).json({ error: 'Failed to fetch user' }); 
-  }
-});
-
-app.delete('/users/:email', async (req, res) => {
-  const { email } = req.params;
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    await prisma.user.delete({ where: { id: user.id } });
-    res.json({ success: true });
-  } catch (error) { 
-    res.status(500).json({ error: 'Failed to delete user' }); 
-  }
-});
-
-app.post('/profile/ensure', async (req, res) => {
-  const { userId, seedWeights } = req.body;
-  if (!userId) return res.status(400).json({ error: 'userId is required' });
-  try {
-    const profile = await ensureProfile(String(userId), seedWeights);
-    res.json(profile);
-  } catch (error) { 
-    res.status(500).json({ error: 'Failed to ensure profile' }); 
-  }
-});
-
-// ==========================================
-// BATCH PROMPT FETCHING
-// ==========================================
-app.post('/profile/next-prompt', async (req, res) => {
-  const { profileId, gamemode = 'friendship', count = 5 } = req.body;
-  if (!profileId) return res.status(400).json({ error: 'profileId is required' });
-
-  try {
-    const profile = await prisma.userProfile.findUnique({
-      where: { id: profileId },
-      include: {
-        history: {
-          orderBy: { timestamp: 'asc' },
-          include: { prompt: true },
-        },
-      },
-    });
-    if (!profile) return res.status(404).json({ error: 'Profile not found' });
-
-    const dbPrompts = await prisma.questionPrompt.findMany();
-    const history = profile.history.map((play) => ({
-      swipedLeft: play.swipedLeft,
-      prompt: { text: play.prompt.text, category: play.prompt.category, tags: play.prompt.tags },
-    }));
-    const playedPromptIds = profile.history.map((play) => play.promptId);
-
-    const result = await getNextPromptsForProfile({
-      vibeWeights: profile.vibeWeights,
-      traitProfile: profile.traitProfile,
-      history,
-      dbPrompts,
-      playedPromptIds,
-      gamemode,
-      count,
-    });
-
-    // Save generated prompts to DB to act as history anchors later
-    const savedPrompts = await Promise.all(
-      result.prompts.map(async (p) => {
-        if (p.id.startsWith('generated-') || p.id.startsWith('fallback-')) {
-          return await prisma.questionPrompt.create({
-            data: { text: p.text, category: p.category, tags: p.tags },
-          });
-        }
-        return p;
-      })
-    );
-
-    // Save the newly updated AI Character Profile
-    await prisma.userProfile.update({
-      where: { id: profileId },
-      data: { traitProfile: result.updatedTraitProfile },
-    });
-
-    res.json({ prompts: savedPrompts, traitProfile: result.updatedTraitProfile });
-  } catch (error) {
-    console.error('Next prompt error:', error);
-    res.status(500).json({ error: 'Failed to get next prompts' });
-  }
-});
-
-app.post('/profile/:profileId/swipe', async (req, res) => {
-  const { profileId } = req.params;
-  const { promptId, swipedLeft } = req.body;
-
-  if (!promptId || typeof swipedLeft !== 'boolean') {
-    return res.status(400).json({ error: 'promptId and swipedLeft are required' });
-  }
-
-  try {
-    const profile = await prisma.userProfile.findUnique({ where: { id: profileId } });
-    const prompt = await prisma.questionPrompt.findUnique({ where: { id: promptId } });
-    if (!profile || !prompt) return res.status(404).json({ error: 'Profile or prompt not found' });
-
-    const updatedWeights = applySwipeFeedback(
-      parseVibeWeights(profile.vibeWeights),
-      prompt.category,
-      prompt.tags,
-      swipedLeft
-    );
-
-    const play = await prisma.promptPlay.create({
-      data: { profileId, promptId, swipedLeft },
-    });
-    await prisma.userProfile.update({
-      where: { id: profileId },
-      data: { vibeWeights: updatedWeights },
-    });
-
-    res.json({ play, vibeWeights: updatedWeights });
-  } catch (error) {
-    console.error('Swipe error:', error);
-    res.status(500).json({ error: 'Failed to record swipe' });
-  }
-});
-
-app.post('/profile/:profileId/reset-weights', async (req, res) => {
-  const { profileId } = req.params;
-  const { seedWeights } = req.body;
-  try {
-    const weights = seedWeights ? applySeedWeights(seedWeights) : DEFAULT_VIBE_WEIGHTS;
-    const profile = await prisma.userProfile.update({
-      where: { id: profileId },
-      data: { vibeWeights: weights },
-    });
-    res.json(profile);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to reset weights' });
-  }
-});
+app.use('/users', userRoutes);
+app.use('/profile', profileRoutes);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Hezi API listening on port ${PORT}`);
@@ -5352,18 +6214,12 @@ app.listen(PORT, '0.0.0.0', () => {
 
 <file path="app/home.tsx">
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Flame, Heart, Layers, MessageCircle, Sparkles, Zap, HelpCircle, Users, Home } from 'lucide-react-native';
-import { CONVERSATION_CATEGORIES } from '../src/constants/categories';
+import { VIBE_CATEGORIES, ConversationCategory } from '../src/constants/categories';
 import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
 import { storage } from '../src/utils/storage';
@@ -5374,87 +6230,58 @@ export default function HomeScreen() {
   const { user, gamemode, setGamemode, theme } = useApp();
   const styles = getStyles(theme);
 
-  const startCategory = async (categoryId: string, seedWeights: Record<string, number>) => {
-    await storage.setActiveCategory(categoryId);
-    router.push({ pathname: '/deck', params: { categoryId } });
+  const handleCategoryPress = async (cat: ConversationCategory) => {
+    await storage.setActiveCategory(cat.id);
+    
+    // STRICT: Always clear the cache when tapping from the home screen
+    // This guarantees the local "Start" cards will always appear first.
+    await storage.clearCachedQueue(gamemode, cat.id);
+    
+    // Only pass categoryId. Backend handles mapping to Titles now.
+    router.push({ pathname: '/deck', params: { categoryId: cat.id } });
 
-    if (!user?.profileId) return;
-    apiService.resetProfileWeights(user.profileId, seedWeights).catch(() => {});
+    if (user?.profileId) {
+      apiService.resetProfileWeights(user.profileId, cat.seedWeights).catch(() => {});
+    }
   };
 
-  const getCategoryIcon = (categoryId: string) => {
+  const getCategoryIcon = (iconName: string) => {
     const iconProps = { size: 24, color: theme.primary };
-    switch (categoryId) {
-      case 'deep-talk': return <Layers {...iconProps} />;
-      case 'icebreakers': return <Sparkles {...iconProps} />;
-      case 'what-ifs': return <Zap {...iconProps} />;
-      case 'relationships': return <MessageCircle {...iconProps} />;
-      case 'nostalgia': return <Heart {...iconProps} />;
-      case 'most-likely': return <Users {...iconProps} />;
+    switch (iconName) {
+      case '🌌': return <Layers {...iconProps} />;
+      case '✨': return <Sparkles {...iconProps} />;
+      case '🎲': return <Zap {...iconProps} />;
+      case '💬': return <MessageCircle {...iconProps} />;
+      case '📼': return <Heart {...iconProps} />;
+      case '🎯': return <Users {...iconProps} />;
       default: return <Flame {...iconProps} />;
     }
   };
 
-  const getHeadline = () => {
-    switch (gamemode) {
-      case 'friendship': return 'Friends Vibe';
-      case 'relationship': return 'Lovers Vibe';
-      case 'family': return 'Family Vibe';
-      default: return 'Pick a vibe';
-    }
-  };
-
-  const getOrderedCategories = () => {
-    const allCats = [...CONVERSATION_CATEGORIES];
-    
-    if (gamemode === 'relationship') {
-      const order = ['relationships', 'deep-talk', 'spicy', 'what-ifs', 'nostalgia', 'icebreakers', 'most-likely'];
-      return allCats
-        .filter(c => order.includes(c.id))
-        .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-    }
-    
-    if (gamemode === 'family') {
-      // Excludes "spicy"
-      const order = ['nostalgia', 'icebreakers', 'what-ifs', 'deep-talk', 'most-likely', 'relationships'];
-      return allCats
-        .filter(c => order.includes(c.id))
-        .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-    }
-
-    // Friendship (Default)
-    const order = ['icebreakers', 'deep-talk', 'what-ifs', 'most-likely', 'spicy', 'nostalgia', 'relationships'];
-    return allCats
-      .filter(c => order.includes(c.id))
-      .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-  };
-
-  const displayCategories = getOrderedCategories();
+  const displayCategories = VIBE_CATEGORIES[gamemode] || VIBE_CATEGORIES.friendship;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
+      
       <View style={styles.header}>
         <View style={styles.headlineRow}>
-          <Text style={styles.headline}>{getHeadline()}</Text>
+          <Text style={styles.headline}>Pick a Vibe</Text>
         </View>
-        
-        <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => router.push('/onboarding')} style={styles.howToPlayBtn} activeOpacity={0.8}>
-            <HelpCircle size={16} color={theme.text} />
-            <Text style={styles.howToPlayText}>How to play</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={() => router.push('/onboarding')} style={styles.howToPlayBtn} activeOpacity={0.8}>
+          <HelpCircle size={16} color={theme.text} />
+          <Text style={styles.howToPlayText}>How to play</Text>
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.lead}>
-        Every category is open—no locks, no coins. Tap one and pass the phone.
+        Tap a category below. The AI adjusts the heat as you play.
       </Text>
 
       <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
         {displayCategories.map((cat) => (
-          <TouchableOpacity key={cat.id} style={styles.card} onPress={() => startCategory(cat.id, cat.seedWeights)} activeOpacity={0.85}>
-            <View style={styles.categoryIconWrap}>{getCategoryIcon(cat.id)}</View>
+          <TouchableOpacity key={cat.id} style={styles.card} onPress={() => handleCategoryPress(cat)} activeOpacity={0.85}>
+            <View style={styles.categoryIconWrap}>{getCategoryIcon(cat.icon)}</View>
             <Text style={styles.cardTitle}>{cat.title}</Text>
             <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
           </TouchableOpacity>
@@ -5464,13 +6291,13 @@ export default function HomeScreen() {
       {/* GAMEMODE PILL */}
       <View style={styles.pillWrapper}>
         <View style={styles.pillContainer}>
-          <TouchableOpacity onPress={() => setGamemode('friendship')} style={[styles.pillOption, gamemode === 'friendship' && styles.pillActive]}>
-            <Users size={18} color={gamemode === 'friendship' ? theme.primary : theme.textMuted} />
-            <Text style={[styles.pillText, gamemode !== 'friendship' && { color: theme.textMuted, fontWeight: '600' }]}>Friends</Text>
-          </TouchableOpacity>
           <TouchableOpacity onPress={() => setGamemode('relationship')} style={[styles.pillOption, gamemode === 'relationship' && styles.pillActive]}>
             <Heart size={18} color={gamemode === 'relationship' ? theme.primary : theme.textMuted} />
             <Text style={[styles.pillText, gamemode !== 'relationship' && { color: theme.textMuted, fontWeight: '600' }]}>Lovers</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setGamemode('friendship')} style={[styles.pillOption, gamemode === 'friendship' && styles.pillActive]}>
+            <Users size={18} color={gamemode === 'friendship' ? theme.primary : theme.textMuted} />
+            <Text style={[styles.pillText, gamemode !== 'friendship' && { color: theme.textMuted, fontWeight: '600' }]}>Friends</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setGamemode('family')} style={[styles.pillOption, gamemode === 'family' && styles.pillActive]}>
             <Home size={18} color={gamemode === 'family' ? theme.primary : theme.textMuted} />
@@ -5485,58 +6312,22 @@ export default function HomeScreen() {
 const getStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12 },
-  headerRight: { flexDirection: 'row', alignItems: 'center' },
   headlineRow: { flexDirection: 'row', alignItems: 'center' },
-  headline: { fontSize: 32, fontWeight: '800', color: theme.text },
-  howToPlayBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.backgroundElevated, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, gap: 6 },
+  headline: { fontSize: 32, fontWeight: '900', color: theme.text, letterSpacing: 0.5 },
+  howToPlayBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.backgroundElevated, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, gap: 6 },
   howToPlayText: { color: theme.text, fontSize: 13, fontWeight: '700' },
-  lead: { fontSize: 15, lineHeight: 22, color: theme.textSecondary, paddingHorizontal: 24, marginBottom: 20 },
+  lead: { fontSize: 16, lineHeight: 24, color: theme.textSecondary, paddingHorizontal: 24, marginBottom: 24 },
   grid: { paddingHorizontal: 20, paddingBottom: 130, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14 },
-  card: { width: '47%', backgroundColor: theme.backgroundCard, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: theme.border, minHeight: 160 },
-  categoryIconWrap: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.backgroundElevated, borderWidth: 1, borderColor: theme.border, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  cardTitle: { fontSize: 17, fontWeight: '800', color: theme.text, marginBottom: 6 },
+  card: { width: '47%', backgroundColor: theme.backgroundCard, borderRadius: 24, padding: 20, minHeight: 160 },
+  categoryIconWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  cardTitle: { fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 6 },
   cardSubtitle: { fontSize: 13, lineHeight: 18, color: theme.textSecondary },
   
-  pillWrapper: { 
-    position: 'absolute', 
-    bottom: 40, 
-    left: 0, 
-    right: 0, 
-    alignItems: 'center',
-    paddingHorizontal: 24
-  },
-  pillContainer: { 
-    flexDirection: 'row', 
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
-    borderRadius: 999, 
-    padding: 6, 
-    borderWidth: 1, 
-    borderColor: theme.border, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 8 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 16, 
-    elevation: 10,
-    width: '100%',
-    justifyContent: 'space-between'
-  },
-  pillOption: { 
-    flexDirection: 'row', 
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingVertical: 14, 
-    borderRadius: 999, 
-    gap: 6 
-  },
-  pillActive: { 
-    backgroundColor: theme.backgroundCardHover 
-  },
-  pillText: { 
-    color: theme.primary, 
-    fontWeight: '800', 
-    fontSize: 14 
-  }
+  pillWrapper: { position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24 },
+  pillContainer: { flexDirection: 'row', backgroundColor: 'rgba(0, 0, 0, 0.65)', borderRadius: 999, padding: 6, borderWidth: 1, borderColor: theme.border, width: '100%', justifyContent: 'space-between', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 12 },
+  pillOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flex: 1, paddingVertical: 14, borderRadius: 999, gap: 6 },
+  pillActive: { backgroundColor: theme.backgroundCardHover },
+  pillText: { color: theme.primary, fontWeight: '800', fontSize: 14 },
 });
 </file>
 
@@ -5545,15 +6336,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { apiService } from '../services/api';
 import { getOrCreateDeviceId, storage } from '../utils/storage';
 import { palettes, Theme } from '../constants/colors';
-
-export interface AppUser {
-  id: string;
-  email: string;
-  name: string;
-  profileId?: string;
-}
-
-export type Gamemode = 'friendship' | 'relationship' | 'family';
+import { AppUser, Gamemode } from '../types';
 
 interface AppContextType {
   user: AppUser | null;

@@ -31,6 +31,7 @@ export default function OnboardingScreen() {
   const [showHint, setShowHint] = useState(false);
   
   const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTransitioningRef = useRef(false);
 
   const cardScale = useSharedValue(0.9);
   const dragX = useSharedValue(0);
@@ -132,6 +133,7 @@ export default function OnboardingScreen() {
     isDragging.value = 0; 
     cardScale.value = 0.92; 
     cardScale.value = withSpring(1, { damping: 24, stiffness: 85 }); 
+    isTransitioningRef.current = false;
     resetHintTimer();
   };
 
@@ -144,6 +146,17 @@ export default function OnboardingScreen() {
   const handleFinish = async () => {
     await storage.setSwipeTutorialComplete(true);
     router.replace('/home');
+  };
+
+  // Safe JS function to handle the Undo Timeout without crashing Reanimated
+  const triggerUndoSequence = () => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    setTimeout(() => {
+      moveToNextStep();
+    }, 1200);
   };
 
   const panGesture = Gesture.Pan().enabled(phase === 1)
@@ -180,11 +193,15 @@ export default function OnboardingScreen() {
       runOnJS(resetHintTimer)();
     });
 
-  const tapGesture = Gesture.Tap().enabled(phase === 1 && expectedAction === 'tap').maxDuration(250).onEnd(() => {
-      runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+  const tapGesture = Gesture.Tap()
+    .enabled(phase === 1 && expectedAction === 'tap')
+    .maxDuration(250)
+    .onEnd(() => {
+      // Spring animation happens immediately on the UI thread
       cardScale.value = 0.8; 
       cardScale.value = withSpring(1, { damping: 20, stiffness: 200 });
-      runOnJS(moveToNextStep)();
+      // Call the safe JS function
+      runOnJS(triggerUndoSequence)();
     });
 
   const composedGesture = Gesture.Exclusive(panGesture, tapGesture);
@@ -260,7 +277,7 @@ export default function OnboardingScreen() {
         </Animated.View>
       )}
 
-      {/* DISCUSSION SCREEN OVERLAY (Mirrors the deck.tsx gameplay overlay) */}
+      {/* DISCUSSION SCREEN OVERLAY */}
       {phase === 2 && (
         <Animated.View style={styles.discussionOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
           <SafeAreaView style={styles.discussionContent}>
@@ -270,6 +287,10 @@ export default function OnboardingScreen() {
                 <Text style={styles.discussionBadgeText}>Group Discussion</Text>
               </View>
               <Text style={styles.discussionQuestion}>{TUTORIAL_STEPS[1].question}</Text>
+              
+              <Text style={styles.discussionNote}>
+                Once everyone has answered and you are ready for a new prompt, tap next.
+              </Text>
               
               <TouchableOpacity style={styles.nextButton} onPress={finishDiscussionModal} activeOpacity={0.8}>
                 <Text style={styles.nextButtonText}>Next Question</Text>
@@ -300,7 +321,7 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   bigRuleTitle: { fontSize: 22, fontWeight: '800', color: theme.text, marginBottom: 8 },
   bigRuleDesc: { fontSize: 16, color: theme.textSecondary, lineHeight: 24 },
   
-  demoWrapper: { flex: 1, marginHorizontal: -24 }, // Extends to edge of screen to perfectly match Deck.tsx layout
+  demoWrapper: { flex: 1, marginHorizontal: -24 }, 
   demoTopBar: { paddingTop: 20, alignItems: 'center' },
   eyebrow: { fontSize: 12, fontWeight: '800', color: theme.primary, letterSpacing: 2, textTransform: 'uppercase' },
   
@@ -335,7 +356,10 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   discussionInner: { flex: 1, justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 40 },
   discussionBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: theme.backgroundElevated, borderWidth: 1, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, gap: 8, marginBottom: 24 },
   discussionBadgeText: { color: theme.primary, fontSize: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.2 },
-  discussionQuestion: { fontSize: 32, fontWeight: '800', color: theme.text, lineHeight: 42, marginBottom: 40 },
+  discussionQuestion: { fontSize: 32, fontWeight: '800', color: theme.text, lineHeight: 42, marginBottom: 32 },
+  
+  discussionNote: { fontSize: 16, color: theme.textSecondary, textAlign: 'left', marginBottom: 32, lineHeight: 24, fontStyle: 'italic' },
+  
   nextButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.primary, paddingVertical: 18, borderRadius: 20, gap: 12 },
   nextButtonText: { color: theme.background, fontSize: 18, fontWeight: '800' },
   

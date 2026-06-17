@@ -57,7 +57,6 @@ export const storage = {
     }
   },
 
-  // --- NEW: Queue Caching System ---
   async getCachedQueue(gamemode: string, categoryId: string): Promise<any[]> {
     try {
       const data = await AsyncStorage.getItem(`@queue_${gamemode}_${categoryId}`);
@@ -75,10 +74,19 @@ export const storage = {
     }
   },
 
+  // NEW: Forces a completely fresh deck to show the "Start" cards
+  async clearCachedQueue(gamemode: string, categoryId: string): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(`@queue_${gamemode}_${categoryId}`);
+    } catch (e) {
+      console.warn("Failed to clear queue", e);
+    }
+  },
+
   async clearAllUserData(): Promise<void> {
     try {
       const keys = await AsyncStorage.getAllKeys();
-      await AsyncStorage.multiRemove(keys); // Wipes everything, including cached queues
+      await AsyncStorage.multiRemove(keys);
     } catch (e) {
       console.warn("Failed to clear storage", e);
     }

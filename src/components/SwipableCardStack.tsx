@@ -6,18 +6,12 @@ import * as Haptics from 'expo-haptics';
 import { Check, X } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { Theme } from '../constants/colors';
+import { SwipableCardData } from '../types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 const ROTATION_MAX = 8;
 const CARD_SCALE = 0.96;
-
-export interface SwipableCardData { 
-  id: string; 
-  label: string; 
-  description?: string; 
-  category?: string;
-}
 
 interface SwipableCardProps {
   card: SwipableCardData; 

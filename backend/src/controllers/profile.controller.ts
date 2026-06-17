@@ -1,0 +1,144 @@
+import { Request, Response } from 'express';
+import { prisma } from '../lib/prisma';
+import {
+  DEFAULT_VIBE_WEIGHTS,
+  applySwipeFeedback,
+  applySeedWeights,
+  getNextPromptsForProfile,
+  parseVibeWeights,
+} from '../services/ai.service';
+
+export async function ensureProfile(userId: string, seedWeights?: Record<string, number>) {
+  let profile = await prisma.userProfile.findUnique({ where: { userId } });
+  if (!profile) {
+    profile = await prisma.userProfile.create({
+      data: {
+        userId,
+        vibeWeights: seedWeights ? applySeedWeights(seedWeights) : DEFAULT_VIBE_WEIGHTS,
+        traitProfile: null,
+      },
+    });
+  }
+  return profile;
+}
+
+export async function ensureProfileHandler(req: Request, res: Response) {
+  const { userId, seedWeights } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+  try {
+    const profile = await ensureProfile(String(userId), seedWeights);
+    res.json(profile);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to ensure profile' });
+  }
+}
+
+export async function getNextPrompt(req: Request, res: Response) {
+  // We extract gamemode and categoryId directly from the mobile app's POST body
+  const { profileId, gamemode = 'friendship', categoryId = 'friends-deep-talk', count = 5 } = req.body;
+  if (!profileId) return res.status(400).json({ error: 'profileId is required' });
+
+  try {
+    const profile = await prisma.userProfile.findUnique({
+      where: { id: profileId },
+      include: {
+        history: {
+          orderBy: { timestamp: 'asc' },
+          include: { prompt: true },
+        },
+      },
+    });
+    if (!profile) return res.status(404).json({ error: 'Profile not found' });
+
+    const dbPrompts = await prisma.questionPrompt.findMany();
+    
+    const history = profile.history.map((play) => ({
+      swipedLeft: play.swipedLeft,
+      prompt: { text: play.prompt.text, category: play.prompt.category, tags: play.prompt.tags },
+    }));
+    const playedPromptIds = profile.history.map((play) => play.promptId);
+
+    const result = await getNextPromptsForProfile({
+      vibeWeights: profile.vibeWeights,
+      traitProfile: profile.traitProfile,
+      history,
+      dbPrompts,
+      playedPromptIds,
+      gamemode,
+      categoryId,
+      count,
+    });
+
+    // Save generated items to DB with the exact Title defined by the backend map
+    const savedPrompts = await Promise.all(
+      result.prompts.map(async (p) => {
+        if (p.id.startsWith('generated-') || p.id.startsWith('fallback-')) {
+          return await prisma.questionPrompt.create({
+            data: { text: p.text, category: result.config.title, tags: p.tags }, 
+          });
+        }
+        return p;
+      })
+    );
+
+    await prisma.userProfile.update({
+      where: { id: profileId },
+      data: { traitProfile: result.updatedTraitProfile },
+    });
+
+    res.json({ prompts: savedPrompts, traitProfile: result.updatedTraitProfile });
+  } catch (error) {
+    console.error('Next prompt error:', error);
+    res.status(500).json({ error: 'Failed to get next prompts' });
+  }
+}
+
+export async function recordSwipe(req: Request, res: Response) {
+  const { profileId } = req.params;
+  const { promptId, swipedLeft } = req.body;
+
+  if (!promptId || typeof swipedLeft !== 'boolean') {
+    return res.status(400).json({ error: 'promptId and swipedLeft are required' });
+  }
+
+  try {
+    const profile = await prisma.userProfile.findUnique({ where: { id: profileId } });
+    const prompt = await prisma.questionPrompt.findUnique({ where: { id: promptId } });
+    if (!profile || !prompt) return res.status(404).json({ error: 'Profile or prompt not found' });
+
+    const updatedWeights = applySwipeFeedback(
+      parseVibeWeights(profile.vibeWeights),
+      prompt.category,
+      prompt.tags,
+      swipedLeft
+    );
+
+    const play = await prisma.promptPlay.create({
+      data: { profileId, promptId, swipedLeft },
+    });
+    await prisma.userProfile.update({
+      where: { id: profileId },
+      data: { vibeWeights: updatedWeights },
+    });
+
+    res.json({ play, vibeWeights: updatedWeights });
+  } catch (error) {
+    console.error('Swipe error:', error);
+    res.status(500).json({ error: 'Failed to record swipe' });
+  }
+}
+
+export async function resetWeights(req: Request, res: Response) {
+  const { profileId } = req.params;
+  const { seedWeights } = req.body;
+  try {
+    const weights = seedWeights ? applySeedWeights(seedWeights) : DEFAULT_VIBE_WEIGHTS;
+    const profile = await prisma.userProfile.update({
+      where: { id: profileId },
+      data: { vibeWeights: weights },
+    });
+    res.json(profile);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reset weights' });
+  }
+}

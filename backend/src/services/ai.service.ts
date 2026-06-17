@@ -71,17 +71,172 @@ export function applySeedWeights(seed: Record<string, number>): Record<string, n
   return normalizeWeights({ ...DEFAULT_VIBE_WEIGHTS, ...seed });
 }
 
+// 🎯 STRICT CATEGORY DEFINITIONS
+// This guarantees the AI understands the exact format and mechanic of the category it is in.
+export type CategoryConfig = { 
+  title: string; 
+  dbCategories: string[]; 
+  rules: string; 
+  formatRequirement: string;
+  fallback: string; 
+};
+
+const CATEGORY_MAP: Record<string, CategoryConfig> = {
+  // === FRIENDS ===
+  'friends-icebreakers': {
+    title: 'Icebreakers',
+    dbCategories: ['Funny', 'Scenarios'],
+    rules: 'Keep it extremely lighthearted, fun, low-stakes, and easy to answer. These are warm-up questions.',
+    formatRequirement: 'Must be short and snappy. Never ask deep, philosophical, or heavy emotional questions here.',
+    fallback: 'What is the pettiest hill you are willing to die on?'
+  },
+  'friends-most-likely': {
+    title: "Who's Most Likely",
+    dbCategories: ["Who's Most Likely", "Funny"],
+    rules: 'This is a group voting party game. The group must vote on which person in the room best fits the description.',
+    formatRequirement: 'EVERY SINGLE PROMPT MUST START EXACTLY WITH THE WORDS: "Who is most likely to " followed by a specific, funny, or chaotic action.',
+    fallback: 'Who is most likely to accidentally join a cult because they liked the free snacks?'
+  },
+  'friends-what-ifs': {
+    title: 'What Ifs',
+    dbCategories: ['Scenarios'],
+    rules: 'Focus entirely on crazy hypothetical scenarios, superpowers, or strange choices.',
+    formatRequirement: 'EVERY SINGLE PROMPT MUST START WITH: "What if", "Imagine", or "You have to".',
+    fallback: 'You can pause time for exactly 24 hours. What do you do?'
+  },
+  'friends-nostalgia': {
+    title: 'Nostalgia',
+    dbCategories: ['Nostalgia'],
+    rules: 'Focus ENTIRELY on childhood memories, school days, past eras, and old trends.',
+    formatRequirement: 'Must specifically ask about a past memory, childhood experience, or nostalgia.',
+    fallback: 'What was your absolute favorite TV show when you were 12 years old?'
+  },
+  'friends-deep-talk': {
+    title: 'Deep Talk',
+    dbCategories: ['Existential', 'Vulnerability', 'Relationships'],
+    rules: 'Deeply psychological, vulnerable, and existential. Ask about fears, identity, profound beliefs, or emotional truths.',
+    formatRequirement: 'Must be a thought-provoking, deep open-ended question.',
+    fallback: 'What part of your personality do you fake the most for the sake of other people?'
+  },
+  'friends-spicy': {
+    title: 'Spicy Takes',
+    dbCategories: ['Funny'],
+    rules: 'Edgy, playful, and debate-worthy. Focus on hot takes, unpopular opinions, or socially unacceptable thoughts.',
+    formatRequirement: 'Must provoke a fun debate or reveal a controversial/funny opinion.',
+    fallback: 'What socially acceptable behavior should be completely banned?'
+  },
+  
+  // === LOVERS ===
+  'lovers-warm-up': {
+    title: 'Warm Up',
+    dbCategories: ['Funny', 'Relationships'],
+    rules: 'Lighthearted, romantic, fun, and easy to answer. Warm-up questions about each other.',
+    formatRequirement: 'Must be a direct, lighthearted question directed at the partner.',
+    fallback: 'What is a weird habit of mine that you secretly find endearing?'
+  },
+  'lovers-our-story': {
+    title: 'Our Story',
+    dbCategories: ['Nostalgia', 'Relationships'],
+    rules: 'Focus ENTIRELY on early relationship days, first impressions, how you met, and memories together.',
+    formatRequirement: 'Must explicitly ask about the past history of the relationship.',
+    fallback: 'What is a small, random moment from early in our relationship that you still think about?'
+  },
+  'lovers-us-talk': {
+    title: 'The "Us" Talk',
+    dbCategories: ['Relationships'],
+    rules: 'Focus on love, trust, connection, teamwork, and relationship dynamics.',
+    formatRequirement: 'Must focus on the couple as a team ("us", "we").',
+    fallback: 'What makes you feel the most loved by me?'
+  },
+  'lovers-deep-talk': {
+    title: 'Deep Talk',
+    dbCategories: ['Existential', 'Vulnerability'],
+    rules: 'Deeply psychological and vulnerable. Ask about fears, dreams, and meaning within the context of life or love.',
+    formatRequirement: 'Must be a deep, emotionally revealing question.',
+    fallback: 'What is an insecurity you have that I can help soothe?'
+  },
+  'lovers-spicy': {
+    title: 'Spicy Takes',
+    dbCategories: ['Funny', 'Relationships'],
+    rules: 'Playful heat, physical or emotional attraction, and romantic tension.',
+    formatRequirement: 'Must be slightly provocative, flirty, or focus on physical/emotional attraction.',
+    fallback: 'What is a completely non-physical trait that gets you?'
+  },
+  'lovers-what-ifs': {
+    title: 'What Ifs',
+    dbCategories: ['Scenarios'],
+    rules: 'Alternate reality scenarios involving both partners.',
+    formatRequirement: 'EVERY PROMPT MUST START WITH: "What if we", "If we had to", or "Imagine we".',
+    fallback: 'If we had to drop everything and open a business together tomorrow, what would it be?'
+  },
+
+  // === FAMILY ===
+  'family-icebreakers': {
+    title: 'Icebreakers',
+    dbCategories: ['Funny', 'Scenarios'],
+    rules: 'Lighthearted, fun family-oriented questions. Keep it easy and low-stakes.',
+    formatRequirement: 'Short, easy question everyone at the family table can answer.',
+    fallback: 'If our family was a TV sitcom, what would the title be?'
+  },
+  'family-growing-up': {
+    title: 'Growing Up',
+    dbCategories: ['Nostalgia'],
+    rules: 'Focus ENTIRELY on childhood memories, house rules, and growing up in the family.',
+    formatRequirement: 'Must reference growing up, childhood rules, or family history.',
+    fallback: 'What was the strictest rule in the house growing up?'
+  },
+  'family-dynamics': {
+    title: 'Family Dynamics',
+    dbCategories: ["Who's Most Likely", "Funny"],
+    rules: 'A group voting game where the family votes on who fits the description best.',
+    formatRequirement: 'EVERY SINGLE PROMPT MUST START EXACTLY WITH: "Who in the family is most likely to " or "Who is most likely to ".',
+    fallback: 'Who is most likely to give completely unsolicited advice?'
+  },
+  'family-life-lessons': {
+    title: 'Life Lessons',
+    dbCategories: ['Existential', 'Vulnerability'],
+    rules: 'Focus on wisdom, aging, regrets, personal growth, and passing down life advice.',
+    formatRequirement: 'Must ask about a life lesson, regret, advice, or aging.',
+    fallback: 'What is the hardest lesson you\'ve had to learn the hard way?'
+  },
+  'family-what-ifs': {
+    title: 'What Ifs',
+    dbCategories: ['Scenarios'],
+    rules: 'Hypothetical family scenarios (e.g. winning the lottery, surviving together).',
+    formatRequirement: 'EVERY PROMPT MUST START WITH: "What if our family", "If we", or "Imagine".',
+    fallback: 'If money was no object, what kind of family compound would we build?'
+  },
+  'family-generational': {
+    title: 'Generational',
+    dbCategories: ['Nostalgia', 'Relationships'],
+    rules: 'Focus on differences between generations, changing times, and bridging the age gap.',
+    formatRequirement: 'Must contrast the past vs present, or younger vs older generations.',
+    fallback: 'What is one thing you think the younger generation actually got right?'
+  }
+};
+
+export function getCategoryConfig(categoryId: string): CategoryConfig {
+  if (CATEGORY_MAP[categoryId]) return CATEGORY_MAP[categoryId];
+  return {
+    title: 'Deep Talk',
+    dbCategories: ['Existential', 'Vulnerability'],
+    rules: 'Deeply psychological and vulnerable questions.',
+    formatRequirement: 'Must be a thought-provoking, deep open-ended question.',
+    fallback: 'What part of your personality do you fake the most?'
+  };
+}
+
 export async function generatePersonalizedPrompts(
   weights: Record<string, number>,
-  recentHistory: PromptPlayRecord[],
+  categoryHistory: PromptPlayRecord[],
   traitProfile: string | null,
   gamemode: string,
+  config: CategoryConfig,
   count: number = 5
 ): Promise<{ updatedProfile: string; prompts: { text: string; category: string; tags: string[] }[] } | null> {
   
-  // Tag Engagement Analysis Algorithm
   const tagStats: Record<string, { seen: number; answered: number }> = {};
-  recentHistory.forEach(play => {
+  categoryHistory.forEach(play => {
     play.prompt.tags.forEach(tag => {
       if (!tagStats[tag]) tagStats[tag] = { seen: 0, answered: 0 };
       tagStats[tag].seen += 1;
@@ -95,43 +250,43 @@ export async function generatePersonalizedPrompts(
     seen: stats.seen
   }));
 
-  // Identify what's working and what isn't
   const lovedTags = tagRates.filter(t => t.rate >= 0.5).sort((a,b) => b.rate - a.rate).map(t => t.tag).slice(0, 4);
   const hatedTags = tagRates.filter(t => t.rate < 0.5).sort((a,b) => a.rate - b.rate).map(t => t.tag).slice(0, 3);
 
-  // Look strictly at the last 3 swipes for immediate context buffering
-  const last3 = recentHistory.slice(-3).map(h => 
-    `${h.swipedLeft ? 'ANSWERED (Liked)' : 'SKIPPED (Disliked)'}: "${h.prompt.text}" [Tags: ${h.prompt.tags.join(', ')}]`
+  const last3 = categoryHistory.slice(-3).map(h => 
+    `${h.swipedLeft ? 'ANSWERED' : 'SKIPPED'}: "${h.prompt.text}"`
   );
 
+  // The prompt is now completely dominated by FORMAT requirements so it doesn't drift.
   const systemPrompt = `
-You are the AI Game Master for a deep conversation card game. 
-Your goal is to build a psychological profile of the user and generate a highly targeted batch of questions.
+You are an expert party game designer creating cards for a game called Hezi.
 
-GAME CONTEXT: The user is playing the game right now with their ${gamemode.toUpperCase()} (e.g. Friends, Romantic Partner, or Family).
-IMPORTANT: ALL generated questions MUST be perfectly tailored to this group dynamic. Do not suggest romantic/spicy prompts for a family game.
+GAME CONTEXT: The user is playing with their ${gamemode.toUpperCase()}.
+CURRENT DECK/CATEGORY: "${config.title}"
 
-CURRENT TRAIT PROFILE: ${traitProfile || 'New User, no data yet.'}
+CRITICAL GAME MECHANICS (YOU MUST FOLLOW THESE OR THE APP WILL BREAK):
+=========================================
+RULES: ${config.rules}
+FORMAT REQUIREMENT: ${config.formatRequirement}
+=========================================
 
-IMMEDIATE HISTORY (Last 3 Swipes):
-${last3.length > 0 ? last3.join('\n') : 'No recent swipes yet.'}
-
-TAG ANALYSIS:
-- High Engagement Tags (Focus on these): ${lovedTags.length > 0 ? lovedTags.join(', ') : 'None yet'}
-- Low Engagement Tags (Avoid these): ${hatedTags.length > 0 ? hatedTags.join(', ') : 'None yet'}
+PLAYER PROFILE (Use this to tailor the humor/topics, but DO NOT break the format rules above):
+- Profile: ${traitProfile || 'New User, no data yet.'}
+- They like these topics: ${lovedTags.length > 0 ? lovedTags.join(', ') : 'None yet'}
+- They avoid these topics: ${hatedTags.length > 0 ? hatedTags.join(', ') : 'None yet'}
+- Recent cards they saw:
+${last3.length > 0 ? last3.join('\n') : 'No recent swipes in this category yet.'}
 
 TASK:
-1. Update the Trait Profile (under 2 sentences) based on their tag engagement and recent choices.
-2. Generate EXACTLY ${count} new, highly personalized, open-ended questions (under 200 chars).
-3. Interleave the questions: Focus heavily on the "High Engagement Tags" but mix in slight variations so it doesn't get repetitive.
-4. Make them sound human, provocative, and conversational. Do not sound like a robot.
+1. Update the Trait Profile (1-2 sentences) based on their likes/dislikes.
+2. Generate EXACTLY ${count} new questions. 
+3. EVERY SINGLE QUESTION MUST PERFECTLY MATCH THE "FORMAT REQUIREMENT". If the format requires starting with "Who is most likely to", you MUST start every card with exactly those words. Do not ask deep open-ended questions unless the category specifically calls for it.
 
 OUTPUT JSON FORMAT:
 {
   "updatedTraitProfile": "...",
   "prompts": [
-    { "text": "...", "category": "Deep Talk", "tags": ["tag1", "tag2"] },
-    { "text": "...", "category": "Deep Talk", "tags": ["tag3", "tag4"] }
+    { "text": "...", "tags": ["tag1", "tag2"] }
   ]
 }
 `;
@@ -144,7 +299,11 @@ OUTPUT JSON FORMAT:
       temperature: 0.85,
     });
     
-    const parsed = JSON.parse(completion.choices[0].message.content || '{}');
+    let content = completion.choices[0].message.content || '{}';
+    // Clean up any markdown blocks if the LLM hallucinated them despite JSON mode
+    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    const parsed = JSON.parse(content);
     
     if (!parsed.prompts || !Array.isArray(parsed.prompts)) return null;
     
@@ -152,9 +311,9 @@ OUTPUT JSON FORMAT:
       updatedProfile: parsed.updatedTraitProfile || traitProfile || '',
       prompts: parsed.prompts.map((p: any) => ({
         text: String(p.text),
-        category: String(p.category || 'Deep Talk'),
+        category: config.title, 
         tags: Array.isArray(p.tags) ? p.tags.map(String) : [],
-      })).slice(0, count), // ensure exactly the count requested
+      })).slice(0, count), 
     };
   } catch (error) {
     console.error('Personalized prompt generation failed:', error);
@@ -169,19 +328,31 @@ export async function getNextPromptsForProfile(input: {
   dbPrompts: QuestionPromptCandidate[];
   playedPromptIds: string[];
   gamemode: string;
+  categoryId: string;
   count: number;
 }): Promise<{
   prompts: QuestionPromptCandidate[];
   updatedTraitProfile: string;
+  config: CategoryConfig;
 }> {
   const weights = parseVibeWeights(input.vibeWeights);
   const playedIds = new Set(input.playedPromptIds);
   let results: QuestionPromptCandidate[] = [];
 
-  // Phase 1: Only use DB presets if this is their VERY first time playing (history < 3)
-  const availableDbPrompts = input.dbPrompts.filter(p => !playedIds.has(p.id));
+  const config = getCategoryConfig(input.categoryId);
+
+  const availableDbPrompts = input.dbPrompts.filter(p => 
+    !playedIds.has(p.id) && 
+    config.dbCategories.includes(p.category)
+  );
   
-  if (input.history.length < 3 && availableDbPrompts.length > 0) {
+  // We include both the strict title AND the underlying seed categories 
+  // so the AI learns from the preset cards properly.
+  const categoryHistory = input.history.filter(h => 
+    h.prompt.category === config.title || config.dbCategories.includes(h.prompt.category)
+  );
+
+  if (categoryHistory.length < 3 && availableDbPrompts.length > 0) {
     const ranked = availableDbPrompts
       .map(p => {
         let score = weights[p.category] ?? 0.3;
@@ -192,19 +363,23 @@ export async function getNextPromptsForProfile(input: {
 
     const amountToTake = Math.min(input.count, ranked.length);
     for (let i = 0; i < amountToTake; i++) {
-      results.push(ranked[i].p);
+      results.push({
+        ...ranked[i].p,
+        category: config.title 
+      });
     }
   }
 
-  // Phase 2: AI Generation (Always happens in batches once they have swipe history)
   let newTraitProfile = input.traitProfile || '';
   if (results.length < input.count) {
     const needed = input.count - results.length;
+    
     const generated = await generatePersonalizedPrompts(
       weights, 
-      input.history, 
+      categoryHistory, 
       input.traitProfile, 
       input.gamemode, 
+      config,
       needed
     );
     
@@ -221,15 +396,14 @@ export async function getNextPromptsForProfile(input: {
     }
   }
 
-  // Fallback if AI fails completely
   if (results.length === 0) {
     results.push({
       id: `fallback-${Date.now()}`,
-      text: 'If you could change one decision from your past, knowing it would change where you are today, would you do it?',
-      category: 'Existential',
-      tags: ['reflection'],
+      text: config.fallback,
+      category: config.title,
+      tags: ['fallback'],
     });
   }
 
-  return { prompts: results, updatedTraitProfile: newTraitProfile };
+  return { prompts: results, updatedTraitProfile: newTraitProfile, config };
 }

@@ -17,6 +17,12 @@ export default function HomeScreen() {
 
   const handleCategoryPress = async (cat: ConversationCategory) => {
     await storage.setActiveCategory(cat.id);
+    
+    // STRICT: Always clear the cache when tapping from the home screen
+    // This guarantees the local "Start" cards will always appear first.
+    await storage.clearCachedQueue(gamemode, cat.id);
+    
+    // Only pass categoryId. Backend handles mapping to Titles now.
     router.push({ pathname: '/deck', params: { categoryId: cat.id } });
 
     if (user?.profileId) {

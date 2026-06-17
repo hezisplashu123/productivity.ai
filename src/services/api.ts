@@ -79,7 +79,7 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // NOW INCLUDES CATEGORY ID
+  // Notice categoryTitle is removed here
   async getNextPrompts(profileId: string, gamemode: string, categoryId: string, count: number = 5) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/next-prompt`, {
       method: 'POST',
