@@ -79,12 +79,12 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  // Notice categoryTitle is removed here
-  async getNextPrompts(profileId: string, gamemode: string, categoryId: string, count: number = 5) {
+  // Added playerCount to the signature and body
+  async getNextPrompts(profileId: string, gamemode: string, categoryId: string, count: number = 5, playerCount: number = 3) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/next-prompt`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ profileId, count, gamemode, categoryId }),
+      body: JSON.stringify({ profileId, count, gamemode, categoryId, playerCount }),
     });
     return handleResponse(res);
   },

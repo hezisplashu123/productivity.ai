@@ -71,169 +71,201 @@ export function applySeedWeights(seed: Record<string, number>): Record<string, n
   return normalizeWeights({ ...DEFAULT_VIBE_WEIGHTS, ...seed });
 }
 
-// 🎯 STRICT CATEGORY DEFINITIONS
-// This guarantees the AI understands the exact format and mechanic of the category it is in.
 export type CategoryConfig = { 
   title: string; 
   dbCategories: string[]; 
   rules: string; 
   formatRequirement: string;
+  bannedConcepts: string;
   fallback: string; 
 };
 
+// ==========================================
+// AI PROMPT ENGINEERING RULES
+// ==========================================
+
+const GLOBAL_AI_RULES = `
+CRITICAL TONE CONSTRAINTS:
+1. NEVER use "Therapy-Speak". Ban words like: boundary, journey, unpack, toxic trait, inner child, validate, navigate, realm, tapestry, or profound.
+2. NEVER use "Reddit-Speak". Do not ask generic internet questions like "What is a socially acceptable scam?" or "What is a common misconception?"
+3. The tone must be conversational, slightly edgy, highly specific, and deeply human. Speak like a witty 20-something having drinks with close friends.
+`;
+
+function getPlayerCountRules(playerCount: number): string {
+  if (playerCount <= 3) {
+    return "TIER 1 (2-3 Players): Make it deeply personal. Ask questions that encourage long-form storytelling, deep vulnerability, and highly specific personal confessions. It is safe to ask questions that take a few minutes to answer.";
+  } else if (playerCount <= 6) {
+    return "TIER 2 (4-6 Players): Focus on group dynamics, calling each other out, and shared lore. Use 'Who in this room...' prompts. The questions should provoke funny debates but keep answers relatively concise to keep the game moving.";
+  } else {
+    return "TIER 3 (7+ Players): CRITICAL: Do NOT ask long-winded, deep, or storytelling questions; the game will stall. Generate rapid-fire, highly polarizing hot takes, chaotic hypotheticals, or 'Raise your hand if...' questions that spark immediate, loud reactions.";
+  }
+}
+
 const CATEGORY_MAP: Record<string, CategoryConfig> = {
-  // === FRIENDS ===
+  // FRIENDS
   'friends-icebreakers': {
     title: 'Icebreakers',
     dbCategories: ['Funny', 'Scenarios'],
-    rules: 'Keep it extremely lighthearted, fun, low-stakes, and easy to answer. These are warm-up questions.',
-    formatRequirement: 'Must be short and snappy. Never ask deep, philosophical, or heavy emotional questions here.',
-    fallback: 'What is the pettiest hill you are willing to die on?'
+    rules: 'Spark immediate, loud, polarizing debates. Keep it cynical, witty, and slightly toxic.',
+    formatRequirement: 'Ask for a highly specific hot take or polarizing opinion.',
+    bannedConcepts: 'Do not ask about favorite colors, foods, or mild pet peeves. Avoid generic AskReddit questions.',
+    fallback: 'What is a massive "red flag" in a person that you actually find highly attractive?'
   },
   'friends-most-likely': {
-    title: "Who's Most Likely",
+    title: "Most Likely",
     dbCategories: ["Who's Most Likely", "Funny"],
-    rules: 'This is a group voting party game. The group must vote on which person in the room best fits the description.',
-    formatRequirement: 'EVERY SINGLE PROMPT MUST START EXACTLY WITH THE WORDS: "Who is most likely to " followed by a specific, funny, or chaotic action.',
-    fallback: 'Who is most likely to accidentally join a cult because they liked the free snacks?'
+    rules: 'Expose the group\'s chaotic or toxic traits and playfully roast each other.',
+    formatRequirement: 'EVERY prompt MUST begin exactly with: "Who is most likely to..."',
+    bannedConcepts: 'No generic "survive a zombie apocalypse" or "win the lottery" questions. Make it about unhinged, specific human behavior.',
+    fallback: 'Who is most likely to seamlessly lie their way into a VIP section and leave the rest of us outside?'
   },
   'friends-what-ifs': {
     title: 'What Ifs',
     dbCategories: ['Scenarios'],
-    rules: 'Focus entirely on crazy hypothetical scenarios, superpowers, or strange choices.',
-    formatRequirement: 'EVERY SINGLE PROMPT MUST START WITH: "What if", "Imagine", or "You have to".',
-    fallback: 'You can pause time for exactly 24 hours. What do you do?'
+    rules: 'Create high-stakes, morally grey, or absurd situations that test loyalty or ethics.',
+    formatRequirement: 'Put the group or the individual in a wild scenario that requires a difficult choice.',
+    bannedConcepts: 'No boring "what superpower would you have" questions.',
+    fallback: 'If you had a button that gave you $1 million but permanently ruined the life of someone you went to high school with, how many times do you press it?'
   },
   'friends-nostalgia': {
     title: 'Nostalgia',
     dbCategories: ['Nostalgia'],
-    rules: 'Focus ENTIRELY on childhood memories, school days, past eras, and old trends.',
-    formatRequirement: 'Must specifically ask about a past memory, childhood experience, or nostalgia.',
-    fallback: 'What was your absolute favorite TV show when you were 12 years old?'
+    rules: 'Focus on cringe eras, teenage toxicity, and past mistakes.',
+    formatRequirement: 'Must reference middle school, high school, or early internet days.',
+    bannedConcepts: 'Do not ask about nice, sweet childhood memories like favorite cartoons. Keep it focused on the "cringe."',
+    fallback: 'What is the most undeniably toxic thing you did in your first real relationship?'
+  },
+  'friends-confessions': {
+    title: 'Confessions',
+    dbCategories: ['Vulnerability', 'Funny'],
+    rules: 'Expose hypocrisy, petty judgments, and mild selfishness. Make the user call themselves out.',
+    formatRequirement: 'Ask the user to admit a terrible trait or an unspoken truth about how they view others.',
+    bannedConcepts: 'No deep trauma or depressing secrets. Keep it focused on social hypocrisy.',
+    fallback: 'What is a terrible trait you have that you secretly judge other people for having?'
   },
   'friends-deep-talk': {
     title: 'Deep Talk',
     dbCategories: ['Existential', 'Vulnerability', 'Relationships'],
-    rules: 'Deeply psychological, vulnerable, and existential. Ask about fears, identity, profound beliefs, or emotional truths.',
-    formatRequirement: 'Must be a thought-provoking, deep open-ended question.',
-    fallback: 'What part of your personality do you fake the most for the sake of other people?'
+    rules: 'Heavy, philosophical, and cutting through the BS. Ask about painful truths, deep flaws, or raw existential reality.',
+    formatRequirement: 'Ask a thought-provoking, deep open-ended question that makes them hesitate before answering.',
+    bannedConcepts: 'NO THERAPY SPEAK. Do not use words like "journey," "unpack," "healing," or "profound."',
+    fallback: 'Are you actually a good person, or are you just terrified of people being mad at you?'
   },
-  'friends-spicy': {
-    title: 'Spicy Takes',
-    dbCategories: ['Funny'],
-    rules: 'Edgy, playful, and debate-worthy. Focus on hot takes, unpopular opinions, or socially unacceptable thoughts.',
-    formatRequirement: 'Must provoke a fun debate or reveal a controversial/funny opinion.',
-    fallback: 'What socially acceptable behavior should be completely banned?'
-  },
-  
-  // === LOVERS ===
+
+  // LOVERS
   'lovers-warm-up': {
     title: 'Warm Up',
     dbCategories: ['Funny', 'Relationships'],
-    rules: 'Lighthearted, romantic, fun, and easy to answer. Warm-up questions about each other.',
-    formatRequirement: 'Must be a direct, lighthearted question directed at the partner.',
-    fallback: 'What is a weird habit of mine that you secretly find endearing?'
-  },
-  'lovers-our-story': {
-    title: 'Our Story',
-    dbCategories: ['Nostalgia', 'Relationships'],
-    rules: 'Focus ENTIRELY on early relationship days, first impressions, how you met, and memories together.',
-    formatRequirement: 'Must explicitly ask about the past history of the relationship.',
-    fallback: 'What is a small, random moment from early in our relationship that you still think about?'
-  },
-  'lovers-us-talk': {
-    title: 'The "Us" Talk',
-    dbCategories: ['Relationships'],
-    rules: 'Focus on love, trust, connection, teamwork, and relationship dynamics.',
-    formatRequirement: 'Must focus on the couple as a team ("us", "we").',
-    fallback: 'What makes you feel the most loved by me?'
-  },
-  'lovers-deep-talk': {
-    title: 'Deep Talk',
-    dbCategories: ['Existential', 'Vulnerability'],
-    rules: 'Deeply psychological and vulnerable. Ask about fears, dreams, and meaning within the context of life or love.',
-    formatRequirement: 'Must be a deep, emotionally revealing question.',
-    fallback: 'What is an insecurity you have that I can help soothe?'
+    rules: 'Light, teasing observations about the partner.',
+    formatRequirement: 'Focus on weird, highly specific habits or immediate desires.',
+    bannedConcepts: 'No heavy relationship history or trauma yet.',
+    fallback: 'What is a weird, highly specific habit of mine that you secretly love?'
   },
   'lovers-spicy': {
-    title: 'Spicy Takes',
+    title: 'Spicy',
     dbCategories: ['Funny', 'Relationships'],
-    rules: 'Playful heat, physical or emotional attraction, and romantic tension.',
-    formatRequirement: 'Must be slightly provocative, flirty, or focus on physical/emotional attraction.',
-    fallback: 'What is a completely non-physical trait that gets you?'
+    rules: 'Physical tension, innocent turn-ons, and butterflies.',
+    formatRequirement: 'Must be provocative and flirty, but strictly avoid explicit/NSFW language.',
+    bannedConcepts: 'Do not be overtly explicit, vulgar, or crude.',
+    fallback: 'What is a completely non-physical thing I do that turns you on?'
   },
   'lovers-what-ifs': {
     title: 'What Ifs',
     dbCategories: ['Scenarios'],
-    rules: 'Alternate reality scenarios involving both partners.',
-    formatRequirement: 'EVERY PROMPT MUST START WITH: "What if we", "If we had to", or "Imagine we".',
-    fallback: 'If we had to drop everything and open a business together tomorrow, what would it be?'
+    rules: '"Us against the world" alternate realities.',
+    formatRequirement: 'Put the couple in a movie-like scenario. Must frame the couple as a team.',
+    bannedConcepts: 'Do not ask questions that pit the couple against each other.',
+    fallback: 'If we had to fake our deaths and move to another country, what would our new jobs be?'
+  },
+  'lovers-nostalgia': {
+    title: 'Nostalgia',
+    dbCategories: ['Nostalgia', 'Relationships'],
+    rules: 'The talking phase, first impressions, and the origin story.',
+    formatRequirement: 'Ask for exact, cinematic memories from the very beginning of the relationship.',
+    bannedConcepts: 'Do not ask about past relationships with other people.',
+    fallback: 'What was your exact first thought the very first time you saw me?'
+  },
+  'lovers-connection': {
+    title: 'Connection',
+    dbCategories: ['Relationships'],
+    rules: 'Teamwork, feeling loved, and balancing each other out.',
+    formatRequirement: 'Focus on the unseen ways the couple supports each other.',
+    bannedConcepts: 'Avoid generic "what do you love about me" phrasing. Be highly specific.',
+    fallback: 'In what highly specific way do you think we balance each other out perfectly?'
+  },
+  'lovers-deep-talk': {
+    title: 'Deep Talk',
+    dbCategories: ['Existential', 'Vulnerability'],
+    rules: 'Vulnerability, future fears, and the reality of long-term love.',
+    formatRequirement: 'Ask about unspoken fears or how their definition of love has evolved.',
+    bannedConcepts: 'No cliché "where do you see us in 5 years" questions.',
+    fallback: 'What is a fear you have about our future that you rarely say out loud?'
   },
 
-  // === FAMILY ===
+  // FAMILY
   'family-icebreakers': {
     title: 'Icebreakers',
     dbCategories: ['Funny', 'Scenarios'],
-    rules: 'Lighthearted, fun family-oriented questions. Keep it easy and low-stakes.',
-    formatRequirement: 'Short, easy question everyone at the family table can answer.',
-    fallback: 'If our family was a TV sitcom, what would the title be?'
+    rules: 'Safe, funny, universal questions everyone at the table gets.',
+    formatRequirement: 'Relate it to shared household culture or food.',
+    bannedConcepts: 'Nothing offensive, sexual, or politically divisive.',
+    fallback: 'If our family was a reality TV show, what would the title be?'
   },
-  'family-growing-up': {
-    title: 'Growing Up',
-    dbCategories: ['Nostalgia'],
-    rules: 'Focus ENTIRELY on childhood memories, house rules, and growing up in the family.',
-    formatRequirement: 'Must reference growing up, childhood rules, or family history.',
-    fallback: 'What was the strictest rule in the house growing up?'
-  },
-  'family-dynamics': {
-    title: 'Family Dynamics',
+  'family-most-likely': {
+    title: 'Most Likely',
     dbCategories: ["Who's Most Likely", "Funny"],
-    rules: 'A group voting game where the family votes on who fits the description best.',
-    formatRequirement: 'EVERY SINGLE PROMPT MUST START EXACTLY WITH: "Who in the family is most likely to " or "Who is most likely to ".',
-    fallback: 'Who is most likely to give completely unsolicited advice?'
-  },
-  'family-life-lessons': {
-    title: 'Life Lessons',
-    dbCategories: ['Existential', 'Vulnerability'],
-    rules: 'Focus on wisdom, aging, regrets, personal growth, and passing down life advice.',
-    formatRequirement: 'Must ask about a life lesson, regret, advice, or aging.',
-    fallback: 'What is the hardest lesson you\'ve had to learn the hard way?'
+    rules: 'Gentle teasing about family roles and grudges.',
+    formatRequirement: 'Must start exactly with "Who is most likely to...".',
+    bannedConcepts: 'Do not be overly mean; keep it focused on lighthearted family stereotypes.',
+    fallback: 'Who is most likely to bring up a 10-year-old argument at Thanksgiving dinner?'
   },
   'family-what-ifs': {
     title: 'What Ifs',
     dbCategories: ['Scenarios'],
-    rules: 'Hypothetical family scenarios (e.g. winning the lottery, surviving together).',
-    formatRequirement: 'EVERY PROMPT MUST START WITH: "What if our family", "If we", or "Imagine".',
-    fallback: 'If money was no object, what kind of family compound would we build?'
+    rules: 'Absurd situations involving the whole family unit.',
+    formatRequirement: 'Put the entire family in a hypothetical scenario together.',
+    bannedConcepts: 'Avoid dividing the family into sides.',
+    fallback: 'If money was no object, what kind of ridiculous family compound would we build?'
   },
-  'family-generational': {
-    title: 'Generational',
+  'family-nostalgia': {
+    title: 'Nostalgia',
+    dbCategories: ['Nostalgia'],
+    rules: 'Weird house rules and disastrous family memories.',
+    formatRequirement: 'Ask about a specific rule, event, or vacation from the past.',
+    bannedConcepts: 'Avoid trauma or deeply sad memories.',
+    fallback: 'Which family vacation was an absolute disaster at the time, but hilarious now?'
+  },
+  'family-perspectives': {
+    title: 'Perspectives',
     dbCategories: ['Nostalgia', 'Relationships'],
-    rules: 'Focus on differences between generations, changing times, and bridging the age gap.',
-    formatRequirement: 'Must contrast the past vs present, or younger vs older generations.',
-    fallback: 'What is one thing you think the younger generation actually got right?'
+    rules: 'Bridging the generational gap.',
+    formatRequirement: 'Contrast the past vs. the present, or younger vs. older generations.',
+    bannedConcepts: 'Do not prompt actual political arguments.',
+    fallback: 'What is a slang word or trend from today that makes absolutely zero sense to you?'
+  },
+  'family-deep-talk': {
+    title: 'Deep Talk',
+    dbCategories: ['Existential', 'Vulnerability'],
+    rules: 'Wisdom, regrets, and honest life reflections.',
+    formatRequirement: 'Ask about life lessons learned the hard way.',
+    bannedConcepts: 'Avoid making parents feel guilty; focus on shared wisdom.',
+    fallback: 'What is a life lesson you had to learn the hard way so I wouldn\'t have to?'
   }
 };
 
 export function getCategoryConfig(categoryId: string): CategoryConfig {
   if (CATEGORY_MAP[categoryId]) return CATEGORY_MAP[categoryId];
-  return {
-    title: 'Deep Talk',
-    dbCategories: ['Existential', 'Vulnerability'],
-    rules: 'Deeply psychological and vulnerable questions.',
-    formatRequirement: 'Must be a thought-provoking, deep open-ended question.',
-    fallback: 'What part of your personality do you fake the most?'
-  };
+  return CATEGORY_MAP['friends-deep-talk'];
 }
 
 export async function generatePersonalizedPrompts(
   weights: Record<string, number>,
   categoryHistory: PromptPlayRecord[],
-  traitProfile: string | null,
   gamemode: string,
   config: CategoryConfig,
+  playerCount: number,
   count: number = 5
-): Promise<{ updatedProfile: string; prompts: { text: string; category: string; tags: string[] }[] } | null> {
+): Promise<{ prompts: { text: string; category: string; tags: string[] }[] } | null> {
   
   const tagStats: Record<string, { seen: number; answered: number }> = {};
   categoryHistory.forEach(play => {
@@ -257,39 +289,45 @@ export async function generatePersonalizedPrompts(
     `${h.swipedLeft ? 'ANSWERED' : 'SKIPPED'}: "${h.prompt.text}"`
   );
 
-  // The prompt is now completely dominated by FORMAT requirements so it doesn't drift.
   const systemPrompt = `
-You are an expert party game designer creating cards for a game called Hezi.
+You are an expert party game designer creating cards for an edgy, deep conversation game called Hezi.
 
 GAME CONTEXT: The user is playing with their ${gamemode.toUpperCase()}.
 CURRENT DECK/CATEGORY: "${config.title}"
+NUMBER OF PLAYERS: ${playerCount}
 
-CRITICAL GAME MECHANICS (YOU MUST FOLLOW THESE OR THE APP WILL BREAK):
-=========================================
-RULES: ${config.rules}
-FORMAT REQUIREMENT: ${config.formatRequirement}
-=========================================
+${GLOBAL_AI_RULES}
 
-PLAYER PROFILE (Use this to tailor the humor/topics, but DO NOT break the format rules above):
-- Profile: ${traitProfile || 'New User, no data yet.'}
-- They like these topics: ${lovedTags.length > 0 ? lovedTags.join(', ') : 'None yet'}
-- They avoid these topics: ${hatedTags.length > 0 ? hatedTags.join(', ') : 'None yet'}
+GROUP SIZE INSTRUCTIONS (CRITICAL):
+${getPlayerCountRules(playerCount)}
+
+CATEGORY INSTRUCTIONS (CRITICAL):
+- Core Focus: ${config.rules}
+- Format Requirement: ${config.formatRequirement}
+- Banned Concepts: ${config.bannedConcepts}
+
+PLAYER TASTES (Tailor the topics using these, but DO NOT break the format rules above):
+- Topics they like: ${lovedTags.length > 0 ? lovedTags.join(', ') : 'None yet'}
+- Topics they avoid: ${hatedTags.length > 0 ? hatedTags.join(', ') : 'None yet'}
 - Recent cards they saw:
 ${last3.length > 0 ? last3.join('\n') : 'No recent swipes in this category yet.'}
 
-TASK:
-1. Update the Trait Profile (1-2 sentences) based on their likes/dislikes.
-2. Generate EXACTLY ${count} new questions. 
-3. EVERY SINGLE QUESTION MUST PERFECTLY MATCH THE "FORMAT REQUIREMENT". If the format requires starting with "Who is most likely to", you MUST start every card with exactly those words. Do not ask deep open-ended questions unless the category specifically calls for it.
+TASK: Generate EXACTLY ${count} new questions. 
+EVERY SINGLE QUESTION MUST PERFECTLY MATCH THE "FORMAT REQUIREMENT" AND "GROUP SIZE INSTRUCTIONS".
 
 OUTPUT JSON FORMAT:
 {
-  "updatedTraitProfile": "...",
   "prompts": [
     { "text": "...", "tags": ["tag1", "tag2"] }
   ]
 }
 `;
+
+  console.log("\n\n========================================");
+  console.log(`🤖 CALLING OPENAI AI FOR: ${config.title}`);
+  console.log(`👥 PLAYERS: ${playerCount}`);
+  console.log(`🛠️ FORMAT REQUIREMENT: ${config.formatRequirement}`);
+  console.log("========================================\n");
 
   try {
     const completion = await openai.chat.completions.create({
@@ -300,15 +338,19 @@ OUTPUT JSON FORMAT:
     });
     
     let content = completion.choices[0].message.content || '{}';
-    // Clean up any markdown blocks if the LLM hallucinated them despite JSON mode
     content = content.replace(/```json/g, '').replace(/```/g, '').trim();
     
     const parsed = JSON.parse(content);
     
     if (!parsed.prompts || !Array.isArray(parsed.prompts)) return null;
     
+    console.log("✅ AI GENERATED THESE QUESTIONS:");
+    parsed.prompts.forEach((p: any, idx: number) => {
+      console.log(`  ${idx + 1}. ${p.text}`);
+    });
+    console.log("========================================\n");
+
     return {
-      updatedProfile: parsed.updatedTraitProfile || traitProfile || '',
       prompts: parsed.prompts.map((p: any) => ({
         text: String(p.text),
         category: config.title, 
@@ -323,18 +365,22 @@ OUTPUT JSON FORMAT:
 
 export async function getNextPromptsForProfile(input: {
   vibeWeights: Prisma.JsonValue | null;
-  traitProfile: string | null;
   history: PromptPlayRecord[];
   dbPrompts: QuestionPromptCandidate[];
   playedPromptIds: string[];
   gamemode: string;
   categoryId: string;
   count: number;
+  playerCount: number;
 }): Promise<{
   prompts: QuestionPromptCandidate[];
-  updatedTraitProfile: string;
   config: CategoryConfig;
 }> {
+  
+  console.log(`\n\n📥 [REQUEST RECEIVED] Generating deck cards...`);
+  console.log(`🎮 Gamemode requested: ${input.gamemode}`);
+  console.log(`📂 Category requested: ${input.categoryId}`);
+
   const weights = parseVibeWeights(input.vibeWeights);
   const playedIds = new Set(input.playedPromptIds);
   let results: QuestionPromptCandidate[] = [];
@@ -346,13 +392,12 @@ export async function getNextPromptsForProfile(input: {
     config.dbCategories.includes(p.category)
   );
   
-  // We include both the strict title AND the underlying seed categories 
-  // so the AI learns from the preset cards properly.
   const categoryHistory = input.history.filter(h => 
     h.prompt.category === config.title || config.dbCategories.includes(h.prompt.category)
   );
 
   if (categoryHistory.length < 3 && availableDbPrompts.length > 0) {
+    console.log(`🎲 Using PRESET database prompts...`);
     const ranked = availableDbPrompts
       .map(p => {
         let score = weights[p.category] ?? 0.3;
@@ -370,21 +415,20 @@ export async function getNextPromptsForProfile(input: {
     }
   }
 
-  let newTraitProfile = input.traitProfile || '';
   if (results.length < input.count) {
     const needed = input.count - results.length;
+    console.log(`⚡ Need ${needed} more prompts. Sending to AI generator...`);
     
     const generated = await generatePersonalizedPrompts(
       weights, 
       categoryHistory, 
-      input.traitProfile, 
       input.gamemode, 
       config,
+      input.playerCount,
       needed
     );
     
     if (generated) {
-      newTraitProfile = generated.updatedProfile;
       generated.prompts.forEach((gp, idx) => {
         results.push({
           id: `generated-${Date.now()}-${idx}`,
@@ -397,6 +441,7 @@ export async function getNextPromptsForProfile(input: {
   }
 
   if (results.length === 0) {
+    console.log(`⚠️ AI FAILED. Using fallback prompt.`);
     results.push({
       id: `fallback-${Date.now()}`,
       text: config.fallback,
@@ -405,5 +450,5 @@ export async function getNextPromptsForProfile(input: {
     });
   }
 
-  return { prompts: results, updatedTraitProfile: newTraitProfile, config };
+  return { prompts: results, config };
 }

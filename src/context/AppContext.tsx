@@ -9,7 +9,9 @@ interface AppContextType {
   isLoading: boolean;
   gamemode: Gamemode;
   theme: Theme;
+  playerCount: number | null;
   setGamemode: (mode: Gamemode) => void;
+  setPlayerCount: (count: number) => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -20,17 +22,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [gamemode, setGamemodeState] = useState<Gamemode>('friendship');
+  const [playerCount, setPlayerCountState] = useState<number | null>(null);
 
   const hydrateGuestUser = useCallback(async () => {
     try {
       const savedMode = await storage.getGamemode();
       setGamemodeState(savedMode);
 
+      const savedPlayerCount = await storage.getPlayerCount();
+      setPlayerCountState(savedPlayerCount);
+
       const deviceId = await getOrCreateDeviceId();
       const email = `guest_${deviceId}@hezi.app`;
 
       try {
-        // Try to connect to backend
         const syncedUser = await apiService.syncUser({
           email,
           socialId: deviceId,
@@ -48,7 +53,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       } catch (apiError) {
         console.warn("Backend unavailable, using local fallback profile.", apiError);
-        // If backend is sleeping/offline, log them in locally anyway!
         setUser({
           id: deviceId,
           email,
@@ -80,10 +84,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     storage.setGamemode(mode);
   };
 
+  const setPlayerCount = (count: number) => {
+    setPlayerCountState(count);
+    storage.setPlayerCount(count);
+  };
+
   const theme = palettes[gamemode] || palettes.friendship;
 
   return (
-    <AppContext.Provider value={{ user, isLoading, gamemode, theme, setGamemode, logout, refreshUser }}>
+    <AppContext.Provider value={{ user, isLoading, gamemode, theme, playerCount, setGamemode, setPlayerCount, logout, refreshUser }}>
       {children}
     </AppContext.Provider>
   );

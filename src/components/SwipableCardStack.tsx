@@ -47,7 +47,8 @@ const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, on
     .onEnd((e) => {
       if (Math.abs(translateX.value) > SWIPE_THRESHOLD || Math.abs(e.velocityX) > 600) {
         const direction = translateX.value > 0 ? 'right' : 'left';
-        runOnJS(direction === 'left' ? Haptics.notificationAsync : Haptics.impactAsync)(direction === 'left' ? Haptics.NotificationFeedbackType.Success : Haptics.ImpactFeedbackStyle.Medium);
+        // Left is Skip (Medium impact), Right is Answer (Success impact)
+        runOnJS(direction === 'right' ? Haptics.notificationAsync : Haptics.impactAsync)(direction === 'right' ? Haptics.NotificationFeedbackType.Success : Haptics.ImpactFeedbackStyle.Medium);
         translateX.value = withTiming(direction === 'right' ? SCREEN_WIDTH * 1.2 : -SCREEN_WIDTH * 1.2, { duration: 300, easing: Easing.out(Easing.cubic) });
         translateY.value = withTiming(e.translationY * 0.2, { duration: 300, easing: Easing.out(Easing.cubic) });
         opacity.value = withTiming(0, { duration: 200 }, (f) => f && runOnJS(handleSwipeComplete)(direction));
@@ -67,6 +68,7 @@ const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, on
     opacity: index === 0 ? opacity.value : 1, zIndex: totalCards - index,
   }));
 
+  // LEFT = SKIP (Error / X)
   const leftRippleStyle = useAnimatedStyle(() => ({
     transform: [{ scale: interpolate(translateX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }],
     opacity: interpolate(translateX.value, [0, -SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP),
@@ -77,6 +79,7 @@ const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, on
     transform: [{ scale: interpolate(translateX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.5, 1.1], Extrapolate.CLAMP) }]
   }));
 
+  // RIGHT = ANSWER (Success / Check)
   const rightRippleStyle = useAnimatedStyle(() => ({
     transform: [{ scale: interpolate(translateX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }],
     opacity: interpolate(translateX.value, [0, SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP),
@@ -96,10 +99,10 @@ const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, on
             <Text style={styles.cardLabel}>{card.label}</Text>
             {card.description && <Text style={styles.cardDescription}>{card.description}</Text>}
           </View>
-          <Animated.View style={[styles.ripple, { backgroundColor: theme.success }, leftRippleStyle]} />
-          <Animated.View style={[styles.ripple, { backgroundColor: theme.error }, rightRippleStyle]} />
-          <Animated.View style={[styles.actionOverlay, leftIconStyle]}><Check size={72} color="#ffffff" strokeWidth={3} /><Text style={styles.actionLabel}>Answer</Text></Animated.View>
-          <Animated.View style={[styles.actionOverlay, rightIconStyle]}><X size={72} color="#ffffff" strokeWidth={3} /><Text style={styles.actionLabel}>Skip</Text></Animated.View>
+          <Animated.View style={[styles.ripple, { backgroundColor: theme.error }, leftRippleStyle]} />
+          <Animated.View style={[styles.ripple, { backgroundColor: theme.success }, rightRippleStyle]} />
+          <Animated.View style={[styles.actionOverlay, leftIconStyle]}><X size={72} color="#ffffff" strokeWidth={3} /><Text style={styles.actionLabel}>Skip</Text></Animated.View>
+          <Animated.View style={[styles.actionOverlay, rightIconStyle]}><Check size={72} color="#ffffff" strokeWidth={3} /><Text style={styles.actionLabel}>Answer</Text></Animated.View>
         </Animated.View>
       </GestureDetector>
     </Animated.View>

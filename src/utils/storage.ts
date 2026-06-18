@@ -4,6 +4,7 @@ const SWIPE_TUTORIAL_KEY = '@swipe_tutorial_complete';
 const ACTIVE_CATEGORY_KEY = '@active_category_id';
 const DEVICE_ID_KEY = '@device_id';
 const GAMEMODE_KEY = '@gamemode_selection';
+const PLAYER_COUNT_KEY = '@player_count';
 
 export async function getOrCreateDeviceId(): Promise<string> {
   try {
@@ -57,6 +58,19 @@ export const storage = {
     }
   },
 
+  async getPlayerCount(): Promise<number | null> {
+    try {
+      const count = await AsyncStorage.getItem(PLAYER_COUNT_KEY);
+      return count ? parseInt(count, 10) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async setPlayerCount(count: number): Promise<void> {
+    await AsyncStorage.setItem(PLAYER_COUNT_KEY, count.toString());
+  },
+
   async getCachedQueue(gamemode: string, categoryId: string): Promise<any[]> {
     try {
       const data = await AsyncStorage.getItem(`@queue_${gamemode}_${categoryId}`);
@@ -74,7 +88,6 @@ export const storage = {
     }
   },
 
-  // NEW: Forces a completely fresh deck to show the "Start" cards
   async clearCachedQueue(gamemode: string, categoryId: string): Promise<void> {
     try {
       await AsyncStorage.removeItem(`@queue_${gamemode}_${categoryId}`);

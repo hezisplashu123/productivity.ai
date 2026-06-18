@@ -8,9 +8,10 @@ interface UseDeckQueueOptions {
   categoryId: string;
   gamemode: Gamemode;
   profileId?: string;
+  playerCount: number;
 }
 
-export function useDeckQueue({ categoryId, gamemode, profileId }: UseDeckQueueOptions) {
+export function useDeckQueue({ categoryId, gamemode, profileId, playerCount }: UseDeckQueueOptions) {
   const [cards, setCards] = useState<SwipableCardData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,7 +24,8 @@ export function useDeckQueue({ categoryId, gamemode, profileId }: UseDeckQueueOp
 
     try {
       if (profileId) {
-        const res = await apiService.getNextPrompts(profileId, gamemode, categoryId, 5);
+        // Now passing playerCount to backend API
+        const res = await apiService.getNextPrompts(profileId, gamemode, categoryId, 5, playerCount);
         if (res && res.prompts) {
           const aiCards = res.prompts.map((p: { id: string; text: string; category: string }) => ({
             id: p.id,
@@ -43,7 +45,7 @@ export function useDeckQueue({ categoryId, gamemode, profileId }: UseDeckQueueOp
     } finally {
       isFetching.current = false;
     }
-  }, [profileId, gamemode, categoryId]);
+  }, [profileId, gamemode, categoryId, playerCount]);
 
   const loadDeck = useCallback(async () => {
     setLoading(true);
@@ -87,15 +89,17 @@ export function useDeckQueue({ categoryId, gamemode, profileId }: UseDeckQueueOp
     }
   }, [cards, gamemode, categoryId, fetchAICardsBackground]);
 
+  // LEFT = SKIP = FALSE
   const handleSwipeLeft = useCallback((card: SwipableCardData) => {
     if (profileId && !card.id.startsWith('local-')) {
-      apiService.recordSwipe(profileId, card.id, true).catch(() => {});
+      apiService.recordSwipe(profileId, card.id, false).catch(() => {});
     }
   }, [profileId]);
 
+  // RIGHT = ANSWER = TRUE
   const handleSwipeRight = useCallback((card: SwipableCardData) => {
     if (profileId && !card.id.startsWith('local-')) {
-      apiService.recordSwipe(profileId, card.id, false).catch(() => {});
+      apiService.recordSwipe(profileId, card.id, true).catch(() => {});
     }
   }, [profileId]);
 
