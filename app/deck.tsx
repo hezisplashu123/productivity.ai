@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw, Users, Minus, Plus } from 'lucide-react-native';
+import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw, Users, Minus, Plus, Flame } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Easing, withTiming } from 'react-native-reanimated';
 import { SwipableCardStack } from '../src/components/SwipableCardStack';
 import { useApp } from '../src/context/AppContext';
@@ -56,6 +56,14 @@ export default function DeckScreen() {
 
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [localPlayerCount, setLocalPlayerCount] = useState(playerCount || 3);
+  
+  const MAX_HEAT = 10;
+  const [heat, setHeat] = useState(0);
+
+  const onSwipeRightWrapper = (card: any) => {
+    setHeat(prev => Math.min(prev + 1, MAX_HEAT));
+    handleSwipeRight(card);
+  };
 
   // Show player selection immediately if it has never been set
   useEffect(() => {
@@ -83,19 +91,28 @@ export default function DeckScreen() {
           <ArrowLeft color={theme.text} size={24} />
         </TouchableOpacity>
 
-        {playerCount !== null && (
-          <TouchableOpacity 
-            onPress={() => {
-              setLocalPlayerCount(playerCount);
-              setShowPlayerModal(true);
-            }} 
-            style={styles.playerCountBadge}
-            activeOpacity={0.7}
-          >
-            <Users size={18} color={theme.primary} />
-            <Text style={styles.playerCountText}>{playerCount} Players</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerRight}>
+          <View style={styles.heatMeterContainer}>
+            <Flame size={16} color={heat > 0 ? theme.primary : theme.textSecondary} />
+            <View style={styles.heatBarTrack}>
+              <Animated.View style={[styles.heatBarFill, { width: `${(heat / MAX_HEAT) * 100}%` }]} />
+            </View>
+          </View>
+
+          {playerCount !== null && (
+            <TouchableOpacity 
+              onPress={() => {
+                setLocalPlayerCount(playerCount);
+                setShowPlayerModal(true);
+              }} 
+              style={styles.playerCountBadge}
+              activeOpacity={0.7}
+            >
+              <Users size={16} color={theme.primary} />
+              <Text style={styles.playerCountText}>{playerCount}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* MAIN GAMEPLAY CONTENT */}
@@ -107,7 +124,7 @@ export default function DeckScreen() {
             <SwipableCardStack
               cards={cards}
               onSwipeLeft={handleSwipeLeft} // Left = Skip
-              onSwipeRight={handleSwipeRight} // Right = Answer
+              onSwipeRight={onSwipeRightWrapper} // Right = Answer
               onIndexChange={handleIndexChange}
               emptyMessage="Out of cards! Generating more..."
             />
@@ -187,21 +204,49 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.border,
   },
-  playerCountBadge: {
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  heatMeterContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.backgroundElevated,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: theme.border,
     gap: 8,
   },
+  heatBarTrack: {
+    width: 60,
+    height: 8,
+    backgroundColor: theme.background,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  heatBarFill: {
+    height: '100%',
+    backgroundColor: theme.primary,
+    borderRadius: 4,
+  },
+  playerCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.backgroundElevated,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.border,
+    gap: 6,
+  },
   playerCountText: {
     fontFamily: typography.bodyBold,
     color: theme.text,
-    fontSize: 15,
+    fontSize: 14,
   },
   content: {
     flex: 1,
