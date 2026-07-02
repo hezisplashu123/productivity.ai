@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { Check, MessageCircle, Sparkles, X, ArrowRight, Hand, CornerDownLeft, CornerDownRight, RotateCcw, Layers } from 'lucide-react-native';
+import { Check, MessageCircle, Sparkles, X, ArrowRight, Hand, CornerDownLeft, CornerDownRight, RotateCcw, Layers, Users } from 'lucide-react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, Easing, Extrapolate, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, FadeIn, FadeOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -227,6 +227,13 @@ export default function OnboardingScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
 
+      {/* SEGMENTED PROGRESS BAR */}
+      <View style={styles.progressContainer}>
+        {[0, 1, 2, 3].map((step) => (
+          <View key={step} style={[styles.progressSegment, step <= phase && styles.progressSegmentActive]} />
+        ))}
+      </View>
+
       {phase === 0 && (
         <Animated.View style={styles.introContainer} entering={FadeIn} exiting={FadeOut}>
           <Text style={styles.scienceQuote}>"Psychological studies show that escalating, reciprocal vulnerability creates profound interpersonal closeness in just 45 minutes."</Text>
@@ -249,6 +256,7 @@ export default function OnboardingScreen() {
       {phase === 1 && (
         <Animated.View style={styles.introContainer} entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)}>
           <View style={{ flex: 1, justifyContent: 'center' }}>
+            <View style={styles.bigIconContainer}><Users size={48} color={theme.primary} /></View>
             <Text style={styles.doneTitle}>One quick thing...</Text>
             <Text style={styles.doneSubtitle}>To generate the most accurate questions, the AI needs to know your life stage.</Text>
             
@@ -310,7 +318,11 @@ export default function OnboardingScreen() {
 
       {phase === 3 && (
         <Animated.View style={styles.doneContainer} entering={FadeIn.duration(600)}>
-          <View style={{ flex: 1, justifyContent: 'center' }}><Text style={styles.doneTitle}>You're ready.</Text><Text style={styles.doneSubtitle}>Pick a vibe and let the AI find the perfect questions for your group.</Text></View>
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <View style={styles.bigIconContainer}><Sparkles size={48} color={theme.primary} /></View>
+            <Text style={styles.doneTitle}>You're ready.</Text>
+            <Text style={styles.doneSubtitle}>Pick a vibe and let the AI find the perfect questions for your group.</Text>
+          </View>
           <TouchableOpacity style={[styles.primaryButton, { width: '100%', marginBottom: 16 }]} onPress={handleFinish} activeOpacity={0.85}><Text style={styles.primaryButtonText}>View Topics</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
         </Animated.View>
       )}
@@ -320,7 +332,11 @@ export default function OnboardingScreen() {
 
 const getStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background, paddingHorizontal: 24 },
+  progressContainer: { flexDirection: 'row', gap: 6, marginBottom: 16, paddingTop: 8 },
+  progressSegment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: theme.border },
+  progressSegmentActive: { backgroundColor: theme.primary, shadowColor: theme.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 8 },
   introContainer: { flex: 1, justifyContent: 'center', paddingBottom: 20 },
+  bigIconContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: theme.border },
   scienceQuote: { fontFamily: typography.heading, fontSize: 24, color: theme.text, lineHeight: 34, marginBottom: 48, fontStyle: 'italic' },
   bigRulesContainer: { gap: 16, marginBottom: 48 },
   bigRuleCard: { backgroundColor: theme.backgroundCard, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: theme.border },
