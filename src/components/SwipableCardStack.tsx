@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Share } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, interpolate, Extrapolate, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -77,8 +77,15 @@ const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, on
       }
     });
 
+  const handleShare = useCallback(() => {
+    Share.share({
+      message: `Answering this with my friends on Hezi: ${card.label}`,
+    }).catch(console.error);
+  }, [card.label]);
+
   const tapGesture = Gesture.Tap().maxDuration(250).onEnd(() => runOnJS(onUndo)());
-  const composedGesture = Gesture.Exclusive(panGesture, tapGesture);
+  const longPressGesture = Gesture.LongPress().minDuration(500).onEnd(() => runOnJS(handleShare)());
+  const composedGesture = Gesture.Exclusive(panGesture, longPressGesture, tapGesture);
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { rotate: `${rotation.value}deg` }, { scale: index === 0 ? scale.value : 1 - index * 0.04 }],
