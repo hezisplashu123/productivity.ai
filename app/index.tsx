@@ -8,6 +8,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useApp } from '../src/context/AppContext';
 import { storage } from '../src/utils/storage';
 import { colors } from '../src/constants/colors';
+import { typography } from '../src/constants/typography';
 
 const { width } = Dimensions.get('window');
 
@@ -94,15 +95,15 @@ const getStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
   },
   title: {
+    fontFamily: typography.heading,
     fontSize: 48,
-    fontWeight: '900',
     color: theme.text,
     letterSpacing: 2,
     marginBottom: 16,
   },
   subtitle: {
+    fontFamily: typography.body,
     fontSize: 20,
-    fontWeight: '500',
     color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 28,
@@ -127,9 +128,9 @@ const getStyles = (theme: any) => StyleSheet.create({
     elevation: 8,
   },
   buttonText: {
+    fontFamily: typography.bodyBold,
     color: theme.background,
     fontSize: 20,
-    fontWeight: '800',
     letterSpacing: 0.5,
   },
 });

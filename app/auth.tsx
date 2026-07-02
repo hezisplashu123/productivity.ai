@@ -6,6 +6,7 @@ import { useApp } from '../src/context/AppContext';
 import { useAuth } from '../src/hooks/useAuth';
 import { SocialAuthButtons } from '../src/components/SocialAuthButtons';
 import { Theme } from '../src/constants/colors';
+import { typography } from '../src/constants/typography';
 import { ArrowRight, Lock, Mail, User, AlertTriangle, Trash2, AlertCircle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -101,24 +102,24 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 30 },
   headerSection: { marginBottom: 32 },
-  title: { fontSize: 32, fontWeight: '700', color: theme.text, marginBottom: 8 },
-  subtitle: { fontSize: 16, color: theme.textSecondary },
+  title: { fontFamily: typography.heading, fontSize: 32, color: theme.text, marginBottom: 8 },
+  subtitle: { fontFamily: typography.body, fontSize: 16, color: theme.textSecondary },
   form: { gap: 16 },
   inputWrapper: { gap: 4 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.backgroundLight, borderRadius: 16, borderWidth: 1, borderColor: theme.border, height: 56, paddingHorizontal: 16 },
   inputError: { borderColor: theme.error },
   errorHighlightBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#FEE2E2', marginTop: 4 },
-  errorText: { fontSize: 13, color: theme.error, fontWeight: '600', flex: 1 },
+  errorText: { fontFamily: typography.bodyBold, fontSize: 13, color: theme.error, flex: 1 },
   icon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 16, color: theme.text, height: '100%' },
+  input: { fontFamily: typography.body, flex: 1, fontSize: 16, color: theme.text, height: '100%' },
   forgotPasswordContainer: { alignItems: 'center', justifyContent: 'center', marginTop: -4, marginBottom: 4 },
-  forgotPasswordText: { fontSize: 14, color: theme.primary, fontWeight: '700', padding: 4 },
+  forgotPasswordText: { fontFamily: typography.bodyBold, fontSize: 14, color: theme.primary, padding: 4 },
   button: { backgroundColor: theme.primary, height: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8, shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-  buttonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700', marginRight: 8 },
+  buttonText: { fontFamily: typography.bodyBold, color: '#FFFFFF', fontSize: 18, marginRight: 8 },
   footer: { marginTop: 16 },
   switchButton: { alignItems: 'center', marginTop: 16 },
-  switchText: { color: theme.textSecondary, fontSize: 14, fontWeight: '500' },
+  switchText: { fontFamily: typography.bodyBold, color: theme.textSecondary, fontSize: 14 },
   dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 16 },
   dividerLine: { flex: 1, height: 1, backgroundColor: theme.border },
-  dividerText: { marginHorizontal: 12, color: theme.textLight, fontSize: 14, fontWeight: '500' },
+  dividerText: { fontFamily: typography.body, marginHorizontal: 12, color: theme.textLight, fontSize: 14 },
 });

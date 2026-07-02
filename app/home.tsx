@@ -9,6 +9,7 @@ import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
 import { storage } from '../src/utils/storage';
 import { Theme } from '../src/constants/colors';
+import { typography } from '../src/constants/typography';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -131,19 +132,19 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12 },
   headlineRow: { flexDirection: 'row', alignItems: 'center' },
-  headline: { fontSize: 32, fontWeight: '900', color: theme.text, letterSpacing: 0.5 },
+  headline: { fontFamily: typography.heading, fontSize: 32, color: theme.text, letterSpacing: 0.5 },
   howToPlayBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.backgroundElevated, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, gap: 6 },
-  howToPlayText: { color: theme.text, fontSize: 13, fontWeight: '700' },
-  lead: { fontSize: 16, lineHeight: 24, color: theme.textSecondary, paddingHorizontal: 24, marginBottom: 24 },
+  howToPlayText: { fontFamily: typography.bodyBold, color: theme.text, fontSize: 13 },
+  lead: { fontFamily: typography.body, fontSize: 16, lineHeight: 24, color: theme.textSecondary, paddingHorizontal: 24, marginBottom: 24 },
   grid: { paddingHorizontal: 20, paddingBottom: 130, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14 },
   card: { width: '47%', backgroundColor: theme.backgroundCard, borderRadius: 24, padding: 20, minHeight: 160 },
   categoryIconWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  cardTitle: { fontSize: 18, fontWeight: '800', color: theme.text, marginBottom: 6 },
-  cardSubtitle: { fontSize: 13, lineHeight: 18, color: theme.textSecondary },
+  cardTitle: { fontFamily: typography.heading, fontSize: 18, color: theme.text, marginBottom: 6 },
+  cardSubtitle: { fontFamily: typography.body, fontSize: 13, lineHeight: 18, color: theme.textSecondary },
   
   pillWrapper: { position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24 },
   pillContainer: { flexDirection: 'row', backgroundColor: 'rgba(0, 0, 0, 0.65)', borderRadius: 999, padding: 6, borderWidth: 1, borderColor: theme.border, width: '100%', justifyContent: 'space-between', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 12 },
   pillOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flex: 1, paddingVertical: 14, borderRadius: 999, gap: 6 },
   pillActive: { backgroundColor: theme.backgroundCardHover },
-  pillText: { color: theme.primary, fontWeight: '800', fontSize: 14 },
+  pillText: { fontFamily: typography.bodyBold, color: theme.primary, fontSize: 14 },
 });

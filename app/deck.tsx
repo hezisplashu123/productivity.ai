@@ -9,6 +9,7 @@ import { SwipableCardStack } from '../src/components/SwipableCardStack';
 import { useApp } from '../src/context/AppContext';
 import { useDeckQueue } from '../src/hooks/useDeckQueue';
 import { Theme } from '../src/constants/colors';
+import { typography } from '../src/constants/typography';
 
 const customModalEnter = () => {
   'worklet';
@@ -198,9 +199,9 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     gap: 8,
   },
   playerCountText: {
+    fontFamily: typography.bodyBold,
     color: theme.text,
     fontSize: 15,
-    fontWeight: '800',
   },
   content: {
     flex: 1,
@@ -208,11 +209,11 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     alignItems: 'center',
   },
   skipRuleText: {
+    fontFamily: typography.body,
     position: 'absolute',
     top: '50%',
     marginTop: 240,
     fontSize: 14,
-    fontWeight: '500',
     color: theme.textMuted,
     textAlign: 'center',
   },
@@ -237,8 +238,8 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     borderColor: theme.border,
   },
   hintTitle: {
+    fontFamily: typography.bodyBold,
     fontSize: 14,
-    fontWeight: '700',
   },
   
   // Clean Modal Styles
@@ -265,13 +266,14 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     elevation: 15,
   },
   modalTitle: {
+    fontFamily: typography.heading,
     fontSize: 28,
-    fontWeight: '900',
     color: theme.text,
     marginBottom: 8,
     textAlign: 'center',
   },
   modalSubtitle: {
+    fontFamily: typography.body,
     fontSize: 15,
     color: theme.textSecondary,
     textAlign: 'center',
@@ -299,8 +301,8 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     elevation: 4,
   },
   counterText: {
+    fontFamily: typography.heading,
     fontSize: 64,
-    fontWeight: '900',
     color: theme.text,
     fontVariant: ['tabular-nums'],
     minWidth: 70,
@@ -319,8 +321,8 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     elevation: 6,
   },
   continueButtonText: {
+    fontFamily: typography.bodyBold,
     color: theme.background,
     fontSize: 18,
-    fontWeight: '800',
   },
 });

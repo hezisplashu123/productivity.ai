@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { Check, X } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { Theme } from '../constants/colors';
+import { typography } from '../constants/typography';
 import { SwipableCardData } from '../types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -183,12 +184,12 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   cardContainer: { width: SCREEN_WIDTH - 40, height: 440, position: 'absolute' },
   card: { width: '100%', height: '100%', borderRadius: 32, borderWidth: 1, backgroundColor: theme.backgroundCard, borderColor: theme.border, shadowColor: '#000', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.3, shadowRadius: 32, elevation: 12, overflow: 'hidden' },
   cardContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-  categoryTag: { fontSize: 12, fontWeight: '800', letterSpacing: 1.4, textTransform: 'uppercase', color: theme.primary, marginBottom: 18 },
-  cardLabel: { fontSize: 26, fontWeight: '700', color: theme.text, textAlign: 'center', lineHeight: 36 },
-  cardDescription: { fontSize: 16, color: theme.textSecondary, textAlign: 'center', lineHeight: 24, marginTop: 14 },
+  categoryTag: { fontFamily: typography.heading, fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase', color: theme.primary, marginBottom: 18 },
+  cardLabel: { fontFamily: typography.body, fontSize: 26, color: theme.text, textAlign: 'center', lineHeight: 36 },
+  cardDescription: { fontFamily: typography.body, fontSize: 16, color: theme.textSecondary, textAlign: 'center', lineHeight: 24, marginTop: 14 },
   ripple: { position: 'absolute', top: '50%', left: '50%', width: 80, height: 80, marginTop: -40, marginLeft: -40, borderRadius: 40, zIndex: 2 },
   actionOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, zIndex: 3 },
-  actionLabel: { color: '#ffffff', fontSize: 18, fontWeight: '800', textAlign: 'center', marginTop: 16 },
+  actionLabel: { fontFamily: typography.heading, color: '#ffffff', fontSize: 18, textAlign: 'center', marginTop: 16 },
   emptyContainer: { height: 440, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-  emptyText: { fontSize: 17, fontWeight: '600', color: theme.textSecondary, textAlign: 'center' },
+  emptyText: { fontFamily: typography.body, fontSize: 17, color: theme.textSecondary, textAlign: 'center' },
 });

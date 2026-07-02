@@ -11,6 +11,7 @@ import { storage } from '../src/utils/storage';
 import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
 import { Theme } from '../src/constants/colors';
+import { typography } from '../src/constants/typography';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
@@ -320,28 +321,28 @@ export default function OnboardingScreen() {
 const getStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background, paddingHorizontal: 24 },
   introContainer: { flex: 1, justifyContent: 'center', paddingBottom: 20 },
-  scienceQuote: { fontSize: 24, fontWeight: '800', color: theme.text, lineHeight: 34, marginBottom: 48, fontStyle: 'italic' },
+  scienceQuote: { fontFamily: typography.heading, fontSize: 24, color: theme.text, lineHeight: 34, marginBottom: 48, fontStyle: 'italic' },
   bigRulesContainer: { gap: 16, marginBottom: 48 },
   bigRuleCard: { backgroundColor: theme.backgroundCard, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: theme.border },
   bigRuleIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: theme.border },
-  bigRuleTitle: { fontSize: 22, fontWeight: '800', color: theme.text, marginBottom: 8 },
-  bigRuleDesc: { fontSize: 16, color: theme.textSecondary, lineHeight: 24 },
+  bigRuleTitle: { fontFamily: typography.heading, fontSize: 22, color: theme.text, marginBottom: 8 },
+  bigRuleDesc: { fontFamily: typography.body, fontSize: 16, color: theme.textSecondary, lineHeight: 24 },
   
   // Age Selection Styles
   ageGrid: { marginTop: 40, gap: 12 },
   ageButton: { backgroundColor: theme.backgroundCard, borderWidth: 1, borderColor: theme.border, paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
   ageButtonActive: { backgroundColor: theme.primary, borderColor: theme.primary },
-  ageText: { fontSize: 18, fontWeight: '700', color: theme.text },
+  ageText: { fontFamily: typography.bodyBold, fontSize: 18, color: theme.text },
   ageTextActive: { color: theme.background },
 
   demoWrapper: { flex: 1, marginHorizontal: -24 }, 
   demoTopBar: { paddingTop: 20, alignItems: 'center' },
-  eyebrow: { fontSize: 12, fontWeight: '800', color: theme.primary, letterSpacing: 2, textTransform: 'uppercase' },
+  eyebrow: { fontFamily: typography.bodyBold, fontSize: 12, color: theme.primary, letterSpacing: 2, textTransform: 'uppercase' },
   
   demoCenterStage: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  guidance: { position: 'absolute', top: 30, color: theme.text, fontSize: 22, lineHeight: 30, fontWeight: '800', textAlign: 'center', width: SCREEN_WIDTH * 0.9, paddingHorizontal: 20, zIndex: 10 },
+  guidance: { fontFamily: typography.heading, position: 'absolute', top: 30, color: theme.text, fontSize: 22, lineHeight: 30, textAlign: 'center', width: SCREEN_WIDTH * 0.9, paddingHorizontal: 20, zIndex: 10 },
   primaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.primary, paddingHorizontal: 24, paddingVertical: 18, borderRadius: 999, gap: 8, shadowColor: theme.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 },
-  primaryButtonText: { color: theme.background, fontSize: 17, fontWeight: '800' },
+  primaryButtonText: { fontFamily: typography.bodyBold, color: theme.background, fontSize: 17 },
   
   swipeHintContainer: { position: 'absolute', zIndex: 20, alignItems: 'center', justifyContent: 'center' },
   fingerCircle: { position: 'absolute', width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255, 255, 255, 0.2)', borderWidth: 2, borderColor: 'rgba(255, 255, 255, 0.6)' },
@@ -350,21 +351,21 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   card: { width: SCREEN_WIDTH - 40, height: 440, borderRadius: 32, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.backgroundCard, overflow: 'hidden', position: 'absolute', zIndex: 5 },
   cardContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
-  cardTopText: { color: theme.primary, fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '800' },
-  cardQuestion: { color: theme.text, fontSize: 26, lineHeight: 36, fontWeight: '700', textAlign: 'center' },
+  cardTopText: { fontFamily: typography.bodyBold, color: theme.primary, fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase' },
+  cardQuestion: { fontFamily: typography.body, color: theme.text, fontSize: 26, lineHeight: 36, textAlign: 'center' },
   
   ripple: { position: 'absolute', top: '50%', left: '50%', width: 80, height: 80, marginTop: -40, marginLeft: -40, borderRadius: 40, zIndex: 2 },
   actionOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 3 },
-  actionLabel: { color: '#ffffff', fontSize: 18, fontWeight: '800', textAlign: 'center', marginTop: 16 },
+  actionLabel: { fontFamily: typography.heading, color: '#ffffff', fontSize: 18, textAlign: 'center', marginTop: 16 },
   
-  skipRuleText: { position: 'absolute', top: '50%', marginTop: 240, fontSize: 14, fontWeight: '500', color: theme.textMuted, textAlign: 'center' },
+  skipRuleText: { fontFamily: typography.body, position: 'absolute', top: '50%', marginTop: 240, fontSize: 14, color: theme.textMuted, textAlign: 'center' },
   
   bottomSection: { paddingBottom: 32, alignItems: 'center' },
   hintContainer: { flexDirection: 'row', justifyContent: 'center', gap: 12 },
   hintPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.backgroundElevated, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999, gap: 8, borderWidth: 1, borderColor: theme.border },
-  hintTitle: { fontSize: 14, fontWeight: '700' },
+  hintTitle: { fontFamily: typography.bodyBold, fontSize: 14 },
   
   doneContainer: { flex: 1, paddingBottom: 20 },
-  doneTitle: { fontSize: 40, fontWeight: '800', color: theme.text, marginBottom: 16 },
-  doneSubtitle: { fontSize: 18, color: theme.textSecondary, lineHeight: 26 },
+  doneTitle: { fontFamily: typography.heading, fontSize: 40, color: theme.text, marginBottom: 16 },
+  doneSubtitle: { fontFamily: typography.body, fontSize: 18, color: theme.textSecondary, lineHeight: 26 },
 });

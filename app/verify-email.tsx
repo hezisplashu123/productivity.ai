@@ -11,6 +11,7 @@ import { sendEmailVerification, reload } from 'firebase/auth';
 import { apiService } from '../src/services/api';
 import { useApp } from '../src/context/AppContext';
 import { Theme } from '../src/constants/colors';
+import { typography } from '../src/constants/typography';
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
@@ -100,17 +101,17 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   iconContainer: { alignItems: 'center', marginBottom: 32, position: 'relative' },
   iconCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: theme.glow, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: theme.border },
   badge: { position: 'absolute', bottom: -10, backgroundColor: theme.primary, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 2, borderColor: '#FFFFFF' },
-  badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  badgeText: { fontFamily: typography.bodyBold, color: '#FFFFFF', fontSize: 10, letterSpacing: 1 },
   textContainer: { alignItems: 'center', marginBottom: 48, width: '100%' },
-  title: { fontSize: 28, fontWeight: '800', color: theme.text, marginBottom: 12, textAlign: 'center' },
-  subtitle: { fontSize: 16, color: theme.textSecondary, marginBottom: 8, textAlign: 'center' },
-  emailText: { fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 24, textAlign: 'center' },
-  instructionText: { fontSize: 14, color: theme.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: 20 },
-  spamText: { fontSize: 13, color: theme.textLight, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
+  title: { fontFamily: typography.heading, fontSize: 28, color: theme.text, marginBottom: 12, textAlign: 'center' },
+  subtitle: { fontFamily: typography.body, fontSize: 16, color: theme.textSecondary, marginBottom: 8, textAlign: 'center' },
+  emailText: { fontFamily: typography.bodyBold, fontSize: 18, color: theme.text, marginBottom: 24, textAlign: 'center' },
+  instructionText: { fontFamily: typography.body, fontSize: 14, color: theme.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: 20 },
+  spamText: { fontFamily: typography.body, fontSize: 13, color: theme.textLight, textAlign: 'center', marginTop: 12, fontStyle: 'italic' },
   actionContainer: { width: '100%', gap: 16 },
   primaryButton: { backgroundColor: theme.primary, height: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+  primaryButtonText: { fontFamily: typography.bodyBold, color: '#FFFFFF', fontSize: 18 },
   secondaryButton: { height: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB' },
   disabledButton: { backgroundColor: '#F3F4F6', borderColor: '#F3F4F6' },
-  secondaryButtonText: { color: '#1A1A1A', fontSize: 16, fontWeight: '600' },
+  secondaryButtonText: { fontFamily: typography.bodyBold, color: '#1A1A1A', fontSize: 16 },
 });

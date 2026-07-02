@@ -5,6 +5,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 import { storage } from '../src/utils/storage';
 import { colors } from '../src/constants/colors';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
+import { SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk';
 
 function RootStack() {
   const { user, isLoading, theme } = useApp();
@@ -61,6 +63,15 @@ function RootStack() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_700Bold,
+    SpaceGrotesk_700Bold,
+  });
+
+  if (!fontsLoaded) return null;
+
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
