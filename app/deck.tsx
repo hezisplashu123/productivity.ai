@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw, Users, Minus, Plus, Flame } from 'lucide-react-native';
-import Animated, { FadeIn, FadeOut, Easing, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, Easing, withTiming, useSharedValue, useAnimatedStyle, withRepeat, withSequence } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { SwipableCardStack } from '../src/components/SwipableCardStack';
 import { useApp } from '../src/context/AppContext';
 import { useDeckQueue } from '../src/hooks/useDeckQueue';
@@ -57,6 +58,20 @@ export default function DeckScreen() {
   const [showPlayerModal, setShowPlayerModal] = useState(false);
   const [localPlayerCount, setLocalPlayerCount] = useState(playerCount || 3);
   
+  // Ambient Glow Animation
+  const glowOpacity = useSharedValue(0.15);
+  const glowScale = useSharedValue(1);
+
+  useEffect(() => {
+    glowOpacity.value = withRepeat(withSequence(withTiming(0.25, { duration: 4000 }), withTiming(0.15, { duration: 4000 })), -1, true);
+    glowScale.value = withRepeat(withSequence(withTiming(1.2, { duration: 5000 }), withTiming(1, { duration: 5000 })), -1, true);
+  }, []);
+
+  const animatedGlowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+    transform: [{ scale: glowScale.value }],
+  }));
+  
   const MAX_HEAT = 10;
   const [heat, setHeat] = useState(0);
 
@@ -84,6 +99,12 @@ export default function DeckScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
+
+      {/* BACKGROUND GLOW */}
+      <View style={[StyleSheet.absoluteFillObject, { overflow: 'hidden' }]}>
+        <Animated.View style={[styles.ambientGlow, animatedGlowStyle]} />
+        <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
+      </View>
 
       {/* HEADER */}
       <View style={styles.header}>
@@ -154,7 +175,8 @@ export default function DeckScreen() {
       {/* PLAYER SELECTION POPUP MODAL */}
       {showPlayerModal && (
         <Animated.View style={styles.modalOverlay} entering={FadeIn.duration(180)} exiting={FadeOut.duration(180)}>
-          <Animated.View style={styles.modalCenteredBox} entering={customModalEnter} exiting={customModalExit}>
+          <Animated.View style={[styles.modalCenteredBox, { overflow: 'hidden' }]} entering={customModalEnter} exiting={customModalExit}>
+            <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFillObject} />
             <Text style={styles.modalTitle}>Group Size</Text>
             <Text style={styles.modalSubtitle}>We adjust the AI for the number of players.</Text>
 
@@ -290,7 +312,7 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   // Clean Modal Styles
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     zIndex: 100,
     justifyContent: 'center',
     alignItems: 'center',
@@ -298,17 +320,26 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   },
   modalCenteredBox: {
     width: '100%',
-    backgroundColor: theme.backgroundCard,
+    backgroundColor: 'rgba(20, 20, 20, 0.6)',
     borderRadius: 32,
     padding: 32,
     borderWidth: 1,
-    borderColor: theme.border,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.5,
     shadowRadius: 30,
     elevation: 15,
+  },
+  ambientGlow: {
+    position: 'absolute',
+    top: '20%',
+    left: '10%',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: theme.primary,
   },
   modalTitle: {
     fontFamily: typography.heading,
