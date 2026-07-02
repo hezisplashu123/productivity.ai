@@ -31,18 +31,34 @@ const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, on
   const rotation = useSharedValue(0);
   const opacity = useSharedValue(1);
   const scale = useSharedValue(1);
+  const hapticState = useSharedValue(0);
 
   const handleSwipeComplete = useCallback((direction: 'left' | 'right') => {
     direction === 'left' ? onSwipeLeft(card) : onSwipeRight(card);
   }, [card, onSwipeLeft, onSwipeRight]);
 
   const panGesture = Gesture.Pan()
-    .onStart(() => runOnJS(Haptics.selectionAsync)())
+    .onStart(() => {
+      runOnJS(Haptics.selectionAsync)();
+      hapticState.value = 0;
+    })
     .onUpdate((e) => {
       translateX.value = e.translationX; 
       translateY.value = e.translationY * 0.08;
       rotation.value = interpolate(translateX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-ROTATION_MAX, 0, ROTATION_MAX], Extrapolate.CLAMP);
       scale.value = interpolate(Math.abs(translateX.value), [0, SCREEN_WIDTH * 0.5], [1, CARD_SCALE], Extrapolate.CLAMP);
+      
+      const ratio = Math.abs(translateX.value) / SWIPE_THRESHOLD;
+      if (ratio >= 0.9 && hapticState.value < 3) {
+        hapticState.value = 3;
+        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+      } else if (ratio >= 0.66 && hapticState.value < 2) {
+        hapticState.value = 2;
+        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+      } else if (ratio >= 0.33 && hapticState.value < 1) {
+        hapticState.value = 1;
+        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+      }
     })
     .onEnd((e) => {
       if (Math.abs(translateX.value) > SWIPE_THRESHOLD || Math.abs(e.velocityX) > 600) {
