@@ -99,10 +99,23 @@ export default function HomeScreen() {
 
       <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
         {displayCategories.map((cat) => (
-          <TouchableOpacity key={cat.id} style={styles.card} onPress={() => handleCategoryPress(cat)} activeOpacity={0.85}>
-            <View style={styles.categoryIconWrap}>{getCategoryIcon(cat.icon)}</View>
-            <Text style={styles.cardTitle}>{cat.title}</Text>
-            <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
+          <TouchableOpacity key={cat.id} style={styles.cardWrapper} onPress={() => handleCategoryPress(cat)} activeOpacity={0.85}>
+            <View style={styles.cardDeckBackground1} />
+            <View style={styles.cardDeckBackground2} />
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={styles.categoryIconWrap}>{getCategoryIcon(cat.icon)}</View>
+                {cat.intensity && (
+                  <View style={styles.intensityBadge}>
+                    <Text style={styles.intensityText}>
+                      {cat.intensity === 1 ? '🌶️' : cat.intensity === 2 ? '🌶️🌶️' : '🔥🔥🔥'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.cardTitle}>{cat.title}</Text>
+              <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
+            </View>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -111,16 +124,16 @@ export default function HomeScreen() {
       <View style={styles.pillWrapper}>
         <View style={styles.pillContainer}>
           <TouchableOpacity onPress={() => setGamemode('relationship')} style={[styles.pillOption, gamemode === 'relationship' && styles.pillActive]}>
-            <Heart size={18} color={gamemode === 'relationship' ? theme.primary : theme.textMuted} />
-            <Text style={[styles.pillText, gamemode !== 'relationship' && { color: theme.textMuted, fontWeight: '600' }]}>Lovers</Text>
+            <Heart size={18} color={gamemode === 'relationship' ? theme.background : theme.textMuted} />
+            <Text style={[styles.pillText, gamemode === 'relationship' && styles.pillTextActive]}>Lovers</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setGamemode('friendship')} style={[styles.pillOption, gamemode === 'friendship' && styles.pillActive]}>
-            <Users size={18} color={gamemode === 'friendship' ? theme.primary : theme.textMuted} />
-            <Text style={[styles.pillText, gamemode !== 'friendship' && { color: theme.textMuted, fontWeight: '600' }]}>Friends</Text>
+            <Users size={18} color={gamemode === 'friendship' ? theme.background : theme.textMuted} />
+            <Text style={[styles.pillText, gamemode === 'friendship' && styles.pillTextActive]}>Friends</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setGamemode('family')} style={[styles.pillOption, gamemode === 'family' && styles.pillActive]}>
-            <Home size={18} color={gamemode === 'family' ? theme.primary : theme.textMuted} />
-            <Text style={[styles.pillText, gamemode !== 'family' && { color: theme.textMuted, fontWeight: '600' }]}>Family</Text>
+            <Home size={18} color={gamemode === 'family' ? theme.background : theme.textMuted} />
+            <Text style={[styles.pillText, gamemode === 'family' && styles.pillTextActive]}>Family</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -137,14 +150,21 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   howToPlayText: { fontFamily: typography.bodyBold, color: theme.text, fontSize: 13 },
   lead: { fontFamily: typography.body, fontSize: 16, lineHeight: 24, color: theme.textSecondary, paddingHorizontal: 24, marginBottom: 24 },
   grid: { paddingHorizontal: 20, paddingBottom: 130, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 14 },
-  card: { width: '47%', backgroundColor: theme.backgroundCard, borderRadius: 24, padding: 20, minHeight: 160 },
-  categoryIconWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  cardWrapper: { width: '47%', marginBottom: 16 },
+  cardDeckBackground1: { position: 'absolute', top: -10, left: 12, right: 12, height: 40, backgroundColor: theme.backgroundElevated, borderRadius: 20, opacity: 0.4 },
+  cardDeckBackground2: { position: 'absolute', top: -5, left: 6, right: 6, height: 40, backgroundColor: theme.backgroundElevated, borderRadius: 20, opacity: 0.7 },
+  card: { backgroundColor: theme.backgroundCard, borderRadius: 24, padding: 20, minHeight: 160, borderWidth: 1, borderColor: theme.border },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  categoryIconWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center' },
+  intensityBadge: { backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: theme.border },
+  intensityText: { fontSize: 10, letterSpacing: 2 },
   cardTitle: { fontFamily: typography.heading, fontSize: 18, color: theme.text, marginBottom: 6 },
   cardSubtitle: { fontFamily: typography.body, fontSize: 13, lineHeight: 18, color: theme.textSecondary },
   
   pillWrapper: { position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24 },
-  pillContainer: { flexDirection: 'row', backgroundColor: 'rgba(0, 0, 0, 0.65)', borderRadius: 999, padding: 6, borderWidth: 1, borderColor: theme.border, width: '100%', justifyContent: 'space-between', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 12 },
+  pillContainer: { flexDirection: 'row', backgroundColor: 'rgba(0, 0, 0, 0.65)', borderRadius: 999, padding: 6, borderWidth: 1, borderColor: theme.primary, width: '100%', justifyContent: 'space-between', shadowColor: theme.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 20, elevation: 12 },
   pillOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flex: 1, paddingVertical: 14, borderRadius: 999, gap: 6 },
-  pillActive: { backgroundColor: theme.backgroundCardHover },
-  pillText: { fontFamily: typography.bodyBold, color: theme.primary, fontSize: 14 },
+  pillActive: { backgroundColor: theme.primary },
+  pillText: { fontFamily: typography.bodyBold, color: theme.textMuted, fontSize: 14 },
+  pillTextActive: { color: theme.background },
 });
