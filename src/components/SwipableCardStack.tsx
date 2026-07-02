@@ -119,9 +119,13 @@ const SwipableCard: React.FC<SwipableCardProps> = ({ card, index, totalCards, on
       <GestureDetector gesture={isTopCard ? composedGesture : Gesture.Pan().enabled(false)}>
         <Animated.View style={styles.card}>
           <View style={styles.cardContent}>
-            {card.category && <Text style={styles.categoryTag}>{card.category}</Text>}
-            <Text style={styles.cardLabel}>{card.label}</Text>
-            {card.description && <Text style={styles.cardDescription}>{card.description}</Text>}
+            {index === 0 && (
+              <>
+                {card.category && <Text style={styles.categoryTag}>{card.category}</Text>}
+                <Text style={styles.cardLabel}>{card.label}</Text>
+                {card.description && <Text style={styles.cardDescription}>{card.description}</Text>}
+              </>
+            )}
           </View>
           <Animated.View style={[styles.ripple, { backgroundColor: theme.error }, leftRippleStyle]} />
           <Animated.View style={[styles.ripple, { backgroundColor: theme.success }, rightRippleStyle]} />

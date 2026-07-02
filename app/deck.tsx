@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -8,41 +8,15 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw, Users, Minus, Plus, Flame } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Easing, withTiming, useSharedValue, useAnimatedStyle, withRepeat, withSequence } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { SwipableCardStack } from '../src/components/SwipableCardStack';
+import { CenteredModal } from '../src/components/CenteredModal';
 import { useApp } from '../src/context/AppContext';
 import { useDeckQueue } from '../src/hooks/useDeckQueue';
 import { Theme } from '../src/constants/colors';
 import { typography } from '../src/constants/typography';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const customModalEnter = () => {
-  'worklet';
-  return {
-    animations: {
-      opacity: withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }),
-      transform: [{ scale: withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }) }],
-    },
-    initialValues: {
-      opacity: 0,
-      transform: [{ scale: 0.96 }],
-    },
-  };
-};
-
-const customModalExit = () => {
-  'worklet';
-  return {
-    animations: {
-      opacity: withTiming(0, { duration: 150, easing: Easing.out(Easing.cubic) }),
-      transform: [{ scale: withTiming(0.97, { duration: 150, easing: Easing.out(Easing.cubic) }) }],
-    },
-    initialValues: {
-      opacity: 1,
-      transform: [{ scale: 1 }],
-    },
-  };
-};
 
 export default function DeckScreen() {
   const router = useRouter();
@@ -79,6 +53,29 @@ export default function DeckScreen() {
   const MAX_HEAT = 10;
   const [heat, setHeat] = useState(0);
   const [confettiCount, setConfettiCount] = useState(0);
+  const [showHeatModal, setShowHeatModal] = useState(false);
+  const maxHeatHapticFired = useRef(false);
+  const heatPulseOpacity = useSharedValue(1);
+  const heatPulseScale = useSharedValue(1);
+
+  useEffect(() => {
+    if (heat >= MAX_HEAT) {
+      if (!maxHeatHapticFired.current) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        maxHeatHapticFired.current = true;
+      }
+      heatPulseOpacity.value = withRepeat(withTiming(0.4, { duration: 1000, easing: Easing.inOut(Easing.quad) }), -1, true);
+      heatPulseScale.value = withRepeat(withTiming(1.1, { duration: 1000, easing: Easing.inOut(Easing.quad) }), -1, true);
+    } else {
+      heatPulseOpacity.value = withTiming(1);
+      heatPulseScale.value = withTiming(1);
+    }
+  }, [heat]);
+
+  const animatedHeatPulseStyle = useAnimatedStyle(() => ({
+    opacity: heatPulseOpacity.value,
+    transform: [{ scale: heatPulseScale.value }]
+  }));
 
   const onSwipeRightWrapper = (card: any) => {
     setHeat(prev => Math.min(prev + 1, MAX_HEAT));
@@ -119,12 +116,18 @@ export default function DeckScreen() {
         </TouchableOpacity>
 
         <View style={styles.headerRight}>
-          <View style={styles.heatMeterContainer}>
-            <Flame size={16} color={heat > 0 ? theme.primary : theme.textSecondary} />
-            <View style={styles.heatBarTrack}>
-              <Animated.View style={[styles.heatBarFill, { width: `${(heat / MAX_HEAT) * 100}%` }]} />
-            </View>
-          </View>
+          <TouchableOpacity 
+            style={styles.heatMeterContainer} 
+            activeOpacity={0.7}
+            onPress={() => setShowHeatModal(true)}
+          >
+            <Animated.View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8 }, animatedHeatPulseStyle]}>
+              <Flame size={16} color={heat > 0 ? theme.primary : theme.textSecondary} />
+              <View style={styles.heatBarTrack}>
+                <Animated.View style={[styles.heatBarFill, { width: `${(heat / MAX_HEAT) * 100}%` }]} />
+              </View>
+            </Animated.View>
+          </TouchableOpacity>
 
           {playerCount !== null && (
             <TouchableOpacity 
@@ -194,32 +197,37 @@ export default function DeckScreen() {
         </View>
       </View>
 
+      {/* HEAT EXPLANATION MODAL */}
+      <CenteredModal visible={showHeatModal} onDismiss={() => setShowHeatModal(false)}>
+        <Flame size={48} color={theme.primary} style={{ marginBottom: 16 }} />
+        <Text style={styles.modalTitle}>You're locked in!</Text>
+        <Text style={styles.modalSubtitle}>The AI is now asking the deepest and spiciest questions for this category based on your swipes.</Text>
+        <TouchableOpacity style={[styles.continueButton, { marginTop: 24 }]} onPress={() => setShowHeatModal(false)} activeOpacity={0.85}>
+          <Text style={styles.continueButtonText}>Got it</Text>
+        </TouchableOpacity>
+      </CenteredModal>
+
       {/* PLAYER SELECTION POPUP MODAL */}
-      {showPlayerModal && (
-        <Animated.View style={styles.modalOverlay} entering={FadeIn.duration(180)} exiting={FadeOut.duration(180)}>
-          <Animated.View style={[styles.modalCenteredBox, { overflow: 'hidden' }]} entering={customModalEnter} exiting={customModalExit}>
-            <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFillObject} />
-            <Text style={styles.modalTitle}>Group Size</Text>
-            <Text style={styles.modalSubtitle}>We adjust the AI for the number of players.</Text>
+      <CenteredModal visible={showPlayerModal} onDismiss={handleContinue}>
+        <Text style={styles.modalTitle}>Group Size</Text>
+        <Text style={styles.modalSubtitle}>We adjust the AI for the number of players.</Text>
 
-            <View style={styles.counterRow}>
-              <TouchableOpacity onPress={decrementPlayer} style={styles.circleBtn} activeOpacity={0.7}>
-                <Minus size={28} color={theme.text} strokeWidth={3} />
-              </TouchableOpacity>
-              
-              <Text style={styles.counterText}>{localPlayerCount}</Text>
-              
-              <TouchableOpacity onPress={incrementPlayer} style={styles.circleBtn} activeOpacity={0.7}>
-                <Plus size={28} color={theme.text} strokeWidth={3} />
-              </TouchableOpacity>
-            </View>
+        <View style={styles.counterRow}>
+          <TouchableOpacity onPress={decrementPlayer} style={styles.circleBtn} activeOpacity={0.7}>
+            <Minus size={28} color={theme.text} strokeWidth={3} />
+          </TouchableOpacity>
+          
+          <Text style={styles.counterText}>{localPlayerCount}</Text>
+          
+          <TouchableOpacity onPress={incrementPlayer} style={styles.circleBtn} activeOpacity={0.7}>
+            <Plus size={28} color={theme.text} strokeWidth={3} />
+          </TouchableOpacity>
+        </View>
 
-            <TouchableOpacity style={styles.continueButton} onPress={handleContinue} activeOpacity={0.85}>
-              <Text style={styles.continueButtonText}>Continue</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </Animated.View>
-      )}
+        <TouchableOpacity style={styles.continueButton} onPress={handleContinue} activeOpacity={0.85}>
+          <Text style={styles.continueButtonText}>Continue</Text>
+        </TouchableOpacity>
+      </CenteredModal>
     </SafeAreaView>
   );
 }
@@ -331,29 +339,6 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 14,
   },
   
-  // Clean Modal Styles
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    zIndex: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalCenteredBox: {
-    width: '100%',
-    backgroundColor: 'rgba(20, 20, 20, 0.6)',
-    borderRadius: 32,
-    padding: 32,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    elevation: 15,
-  },
   ambientGlow: {
     position: 'absolute',
     top: '20%',
