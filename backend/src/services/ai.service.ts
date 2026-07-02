@@ -14,7 +14,8 @@ export const DEFAULT_VIBE_WEIGHTS: Record<string, number> = {
   Vulnerability: 0.5,
 };
 
-const WEIGHT_DELTA = 0.12;
+const WEIGHT_DELTA_CALIBRATION = 0.25; 
+const WEIGHT_DELTA_STABILIZED = 0.08;  
 const MIN_WEIGHT = 0.05;
 const MAX_WEIGHT = 1.0;
 
@@ -22,11 +23,12 @@ export type QuestionPromptCandidate = {
   id: string;
   text: string;
   category: string;
+  gamemode: string;
   tags: string[];
 };
 
 export type PromptPlayRecord = {
-  swipedLeft: boolean;
+  answered: boolean;
   prompt: { text: string; category: string; tags: string[] };
 };
 
@@ -52,10 +54,12 @@ export function applySwipeFeedback(
   weights: Record<string, number>,
   category: string,
   tags: string[],
-  swipedLeft: boolean
+  answered: boolean,
+  historyLength: number
 ): Record<string, number> {
   const next = { ...parseVibeWeights(weights) };
-  const delta = swipedLeft ? WEIGHT_DELTA : -WEIGHT_DELTA;
+  const deltaAmount = historyLength <= 10 ? WEIGHT_DELTA_CALIBRATION : WEIGHT_DELTA_STABILIZED;
+  const delta = answered ? deltaAmount : -deltaAmount;
   const keys = new Set([category, ...tags]);
 
   keys.forEach((key) => {
@@ -80,24 +84,21 @@ export type CategoryConfig = {
   fallback: string; 
 };
 
-// ==========================================
-// AI PROMPT ENGINEERING RULES
-// ==========================================
-
 const GLOBAL_AI_RULES = `
 CRITICAL TONE CONSTRAINTS:
-1. NEVER use "Therapy-Speak". Ban words like: boundary, journey, unpack, toxic trait, inner child, validate, navigate, realm, tapestry, or profound.
-2. NEVER use "Reddit-Speak". Do not ask generic internet questions like "What is a socially acceptable scam?" or "What is a common misconception?"
-3. The tone must be conversational, slightly edgy, highly specific, and deeply human. Speak like a witty 20-something having drinks with close friends.
+1. NO HURTFUL OR DEPRESSING SHIT: The game must feel fun, chill, and highly social. NEVER ask questions that would genuinely hurt someone's feelings, cause an existential crisis, or make them feel bad about themselves.
+2. NO "THERAPY-SPEAK" OR INTERROGATIONS: Ban words like: boundary, journey, unpack, toxic trait, inner child, validate, navigate. Do not sound like a therapist.
+3. NO "ASK-REDDIT" ABSTRACTS: Do not ask generic internet questions like "What is a societal scam?" Focus entirely on interpersonal relationships, friends, and human behavior.
+4. The tone must be conversational and chill. Speak like a witty 20-something having drinks with close friends.
 `;
 
 function getPlayerCountRules(playerCount: number): string {
   if (playerCount <= 3) {
-    return "TIER 1 (2-3 Players): Make it deeply personal. Ask questions that encourage long-form storytelling, deep vulnerability, and highly specific personal confessions. It is safe to ask questions that take a few minutes to answer.";
+    return "TIER 1 (2-3 Players): Make it personal but uplifting. Ask questions that encourage opening up about funny secrets, lighthearted reflections, and strong opinions.";
   } else if (playerCount <= 6) {
-    return "TIER 2 (4-6 Players): Focus on group dynamics, calling each other out, and shared lore. Use 'Who in this room...' prompts. The questions should provoke funny debates but keep answers relatively concise to keep the game moving.";
+    return "TIER 2 (4-6 Players): Focus on group dynamics, funny call-outs, and shared lore. Use 'Who is most likely to...' prompts. The questions should provoke fun, energetic debates.";
   } else {
-    return "TIER 3 (7+ Players): CRITICAL: Do NOT ask long-winded, deep, or storytelling questions; the game will stall. Generate rapid-fire, highly polarizing hot takes, chaotic hypotheticals, or 'Raise your hand if...' questions that spark immediate, loud reactions.";
+    return "TIER 3 (7+ Players): CRITICAL: Do NOT ask long-winded or storytelling questions. Generate rapid-fire, highly polarizing hot takes, chaotic hypotheticals, or 'Raise your hand if...' questions that spark immediate, loud reactions.";
   }
 }
 
@@ -106,50 +107,50 @@ const CATEGORY_MAP: Record<string, CategoryConfig> = {
   'friends-icebreakers': {
     title: 'Icebreakers',
     dbCategories: ['Funny', 'Scenarios'],
-    rules: 'Spark immediate, loud, polarizing debates. Keep it cynical, witty, and slightly toxic.',
-    formatRequirement: 'Ask for a highly specific hot take or polarizing opinion.',
-    bannedConcepts: 'Do not ask about favorite colors, foods, or mild pet peeves. Avoid generic AskReddit questions.',
-    fallback: 'What is a massive "red flag" in a person that you actually find highly attractive?'
+    rules: 'Spark immediate, fun debates about dating, social rules, and harmless opinions.',
+    formatRequirement: 'Ask for a highly specific hot take or a relatable social scenario.',
+    bannedConcepts: 'Do not ask about favorite colors, foods, abstract societal issues, or boring pet peeves.',
+    fallback: 'What is a highly specific, harmless thing someone can do on a first date that guarantees you will ghost them?'
   },
   'friends-most-likely': {
     title: "Most Likely",
     dbCategories: ["Who's Most Likely", "Funny"],
-    rules: 'Expose the group\'s chaotic or toxic traits and playfully roast each other.',
-    formatRequirement: 'EVERY prompt MUST begin exactly with: "Who is most likely to..."',
-    bannedConcepts: 'No generic "survive a zombie apocalypse" or "win the lottery" questions. Make it about unhinged, specific human behavior.',
-    fallback: 'Who is most likely to seamlessly lie their way into a VIP section and leave the rest of us outside?'
+    rules: 'Playfully call out the group\'s chaotic or funny traits.',
+    formatRequirement: 'EVERY prompt MUST begin exactly with: "Who is most likely to..." or "Who would..."',
+    bannedConcepts: 'No generic "survive a zombie apocalypse" or genuinely mean-spirited questions.',
+    fallback: 'Who is most likely to defend their partner\'s terrible behavior just because they are too scared to be single?'
   },
   'friends-what-ifs': {
     title: 'What Ifs',
     dbCategories: ['Scenarios'],
-    rules: 'Create high-stakes, morally grey, or absurd situations that test loyalty or ethics.',
+    rules: 'Create fun, high-stakes, morally grey, or absurd situations.',
     formatRequirement: 'Put the group or the individual in a wild scenario that requires a difficult choice.',
     bannedConcepts: 'No boring "what superpower would you have" questions.',
-    fallback: 'If you had a button that gave you $1 million but permanently ruined the life of someone you went to high school with, how many times do you press it?'
+    fallback: 'You find a briefcase with $100,000, but keeping it means your best friend gets fired from their job. Are you taking the money?'
   },
   'friends-nostalgia': {
     title: 'Nostalgia',
     dbCategories: ['Nostalgia'],
-    rules: 'Focus on cringe eras, teenage toxicity, and past mistakes.',
-    formatRequirement: 'Must reference middle school, high school, or early internet days.',
-    bannedConcepts: 'Do not ask about nice, sweet childhood memories like favorite cartoons. Keep it focused on the "cringe."',
-    fallback: 'What is the most undeniably toxic thing you did in your first real relationship?'
+    rules: 'Focus on wild nights out, core memories, and funny past drama with friends.',
+    formatRequirement: 'Ask about a memorable moment, inside joke, or era from the past.',
+    bannedConcepts: 'CRITICAL: DO NOT ask about middle school cringe, teenage angst, or childhood trauma. Keep it fun and friend-oriented.',
+    fallback: 'What was the absolute wildest night out you’ve ever had where almost nothing went according to plan?'
   },
   'friends-confessions': {
     title: 'Confessions',
     dbCategories: ['Vulnerability', 'Funny'],
-    rules: 'Expose hypocrisy, petty judgments, and mild selfishness. Make the user call themselves out.',
-    formatRequirement: 'Ask the user to admit a terrible trait or an unspoken truth about how they view others.',
-    bannedConcepts: 'No deep trauma or depressing secrets. Keep it focused on social hypocrisy.',
-    fallback: 'What is a terrible trait you have that you secretly judge other people for having?'
+    rules: 'Lighthearted secrets, petty revenge, and funny truths. Opening up, but keeping it good vibes.',
+    formatRequirement: 'Ask the user to admit a funny secret or a petty/harmless action they took.',
+    bannedConcepts: 'CRITICAL: Do not ask about deep manipulative behavior, depressing guilt, or actual terrible traits.',
+    fallback: 'Whose life do you casually keep tabs on just because it makes you feel better about your own?'
   },
   'friends-deep-talk': {
     title: 'Deep Talk',
     dbCategories: ['Existential', 'Vulnerability', 'Relationships'],
-    rules: 'Heavy, philosophical, and cutting through the BS. Ask about painful truths, deep flaws, or raw existential reality.',
-    formatRequirement: 'Ask a thought-provoking, deep open-ended question that makes them hesitate before answering.',
-    bannedConcepts: 'NO THERAPY SPEAK. Do not use words like "journey," "unpack," "healing," or "profound."',
-    fallback: 'Are you actually a good person, or are you just terrified of people being mad at you?'
+    rules: 'Reflective, uplifting, and honest conversation without being a downer.',
+    formatRequirement: 'Ask a thought-provoking, open-ended question about personal growth or relationship dynamics.',
+    bannedConcepts: 'CRITICAL: NO DEPRESSING SHIT. Do not ask about painful truths, faking personalities, or existential dread.',
+    fallback: 'What is a belief you held strongly a few years ago that you have quietly abandoned?'
   },
 
   // LOVERS
@@ -264,15 +265,17 @@ export async function generatePersonalizedPrompts(
   gamemode: string,
   config: CategoryConfig,
   playerCount: number,
+  ageRange: string | null,
   count: number = 5
 ): Promise<{ prompts: { text: string; category: string; tags: string[] }[] } | null> {
   
   const tagStats: Record<string, { seen: number; answered: number }> = {};
-  categoryHistory.forEach(play => {
+  categoryHistory.forEach((play, index) => {
+    const weight = categoryHistory.length <= 1 ? 1 : 0.2 + (0.8 * (index / (categoryHistory.length - 1)));
     play.prompt.tags.forEach(tag => {
       if (!tagStats[tag]) tagStats[tag] = { seen: 0, answered: 0 };
-      tagStats[tag].seen += 1;
-      if (play.swipedLeft) tagStats[tag].answered += 1;
+      tagStats[tag].seen += weight;
+      if (play.answered) tagStats[tag].answered += weight; 
     });
   });
 
@@ -286,15 +289,16 @@ export async function generatePersonalizedPrompts(
   const hatedTags = tagRates.filter(t => t.rate < 0.5).sort((a,b) => a.rate - b.rate).map(t => t.tag).slice(0, 3);
 
   const last3 = categoryHistory.slice(-3).map(h => 
-    `${h.swipedLeft ? 'ANSWERED' : 'SKIPPED'}: "${h.prompt.text}"`
+    `${h.answered ? 'ANSWERED' : 'SKIPPED'}: "${h.prompt.text}"`
   );
 
   const systemPrompt = `
-You are an expert party game designer creating cards for an edgy, deep conversation game called Hezi.
+You are an expert party game designer creating cards for a chill, social conversation game called Hezi.
 
 GAME CONTEXT: The user is playing with their ${gamemode.toUpperCase()}.
 CURRENT DECK/CATEGORY: "${config.title}"
 NUMBER OF PLAYERS: ${playerCount}
+USER AGE RANGE: ${ageRange || 'Unknown'} (TAILOR THE LIFE STAGE AND REFERENCES TO THIS AGE BRACKET)
 
 ${GLOBAL_AI_RULES}
 
@@ -313,7 +317,8 @@ PLAYER TASTES (Tailor the topics using these, but DO NOT break the format rules 
 ${last3.length > 0 ? last3.join('\n') : 'No recent swipes in this category yet.'}
 
 TASK: Generate EXACTLY ${count} new questions. 
-EVERY SINGLE QUESTION MUST PERFECTLY MATCH THE "FORMAT REQUIREMENT" AND "GROUP SIZE INSTRUCTIONS".
+EVERY SINGLE QUESTION MUST PERFECTLY MATCH THE "FORMAT REQUIREMENT", "GROUP SIZE INSTRUCTIONS", AND FIT THEIR "AGE RANGE".
+CRITICAL: Exactly 1 out of the ${count} questions MUST target a topic they haven't rated yet to encourage exploration.
 
 OUTPUT JSON FORMAT:
 {
@@ -325,7 +330,7 @@ OUTPUT JSON FORMAT:
 
   console.log("\n\n========================================");
   console.log(`🤖 CALLING OPENAI AI FOR: ${config.title}`);
-  console.log(`👥 PLAYERS: ${playerCount}`);
+  console.log(`👥 PLAYERS: ${playerCount} | 🎂 AGE: ${ageRange || 'Unknown'}`);
   console.log(`🛠️ FORMAT REQUIREMENT: ${config.formatRequirement}`);
   console.log("========================================\n");
 
@@ -372,6 +377,7 @@ export async function getNextPromptsForProfile(input: {
   categoryId: string;
   count: number;
   playerCount: number;
+  ageRange: string | null;
 }): Promise<{
   prompts: QuestionPromptCandidate[];
   config: CategoryConfig;
@@ -387,22 +393,24 @@ export async function getNextPromptsForProfile(input: {
 
   const config = getCategoryConfig(input.categoryId);
 
+  // BUG FIX: Filter heavily by gamemode to prevent cross-contamination
   const availableDbPrompts = input.dbPrompts.filter(p => 
     !playedIds.has(p.id) && 
-    config.dbCategories.includes(p.category)
+    p.gamemode === input.gamemode &&
+    (p.category === config.title || config.dbCategories.includes(p.category))
   );
   
   const categoryHistory = input.history.filter(h => 
     h.prompt.category === config.title || config.dbCategories.includes(h.prompt.category)
   );
 
-  if (categoryHistory.length < 3 && availableDbPrompts.length > 0) {
-    console.log(`🎲 Using PRESET database prompts...`);
+  if (categoryHistory.length < 5 && availableDbPrompts.length > 0) {
+    console.log(`🎲 Using PRESET database prompts for calibration...`);
     const ranked = availableDbPrompts
       .map(p => {
         let score = weights[p.category] ?? 0.3;
         p.tags.forEach(tag => score += (weights[tag] ?? 0) * 0.35);
-        return { p, score: score + Math.random() * 0.1 };
+        return { p, score: score + Math.random() * 0.1 }; 
       })
       .sort((a, b) => b.score - a.score);
 
@@ -425,6 +433,7 @@ export async function getNextPromptsForProfile(input: {
       input.gamemode, 
       config,
       input.playerCount,
+      input.ageRange,
       needed
     );
     
@@ -434,6 +443,7 @@ export async function getNextPromptsForProfile(input: {
           id: `generated-${Date.now()}-${idx}`,
           text: gp.text,
           category: gp.category,
+          gamemode: input.gamemode,
           tags: gp.tags,
         });
       });
@@ -446,6 +456,7 @@ export async function getNextPromptsForProfile(input: {
       id: `fallback-${Date.now()}`,
       text: config.fallback,
       category: config.title,
+      gamemode: input.gamemode,
       tags: ['fallback'],
     });
   }

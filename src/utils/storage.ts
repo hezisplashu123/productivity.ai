@@ -5,6 +5,7 @@ const ACTIVE_CATEGORY_KEY = '@active_category_id';
 const DEVICE_ID_KEY = '@device_id';
 const GAMEMODE_KEY = '@gamemode_selection';
 const PLAYER_COUNT_KEY = '@player_count';
+const AGE_RANGE_KEY = '@age_range';
 
 export async function getOrCreateDeviceId(): Promise<string> {
   try {
@@ -69,6 +70,18 @@ export const storage = {
 
   async setPlayerCount(count: number): Promise<void> {
     await AsyncStorage.setItem(PLAYER_COUNT_KEY, count.toString());
+  },
+
+  async getAgeRange(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem(AGE_RANGE_KEY);
+    } catch {
+      return null;
+    }
+  },
+
+  async setAgeRange(ageRange: string): Promise<void> {
+    await AsyncStorage.setItem(AGE_RANGE_KEY, ageRange);
   },
 
   async getCachedQueue(gamemode: string, categoryId: string): Promise<any[]> {

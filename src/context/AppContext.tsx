@@ -32,6 +32,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const savedPlayerCount = await storage.getPlayerCount();
       setPlayerCountState(savedPlayerCount);
 
+      const savedAgeRange = await storage.getAgeRange();
+
       const deviceId = await getOrCreateDeviceId();
       const email = `guest_${deviceId}@hezi.app`;
 
@@ -45,18 +47,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         const profileId = syncedUser.profile?.id ?? syncedUser.profileId;
 
+        // If they have an ageRange saved locally but the backend doesn't have it, ensure it.
+        if (savedAgeRange && syncedUser.profile?.ageRange !== savedAgeRange) {
+          await apiService.ensureProfile(syncedUser.id, undefined, savedAgeRange);
+        }
+
         setUser({
           id: syncedUser.id,
           email: syncedUser.email,
           name: syncedUser.name || 'Guest',
           profileId,
+          ageRange: savedAgeRange || undefined,
         });
       } catch (apiError) {
         console.warn("Backend unavailable, using local fallback profile.", apiError);
         setUser({
           id: deviceId,
           email,
-          name: 'Guest'
+          name: 'Guest',
+          ageRange: savedAgeRange || undefined,
         });
       }
     } catch (error) {

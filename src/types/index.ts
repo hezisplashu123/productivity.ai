@@ -9,6 +9,7 @@ export interface UserProfile {
   id: string;
   userId: string;
   vibeWeights: Record<string, number>;
+  ageRange?: string;
 }
 
 export interface SwipableCardData {
@@ -23,6 +24,7 @@ export interface AppUser {
   email: string;
   name: string;
   profileId?: string;
+  ageRange?: string;
 }
 
 export type Gamemode = 'friendship' | 'relationship' | 'family';

@@ -9,12 +9,14 @@ import Animated, { cancelAnimation, Easing, Extrapolate, interpolate, runOnJS, u
 import * as Haptics from 'expo-haptics';
 import { storage } from '../src/utils/storage';
 import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
 import { Theme } from '../src/constants/colors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 
-// REVERSED DIRECTIONS: Left = Skip, Right = Answer
+const AGE_RANGES = ["18-21", "22-25", "26-29", "30-39", "40+"];
+
 const TUTORIAL_STEPS = [
   { id: 'tutorial-left', question: 'What is a movie you could watch over and over again?', guidance: "Don't like a question?\nSwipe left to skip.", expectedAction: 'left' as const },
   { id: 'tutorial-right', question: 'What is your favorite season of the year?', guidance: 'Fits the vibe?\nSwipe right to answer.', expectedAction: 'right' as const },
@@ -23,11 +25,13 @@ const TUTORIAL_STEPS = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { theme } = useApp();
+  const { user, theme } = useApp();
   const styles = getStyles(theme);
   
-  // Removed phase 2 (discussion modal)
-  const [phase, setPhase] = useState<0 | 1 | 2>(0);
+  // Phase 0: Intro, Phase 1: Age, Phase 2: Demo, Phase 3: Done
+  const [phase, setPhase] = useState<0 | 1 | 2 | 3>(0);
+  const [selectedAge, setSelectedAge] = useState<string | null>(null);
+  
   const [stepIndex, setStepIndex] = useState(0);
   const [typedChars, setTypedChars] = useState(0);
   const [showHint, setShowHint] = useState(false);
@@ -48,7 +52,7 @@ export default function OnboardingScreen() {
   const expectedAction = activeStep.expectedAction;
   
   useEffect(() => {
-    if (phase === 1) {
+    if (phase === 2) {
       setTypedChars(0);
       guidanceOpacity.value = 0;
       guidanceOpacity.value = withTiming(1, { duration: 300 });
@@ -83,7 +87,7 @@ export default function OnboardingScreen() {
   };
 
   useEffect(() => {
-    if (phase === 1) {
+    if (phase === 2) {
       startIdleHint(expectedAction);
       resetHintTimer();
     }
@@ -91,7 +95,7 @@ export default function OnboardingScreen() {
   }, [phase, stepIndex]);
 
   useEffect(() => {
-    if (showHint && phase === 1) {
+    if (showHint && phase === 2) {
       if (expectedAction === 'tap') {
         fingerX.value = 0; fingerScale.value = 1;
         fingerOpacity.value = withRepeat(withSequence(withTiming(0.8, { duration: 200 }), withTiming(0, { duration: 200 }), withTiming(0.8, { duration: 200 }), withTiming(0, { duration: 1000 })), -1);
@@ -108,8 +112,18 @@ export default function OnboardingScreen() {
     }
   }, [showHint, expectedAction, phase]);
 
-  const handleStartDemo = () => {
-    setPhase(1);
+  const handleAgeSelect = async (age: string) => {
+    Haptics.selectionAsync();
+    setSelectedAge(age);
+    await storage.setAgeRange(age);
+    
+    // Fire and forget backend update
+    if (user?.id) {
+      apiService.ensureProfile(user.id, undefined, age).catch(() => {});
+    }
+
+    // Move to Demo
+    setPhase(2);
     cardScale.value = withSpring(1, { damping: 20, stiffness: 80 });
   };
 
@@ -123,7 +137,7 @@ export default function OnboardingScreen() {
       resetStateForNextCard(); 
     } 
     else if (stepIndex === 2) { 
-      setPhase(2); // Jump directly to done container
+      setPhase(3); // Jump to done
       cancelAnimation(idlePullX); 
       setShowHint(false); 
     }
@@ -153,7 +167,7 @@ export default function OnboardingScreen() {
     }, 1200);
   };
 
-  const panGesture = Gesture.Pan().enabled(phase === 1)
+  const panGesture = Gesture.Pan().enabled(phase === 2)
     .onBegin(() => {
       isDragging.value = 1; 
       cancelAnimation(idlePullX); 
@@ -188,7 +202,7 @@ export default function OnboardingScreen() {
     });
 
   const tapGesture = Gesture.Tap()
-    .enabled(phase === 1 && expectedAction === 'tap')
+    .enabled(phase === 2 && expectedAction === 'tap')
     .maxDuration(250)
     .onEnd(() => {
       cardScale.value = 0.8; 
@@ -202,7 +216,7 @@ export default function OnboardingScreen() {
   const cardAnimatedStyle = useAnimatedStyle(() => ({ transform: [{ translateX: dragX.value + idlePullX.value * (1 - isDragging.value) }, { rotate: `${interpolate(dragX.value, [-SCREEN_WIDTH, 0, SCREEN_WIDTH], [-8, 0, 8])}deg` }, { scale: cardScale.value }] }));
   const swipeHintAnimatedStyle = useAnimatedStyle(() => ({ opacity: fingerOpacity.value, transform: [{ translateX: fingerX.value }, { scale: fingerScale.value }] }));
   
-  // Swapped Styles: Left = Skip (Error), Right = Answer (Success)
+  // Left = Skip, Right = Answer
   const skipRippleStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(dragX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }], opacity: interpolate(dragX.value, [0, -SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP) }));
   const keepRippleStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(dragX.value, [SWIPE_THRESHOLD * 0.2, SWIPE_THRESHOLD], [0.01, 8], Extrapolate.CLAMP) }], opacity: interpolate(dragX.value, [0, SWIPE_THRESHOLD * 0.2], [0, 1], Extrapolate.CLAMP) }));
   const skipIconStyle = useAnimatedStyle(() => ({ opacity: interpolate(dragX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD * 0.8], [0, 1], Extrapolate.CLAMP), transform: [{ scale: interpolate(dragX.value, [-SWIPE_THRESHOLD * 0.2, -SWIPE_THRESHOLD], [0.5, 1.1], Extrapolate.CLAMP) }] }));
@@ -227,11 +241,33 @@ export default function OnboardingScreen() {
               <Text style={styles.bigRuleDesc}>The deck starts light. As you swipe right to answer, the AI pulls you gradually deeper.</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleStartDemo} activeOpacity={0.85}><Text style={styles.primaryButtonText}>Show me how</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setPhase(1)} activeOpacity={0.85}><Text style={styles.primaryButtonText}>Next</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
         </Animated.View>
       )}
 
       {phase === 1 && (
+        <Animated.View style={styles.introContainer} entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)}>
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <Text style={styles.doneTitle}>One quick thing...</Text>
+            <Text style={styles.doneSubtitle}>To generate the most accurate questions, the AI needs to know your life stage.</Text>
+            
+            <View style={styles.ageGrid}>
+              {AGE_RANGES.map((age) => (
+                <TouchableOpacity 
+                  key={age} 
+                  style={[styles.ageButton, selectedAge === age && styles.ageButtonActive]} 
+                  onPress={() => handleAgeSelect(age)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.ageText, selectedAge === age && styles.ageTextActive]}>{age}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Animated.View>
+      )}
+
+      {phase === 2 && (
         <Animated.View style={styles.demoWrapper} entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)}>
           <View style={styles.demoTopBar}><Text style={styles.eyebrow}>How to play</Text></View>
           
@@ -271,7 +307,7 @@ export default function OnboardingScreen() {
         </Animated.View>
       )}
 
-      {phase === 2 && (
+      {phase === 3 && (
         <Animated.View style={styles.doneContainer} entering={FadeIn.duration(600)}>
           <View style={{ flex: 1, justifyContent: 'center' }}><Text style={styles.doneTitle}>You're ready.</Text><Text style={styles.doneSubtitle}>Pick a vibe and let the AI find the perfect questions for your group.</Text></View>
           <TouchableOpacity style={[styles.primaryButton, { width: '100%', marginBottom: 16 }]} onPress={handleFinish} activeOpacity={0.85}><Text style={styles.primaryButtonText}>View Topics</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
@@ -291,6 +327,13 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   bigRuleTitle: { fontSize: 22, fontWeight: '800', color: theme.text, marginBottom: 8 },
   bigRuleDesc: { fontSize: 16, color: theme.textSecondary, lineHeight: 24 },
   
+  // Age Selection Styles
+  ageGrid: { marginTop: 40, gap: 12 },
+  ageButton: { backgroundColor: theme.backgroundCard, borderWidth: 1, borderColor: theme.border, paddingVertical: 18, borderRadius: 16, alignItems: 'center' },
+  ageButtonActive: { backgroundColor: theme.primary, borderColor: theme.primary },
+  ageText: { fontSize: 18, fontWeight: '700', color: theme.text },
+  ageTextActive: { color: theme.background },
+
   demoWrapper: { flex: 1, marginHorizontal: -24 }, 
   demoTopBar: { paddingTop: 20, alignItems: 'center' },
   eyebrow: { fontSize: 12, fontWeight: '800', color: theme.primary, letterSpacing: 2, textTransform: 'uppercase' },

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -12,22 +12,57 @@ import { Theme } from '../src/constants/colors';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, gamemode, setGamemode, theme } = useApp();
+  const { user, gamemode, setGamemode, theme, playerCount } = useApp();
   const styles = getStyles(theme);
+
+  const displayCategories = VIBE_CATEGORIES[gamemode] || VIBE_CATEGORIES.friendship;
+  
+  // Track what we've prefetched so we don't spam the backend on re-renders
+  const prefetchedRef = useRef<Set<string>>(new Set());
+
+  // PREFETCH LOGIC: Silently load the first 5 cards for each category as soon as the home screen loads
+  useEffect(() => {
+    if (!user?.profileId) return;
+
+    const prefetchCategories = async () => {
+      const cacheKey = `${gamemode}-${playerCount || 3}`;
+      
+      // If we already prefetched this setup during this session, skip
+      if (prefetchedRef.current.has(cacheKey)) return;
+      prefetchedRef.current.add(cacheKey);
+
+      // Fetch sequentially to avoid hammering the backend
+      for (const cat of displayCategories) {
+        try {
+          const cached = await storage.getCachedQueue(gamemode, cat.id);
+          // Only fetch if the queue is empty
+          if (!cached || cached.length === 0) {
+            const res = await apiService.getNextPrompts(user.profileId, gamemode, cat.id, 5, playerCount || 3);
+            if (res && res.prompts) {
+              const aiCards = res.prompts.map((p: any) => ({
+                id: p.id,
+                label: p.text,
+                category: p.category,
+              }));
+              // Silently save to cache so it's ready instantly when tapped
+              await storage.saveCachedQueue(gamemode, cat.id, aiCards);
+            }
+          }
+        } catch (e) {
+          console.log(`Background prefetch failed for ${cat.id}`);
+        }
+      }
+    };
+
+    prefetchCategories();
+  }, [user?.profileId, gamemode, playerCount, displayCategories]);
 
   const handleCategoryPress = async (cat: ConversationCategory) => {
     await storage.setActiveCategory(cat.id);
     
-    // STRICT: Always clear the cache when tapping from the home screen
-    // This guarantees the local "Start" cards will always appear first.
-    await storage.clearCachedQueue(gamemode, cat.id);
-    
-    // Only pass categoryId. Backend handles mapping to Titles now.
+    // We intentionally DO NOT clear the cache here anymore, so the deck loads 
+    // instantly using the prefetched cards from the background!
     router.push({ pathname: '/deck', params: { categoryId: cat.id } });
-
-    if (user?.profileId) {
-      apiService.resetProfileWeights(user.profileId, cat.seedWeights).catch(() => {});
-    }
   };
 
   const getCategoryIcon = (iconName: string) => {
@@ -42,8 +77,6 @@ export default function HomeScreen() {
       default: return <Flame {...iconProps} />;
     }
   };
-
-  const displayCategories = VIBE_CATEGORIES[gamemode] || VIBE_CATEGORIES.friendship;
 
   return (
     <SafeAreaView style={styles.container}>

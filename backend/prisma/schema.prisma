@@ -24,7 +24,8 @@ model UserProfile {
   id           String       @id @default(uuid())
   userId       String       @unique
   vibeWeights  Json
-  traitProfile String?      // Stores the AI's psychological profile of the user
+  traitProfile String?      
+  ageRange     String?      
   history      PromptPlay[]
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -34,6 +35,7 @@ model QuestionPrompt {
   id       String       @id @default(uuid())
   text     String
   category String
+  gamemode String       // Puts a hard wall between friendship, relationship, and family
   tags     String[]
   plays    PromptPlay[]
 }
@@ -42,7 +44,7 @@ model PromptPlay {
   id         String   @id @default(uuid())
   profileId  String
   promptId   String
-  swipedLeft Boolean
+  answered   Boolean  @default(false)
   timestamp  DateTime @default(now())
 
   profile UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)

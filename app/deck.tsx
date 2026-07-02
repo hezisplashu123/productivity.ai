@@ -82,7 +82,7 @@ export default function DeckScreen() {
               onIndexChange={handleIndexChange}
               emptyMessage="Out of cards! Generating more..."
             />
-            <Text style={styles.skipRuleText}>Swipe right if you liked the question.</Text>
+            <Text style={styles.skipRuleText}>Swipe right to answer the question.</Text>
           </>
         )}
       </View>

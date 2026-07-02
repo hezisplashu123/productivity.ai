@@ -8,25 +8,33 @@ import {
   parseVibeWeights,
 } from '../services/ai.service';
 
-export async function ensureProfile(userId: string, seedWeights?: Record<string, number>) {
+export async function ensureProfile(userId: string, seedWeights?: Record<string, number>, ageRange?: string) {
   let profile = await prisma.userProfile.findUnique({ where: { userId } });
+  
   if (!profile) {
     profile = await prisma.userProfile.create({
       data: {
         userId,
         vibeWeights: seedWeights ? applySeedWeights(seedWeights) : DEFAULT_VIBE_WEIGHTS,
         traitProfile: null,
+        ageRange: ageRange || null,
       },
+    });
+  } else if (ageRange && profile.ageRange !== ageRange) {
+    // Update age range if provided and different
+    profile = await prisma.userProfile.update({
+      where: { userId },
+      data: { ageRange }
     });
   }
   return profile;
 }
 
 export async function ensureProfileHandler(req: Request, res: Response) {
-  const { userId, seedWeights } = req.body;
+  const { userId, seedWeights, ageRange } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId is required' });
   try {
-    const profile = await ensureProfile(String(userId), seedWeights);
+    const profile = await ensureProfile(String(userId), seedWeights, ageRange);
     res.json(profile);
   } catch (error) {
     res.status(500).json({ error: 'Failed to ensure profile' });
@@ -42,17 +50,22 @@ export async function getNextPrompt(req: Request, res: Response) {
       where: { id: profileId },
       include: {
         history: {
-          orderBy: { timestamp: 'asc' },
+          orderBy: { timestamp: 'desc' },
+          take: 200,
           include: { prompt: true },
         },
       },
     });
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
 
-    const dbPrompts = await prisma.questionPrompt.findMany();
+    // 🔒 BULLETPROOF FIX: We ONLY ask the database for questions that match the exact gamemode. 
+    // It is now physically impossible for a Family question to enter a Friends queue.
+    const dbPrompts = await prisma.questionPrompt.findMany({
+      where: { gamemode: gamemode }
+    });
     
-    const history = profile.history.map((play) => ({
-      swipedLeft: play.swipedLeft,
+    const history = profile.history.reverse().map((play) => ({
+      answered: play.answered,
       prompt: { text: play.prompt.text, category: play.prompt.category, tags: play.prompt.tags },
     }));
     const playedPromptIds = profile.history.map((play) => play.promptId);
@@ -66,20 +79,29 @@ export async function getNextPrompt(req: Request, res: Response) {
       categoryId,
       count,
       playerCount,
+      ageRange: profile.ageRange,
     });
 
-    const savedPrompts = await Promise.all(
+    const savedPrompts = (await Promise.all(
       result.prompts.map(async (p) => {
         if (p.id.startsWith('generated-') || p.id.startsWith('fallback-')) {
+          const isDuplicate = dbPrompts.some(dbP => dbP.text === p.text);
+          const isValid = p.text.length >= 10 && !p.text.toLowerCase().startsWith('here are');
+          if (isDuplicate || !isValid) return null;
+
           return await prisma.questionPrompt.create({
-            data: { text: p.text, category: result.config.title, tags: p.tags }, 
+            data: { 
+              text: p.text, 
+              category: result.config.title, 
+              gamemode: gamemode,
+              tags: p.tags 
+            }, 
           });
         }
         return p;
       })
-    );
+    )).filter((p) => p !== null);
 
-    // Removed the traitProfile update step entirely.
     res.json({ prompts: savedPrompts });
   } catch (error) {
     console.error('Next prompt error:', error);
@@ -89,27 +111,34 @@ export async function getNextPrompt(req: Request, res: Response) {
 
 export async function recordSwipe(req: Request, res: Response) {
   const { profileId } = req.params;
-  const { promptId, swipedLeft } = req.body;
+  const { promptId, answered } = req.body;
 
-  if (!promptId || typeof swipedLeft !== 'boolean') {
-    return res.status(400).json({ error: 'promptId and swipedLeft are required' });
+  if (!promptId || typeof answered !== 'boolean') {
+    return res.status(400).json({ error: 'promptId and answered are required' });
   }
 
   try {
-    const profile = await prisma.userProfile.findUnique({ where: { id: profileId } });
+    const profile = await prisma.userProfile.findUnique({ 
+      where: { id: profileId },
+      include: { _count: { select: { history: true } } }
+    });
     const prompt = await prisma.questionPrompt.findUnique({ where: { id: promptId } });
     if (!profile || !prompt) return res.status(404).json({ error: 'Profile or prompt not found' });
+
+    const historyLength = profile._count.history;
 
     const updatedWeights = applySwipeFeedback(
       parseVibeWeights(profile.vibeWeights),
       prompt.category,
       prompt.tags,
-      swipedLeft
+      answered,
+      historyLength
     );
 
     const play = await prisma.promptPlay.create({
-      data: { profileId, promptId, swipedLeft },
+      data: { profileId, promptId, answered },
     });
+    
     await prisma.userProfile.update({
       where: { id: profileId },
       data: { vibeWeights: updatedWeights },

@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { apiService } from '../services/api';
 import { storage } from '../utils/storage';
-import { PRESET_QUESTIONS } from '../constants/categories';
 import { SwipableCardData, Gamemode } from '../types';
 
 interface UseDeckQueueOptions {
@@ -18,14 +17,13 @@ export function useDeckQueue({ categoryId, gamemode, profileId, playerCount }: U
   const isFetching = useRef(false);
   const currentIndexRef = useRef(0);
 
-  const fetchAICardsBackground = useCallback(async (currentCards: SwipableCardData[]) => {
+  const fetchAICardsBackground = useCallback(async () => {
     if (isFetching.current) return;
     isFetching.current = true;
 
     try {
       if (profileId) {
-        // Now passing playerCount to backend API
-        const res = await apiService.getNextPrompts(profileId, gamemode, categoryId, 5, playerCount);
+        const res = await apiService.getNextPrompts(profileId, gamemode, categoryId, 10, playerCount);
         if (res && res.prompts) {
           const aiCards = res.prompts.map((p: { id: string; text: string; category: string }) => ({
             id: p.id,
@@ -34,7 +32,14 @@ export function useDeckQueue({ categoryId, gamemode, profileId, playerCount }: U
           }));
 
           setCards((prev) => {
-            const next = [...prev, ...aiCards];
+            // STRICT DEDUPLICATION: Prevent React duplicate key crashes
+            const existingIds = new Set(prev.map(c => c.id));
+            const uniqueNewCards = aiCards.filter((c: SwipableCardData) => !existingIds.has(c.id));
+            
+            // If the backend sent cards we already have, don't update state
+            if (uniqueNewCards.length === 0) return prev;
+
+            const next = [...prev, ...uniqueNewCards];
             storage.saveCachedQueue(gamemode, categoryId, next.slice(currentIndexRef.current));
             return next;
           });
@@ -44,6 +49,7 @@ export function useDeckQueue({ categoryId, gamemode, profileId, playerCount }: U
       console.log('Background AI fetch failed.');
     } finally {
       isFetching.current = false;
+      setLoading(false);
     }
   }, [profileId, gamemode, categoryId, playerCount]);
 
@@ -54,24 +60,15 @@ export function useDeckQueue({ categoryId, gamemode, profileId, playerCount }: U
 
     if (cachedCards && cachedCards.length > 0) {
       setCards(cachedCards);
+      setLoading(false);
 
-      if (cachedCards.length <= 3) {
-        fetchAICardsBackground(cachedCards);
+      if (cachedCards.length <= 5) {
+        fetchAICardsBackground();
       }
     } else {
-      const localQuestions = PRESET_QUESTIONS[categoryId] || PRESET_QUESTIONS['friends-deep-talk'];
-
-      const initialCards = localQuestions.map((text, idx) => ({
-        id: `local-${categoryId}-${idx}`,
-        label: text,
-        category: 'Start', 
-      }));
-
-      setCards(initialCards);
-      fetchAICardsBackground(initialCards);
+      // If there is no cache, hit the backend to get the Calibration DB Deck
+      fetchAICardsBackground();
     }
-
-    setLoading(false);
   }, [categoryId, gamemode, fetchAICardsBackground]);
 
   useEffect(() => {
@@ -84,21 +81,19 @@ export function useDeckQueue({ categoryId, gamemode, profileId, playerCount }: U
 
     storage.saveCachedQueue(gamemode, categoryId, cards.slice(newIndex));
 
-    if (remaining <= 3 && !isFetching.current) {
-      fetchAICardsBackground(cards.slice(newIndex));
+    if (remaining <= 5 && !isFetching.current) {
+      fetchAICardsBackground();
     }
   }, [cards, gamemode, categoryId, fetchAICardsBackground]);
 
-  // LEFT = SKIP = FALSE
   const handleSwipeLeft = useCallback((card: SwipableCardData) => {
-    if (profileId && !card.id.startsWith('local-')) {
+    if (profileId) {
       apiService.recordSwipe(profileId, card.id, false).catch(() => {});
     }
   }, [profileId]);
 
-  // RIGHT = ANSWER = TRUE
   const handleSwipeRight = useCallback((card: SwipableCardData) => {
-    if (profileId && !card.id.startsWith('local-')) {
+    if (profileId) {
       apiService.recordSwipe(profileId, card.id, true).catch(() => {});
     }
   }, [profileId]);

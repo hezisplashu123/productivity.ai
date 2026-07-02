@@ -70,16 +70,15 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  async ensureProfile(userId: string, seedWeights?: Record<string, number>) {
+  async ensureProfile(userId: string, seedWeights?: Record<string, number>, ageRange?: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/ensure`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ userId, seedWeights }),
+      body: JSON.stringify({ userId, seedWeights, ageRange }),
     });
     return handleResponse(res);
   },
 
-  // Added playerCount to the signature and body
   async getNextPrompts(profileId: string, gamemode: string, categoryId: string, count: number = 5, playerCount: number = 3) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/next-prompt`, {
       method: 'POST',
@@ -89,11 +88,11 @@ export const apiService = {
     return handleResponse(res);
   },
 
-  async recordSwipe(profileId: string, promptId: string, swipedLeft: boolean) {
+  async recordSwipe(profileId: string, promptId: string, answered: boolean) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/${profileId}/swipe`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ promptId, swipedLeft }),
+      body: JSON.stringify({ promptId, answered }),
     });
     return handleResponse(res);
   },
