@@ -20,12 +20,14 @@ export default function IndexScreen() {
   const styles = getStyles(activeTheme);
 
   useEffect(() => {
-    // FOR TESTING: Forces the tutorial to reset every single time you open the app
-    const resetTutorialForTesting = async () => {
-      await storage.clearAllUserData();
-      await storage.setSwipeTutorialComplete(false);
-    };
-    resetTutorialForTesting();
+    if (__DEV__) {
+      // FOR TESTING: Forces the tutorial to reset every single time you open the app
+      const resetTutorialForTesting = async () => {
+        await storage.clearAllUserData();
+        await storage.setSwipeTutorialComplete(false);
+      };
+      resetTutorialForTesting();
+    }
   }, []);
 
   if (isLoading) return null;
