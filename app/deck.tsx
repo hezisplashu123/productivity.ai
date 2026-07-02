@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+// @ts-ignore
+import ConfettiCannon from 'react-native-confetti-cannon';
 import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw, Users, Minus, Plus, Flame } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Easing, withTiming, useSharedValue, useAnimatedStyle, withRepeat, withSequence } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
@@ -11,6 +13,8 @@ import { useApp } from '../src/context/AppContext';
 import { useDeckQueue } from '../src/hooks/useDeckQueue';
 import { Theme } from '../src/constants/colors';
 import { typography } from '../src/constants/typography';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const customModalEnter = () => {
   'worklet';
@@ -74,9 +78,11 @@ export default function DeckScreen() {
   
   const MAX_HEAT = 10;
   const [heat, setHeat] = useState(0);
+  const [confettiCount, setConfettiCount] = useState(0);
 
   const onSwipeRightWrapper = (card: any) => {
     setHeat(prev => Math.min(prev + 1, MAX_HEAT));
+    setConfettiCount(prev => prev + 1);
     handleSwipeRight(card);
   };
 
@@ -153,6 +159,22 @@ export default function DeckScreen() {
           </>
         )}
       </View>
+
+      {/* CONFETTI LAYER */}
+      {confettiCount > 0 && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <ConfettiCannon
+            key={confettiCount}
+            count={50}
+            origin={{ x: SCREEN_WIDTH - 20, y: SCREEN_HEIGHT / 2 }}
+            autoStart={true}
+            fadeOut={true}
+            fallSpeed={2500}
+            explosionSpeed={350}
+            colors={[theme.primary, theme.success, '#FFD700', '#FF69B4']}
+          />
+        </View>
+      )}
 
       {/* PERSISTENT LEGEND */}
       <View style={styles.bottomSection} pointerEvents="none">
