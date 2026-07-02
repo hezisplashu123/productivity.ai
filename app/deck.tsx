@@ -4,11 +4,39 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw, Users, Minus, Plus } from 'lucide-react-native';
-import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, Easing, withTiming } from 'react-native-reanimated';
 import { SwipableCardStack } from '../src/components/SwipableCardStack';
 import { useApp } from '../src/context/AppContext';
 import { useDeckQueue } from '../src/hooks/useDeckQueue';
 import { Theme } from '../src/constants/colors';
+
+const customModalEnter = () => {
+  'worklet';
+  return {
+    animations: {
+      opacity: withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }),
+      transform: [{ scale: withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }) }],
+    },
+    initialValues: {
+      opacity: 0,
+      transform: [{ scale: 0.96 }],
+    },
+  };
+};
+
+const customModalExit = () => {
+  'worklet';
+  return {
+    animations: {
+      opacity: withTiming(0, { duration: 150, easing: Easing.out(Easing.cubic) }),
+      transform: [{ scale: withTiming(0.97, { duration: 150, easing: Easing.out(Easing.cubic) }) }],
+    },
+    initialValues: {
+      opacity: 1,
+      transform: [{ scale: 1 }],
+    },
+  };
+};
 
 export default function DeckScreen() {
   const router = useRouter();
@@ -107,8 +135,8 @@ export default function DeckScreen() {
 
       {/* PLAYER SELECTION POPUP MODAL */}
       {showPlayerModal && (
-        <Animated.View style={styles.modalOverlay} entering={FadeIn.duration(200)} exiting={FadeOut.duration(200)}>
-          <Animated.View style={styles.modalCenteredBox} entering={ZoomIn.duration(300).springify().damping(20)} exiting={ZoomOut.duration(200)}>
+        <Animated.View style={styles.modalOverlay} entering={FadeIn.duration(180)} exiting={FadeOut.duration(180)}>
+          <Animated.View style={styles.modalCenteredBox} entering={customModalEnter} exiting={customModalExit}>
             <Text style={styles.modalTitle}>Group Size</Text>
             <Text style={styles.modalSubtitle}>We adjust the AI for the number of players.</Text>
 

@@ -68,18 +68,18 @@ export default function VerifyEmailScreen() {
       <StatusBar style="dark" />
       <SafeAreaView style={styles.content}>
         <TouchableOpacity onPress={handleChangeEmail} style={styles.backButton}><ArrowLeft size={24} color={theme.text} /></TouchableOpacity>
-        <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.iconContainer}>
+        <Animated.View entering={FadeInDown.delay(200).duration(500)} style={styles.iconContainer}>
           <View style={styles.iconCircle}><Mail size={48} color={theme.primary} /></View>
           <View style={styles.badge}><Text style={styles.badgeText}>ACTION REQUIRED</Text></View>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.textContainer}>
+        <Animated.View entering={FadeInDown.delay(300).duration(500)} style={styles.textContainer}>
           <Text style={styles.title}>Verify Your Email</Text>
           <Text style={styles.subtitle}>We've sent a verification link to:</Text>
           <Text style={styles.emailText}>{email}</Text>
           <Text style={styles.instructionText}>Tap the link in that email, then come back here and tap "I've Verified It".</Text>
           <Text style={styles.spamText}>(Don't see it? Check your spam folder.)</Text>
         </Animated.View>
-        <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.actionContainer}>
+        <Animated.View entering={FadeInDown.delay(400).duration(500)} style={styles.actionContainer}>
           <TouchableOpacity style={styles.primaryButton} onPress={handleCheckVerification} disabled={loading}>
             {loading ? <ActivityIndicator color="#FFFFFF" /> : <><Text style={styles.primaryButtonText}>I've Verified It</Text><CheckCircle2 size={20} color="#FFFFFF" /></>}
           </TouchableOpacity>

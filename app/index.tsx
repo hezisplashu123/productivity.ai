@@ -37,13 +37,13 @@ export default function IndexScreen() {
       <StatusBar style="light" />
       
       <View style={styles.content}>
-        <Animated.View entering={FadeInDown.delay(200).springify().damping(20)} style={styles.logoWrapper}>
+        <Animated.View entering={FadeInDown.delay(200).duration(500)} style={styles.logoWrapper}>
           <View style={styles.iconCircle}>
             <Flame size={56} color={activeTheme.background} fill={activeTheme.background} />
           </View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(300).springify().damping(20)} style={styles.textWrapper}>
+        <Animated.View entering={FadeInDown.delay(300).duration(500)} style={styles.textWrapper}>
           <Text style={styles.title}>Hezi</Text>
           <Text style={styles.subtitle}>Deep conversations.{'\n'}Zero small talk.</Text>
         </Animated.View>
