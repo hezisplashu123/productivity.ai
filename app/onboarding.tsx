@@ -12,11 +12,12 @@ import { useApp } from '../src/context/AppContext';
 import { apiService } from '../src/services/api';
 import { Theme } from '../src/constants/colors';
 import { typography } from '../src/constants/typography';
+import { CenteredModal } from '../src/components/CenteredModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 
-const AGE_RANGES = ["18-21", "22-25", "26-29", "30-39", "40+"];
+const AGE_RANGES = ["Under 18", "18-21", "22-25", "26-29", "30-39", "40-49", "50+"];
 
 const TUTORIAL_STEPS = [
   { id: 'tutorial-left', question: 'What is a movie you could watch over and over again?', guidance: "Don't like a question?\nSwipe left to skip.", expectedAction: 'left' as const },
@@ -26,16 +27,27 @@ const TUTORIAL_STEPS = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { user, theme } = useApp();
+  const { user, theme, refreshUser } = useApp();
   const styles = getStyles(theme);
   
-  // Phase 0: Intro, Phase 1: Age, Phase 2: Demo, Phase 3: Done
-  const [phase, setPhase] = useState<0 | 1 | 2 | 3>(0);
+  const [phase, setPhase] = useState<1 | 2>(1);
   const [selectedAge, setSelectedAge] = useState<string | null>(null);
   
   const [stepIndex, setStepIndex] = useState(0);
   const [typedChars, setTypedChars] = useState(0);
   const [showHint, setShowHint] = useState(false);
+  const [showReadyModal, setShowReadyModal] = useState(false);
+
+  useEffect(() => {
+    // Pre-populate age if it exists, but don't auto-skip so the user can change it
+    const checkAge = async () => {
+      const age = await storage.getAgeRange();
+      if (age) {
+        setSelectedAge(age);
+      }
+    };
+    checkAge();
+  }, []);
   
   const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isTransitioningRef = useRef(false);
@@ -64,7 +76,7 @@ export default function OnboardingScreen() {
         count++;
         setTypedChars(count);
         if (count >= fullText.length) clearInterval(interval);
-      }, 35);
+      }, 20);
       
       return () => clearInterval(interval);
     }
@@ -113,14 +125,15 @@ export default function OnboardingScreen() {
     }
   }, [showHint, expectedAction, phase]);
 
-  const handleAgeSelect = async (age: string) => {
+  const handleAgeSelect = async (displayAge: string) => {
     Haptics.selectionAsync();
-    setSelectedAge(age);
-    await storage.setAgeRange(age);
+    setSelectedAge(displayAge);
+    
+    await storage.setAgeRange(displayAge);
     
     // Fire and forget backend update
     if (user?.id) {
-      apiService.ensureProfile(user.id, undefined, age).catch(() => {});
+      apiService.ensureProfile(user.id, undefined, displayAge).catch(() => {});
     }
 
     // Move to Demo
@@ -138,7 +151,7 @@ export default function OnboardingScreen() {
       resetStateForNextCard(); 
     } 
     else if (stepIndex === 2) { 
-      setPhase(3); // Jump to done
+      setShowReadyModal(true);
       cancelAnimation(idlePullX); 
       setShowHint(false); 
     }
@@ -155,6 +168,7 @@ export default function OnboardingScreen() {
 
   const handleFinish = async () => {
     await storage.setSwipeTutorialComplete(true);
+    await refreshUser();
     router.replace('/home');
   };
 
@@ -229,36 +243,17 @@ export default function OnboardingScreen() {
 
       {/* SEGMENTED PROGRESS BAR */}
       <View style={styles.progressContainer}>
-        {[0, 1, 2, 3].map((step) => (
+        {[1, 2].map((step) => (
           <View key={step} style={[styles.progressSegment, step <= phase && styles.progressSegmentActive]} />
         ))}
       </View>
-
-      {phase === 0 && (
-        <Animated.View style={styles.introContainer} entering={FadeIn} exiting={FadeOut}>
-          <Text style={styles.scienceQuote}>"Psychological studies show that escalating, reciprocal vulnerability creates profound interpersonal closeness in just 45 minutes."</Text>
-          <View style={styles.bigRulesContainer}>
-            <View style={styles.bigRuleCard}>
-              <View style={styles.bigRuleIcon}><MessageCircle size={28} color={theme.primary} /></View>
-              <Text style={styles.bigRuleTitle}>The Circle Rule</Text>
-              <Text style={styles.bigRuleDesc}>Read aloud. Answer it yourself first. Pass to the left.</Text>
-            </View>
-            <View style={styles.bigRuleCard}>
-              <View style={styles.bigRuleIcon}><Layers size={28} color={theme.primary} /></View>
-              <Text style={styles.bigRuleTitle}>The Iceberg Effect</Text>
-              <Text style={styles.bigRuleDesc}>The deck starts light. As you swipe right to answer, the AI pulls you gradually deeper.</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setPhase(1)} activeOpacity={0.85}><Text style={styles.primaryButtonText}>Next</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
-        </Animated.View>
-      )}
 
       {phase === 1 && (
         <Animated.View style={styles.introContainer} entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)}>
           <View style={{ flex: 1, justifyContent: 'center' }}>
             <View style={styles.bigIconContainer}><Users size={48} color={theme.primary} /></View>
             <Text style={styles.doneTitle}>One quick thing...</Text>
-            <Text style={styles.doneSubtitle}>To generate the most accurate questions, the AI needs to know your life stage.</Text>
+            <Text style={styles.doneSubtitle}>To find the most relevant questions, we need to know your life stage.</Text>
             
             <View style={styles.ageGrid}>
               {AGE_RANGES.map((age) => (
@@ -278,7 +273,10 @@ export default function OnboardingScreen() {
 
       {phase === 2 && (
         <Animated.View style={styles.demoWrapper} entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)}>
-          <View style={styles.demoTopBar}><Text style={styles.eyebrow}>How to play</Text></View>
+          <View style={styles.demoTopBar}>
+            <Text style={styles.eyebrow}>How to play</Text>
+            <Text style={styles.circleRuleText}>Read aloud. Answer it yourself first. Pass to the left.</Text>
+          </View>
           
           <View style={styles.demoCenterStage}>
             <Animated.Text style={[styles.guidance, guidanceAnimatedStyle]}>
@@ -316,16 +314,17 @@ export default function OnboardingScreen() {
         </Animated.View>
       )}
 
-      {phase === 3 && (
-        <Animated.View style={styles.doneContainer} entering={FadeIn.duration(600)}>
-          <View style={{ flex: 1, justifyContent: 'center' }}>
-            <View style={styles.bigIconContainer}><Sparkles size={48} color={theme.primary} /></View>
-            <Text style={styles.doneTitle}>You're ready.</Text>
-            <Text style={styles.doneSubtitle}>Pick a vibe and let the AI find the perfect questions for your group.</Text>
-          </View>
-          <TouchableOpacity style={[styles.primaryButton, { width: '100%', marginBottom: 16 }]} onPress={handleFinish} activeOpacity={0.85}><Text style={styles.primaryButtonText}>View Topics</Text><ArrowRight size={20} color={theme.background} /></TouchableOpacity>
-        </Animated.View>
-      )}
+      <CenteredModal visible={showReadyModal} onDismiss={handleFinish}>
+        <View style={{ alignItems: 'center', paddingBottom: 16 }}>
+          <View style={styles.bigIconContainer}><Sparkles size={48} color={theme.primary} /></View>
+          <Text style={styles.doneTitle}>You're ready.</Text>
+          <Text style={styles.doneSubtitle}>Pick a vibe and let's find the perfect questions for your group.</Text>
+        </View>
+        <TouchableOpacity style={[styles.primaryButton, { width: '100%' }]} onPress={handleFinish} activeOpacity={0.85}>
+          <Text style={styles.primaryButtonText}>View Topics</Text>
+          <ArrowRight size={20} color={theme.background} />
+        </TouchableOpacity>
+      </CenteredModal>
     </SafeAreaView>
   );
 }
@@ -337,12 +336,6 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   progressSegmentActive: { backgroundColor: theme.primary, shadowColor: theme.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 8 },
   introContainer: { flex: 1, justifyContent: 'center', paddingBottom: 20 },
   bigIconContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: theme.border },
-  scienceQuote: { fontFamily: typography.heading, fontSize: 24, color: theme.text, lineHeight: 34, marginBottom: 48, fontStyle: 'italic' },
-  bigRulesContainer: { gap: 16, marginBottom: 48 },
-  bigRuleCard: { backgroundColor: theme.backgroundCard, borderRadius: 24, padding: 24, borderWidth: 1, borderColor: theme.border },
-  bigRuleIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: theme.border },
-  bigRuleTitle: { fontFamily: typography.heading, fontSize: 22, color: theme.text, marginBottom: 8 },
-  bigRuleDesc: { fontFamily: typography.body, fontSize: 16, color: theme.textSecondary, lineHeight: 24 },
   
   // Age Selection Styles
   ageGrid: { marginTop: 40, gap: 12 },
@@ -354,6 +347,7 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   demoWrapper: { flex: 1, marginHorizontal: -24 }, 
   demoTopBar: { paddingTop: 20, alignItems: 'center' },
   eyebrow: { fontFamily: typography.bodyBold, fontSize: 12, color: theme.primary, letterSpacing: 2, textTransform: 'uppercase' },
+  circleRuleText: { fontFamily: typography.body, fontSize: 13, color: theme.textSecondary, marginTop: 6, textAlign: 'center', paddingHorizontal: 40, lineHeight: 18 },
   
   demoCenterStage: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   guidance: { fontFamily: typography.heading, position: 'absolute', top: 30, color: theme.text, fontSize: 22, lineHeight: 30, textAlign: 'center', width: SCREEN_WIDTH * 0.9, paddingHorizontal: 20, zIndex: 10 },

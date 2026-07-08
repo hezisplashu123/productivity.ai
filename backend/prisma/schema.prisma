@@ -35,9 +35,10 @@ model QuestionPrompt {
   id       String       @id @default(uuid())
   text     String
   category String
-  gamemode String       // Puts a hard wall between friendship, relationship, and family
-  tags     String[]
-  plays    PromptPlay[]
+  gamemode  String
+  mechanics String[]
+  tone      String
+  plays     PromptPlay[]
 }
 
 model PromptPlay {

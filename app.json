@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "ProdAI",
-    "slug": "productivity-ai",
-    "scheme": "hourback-ai",
-    "version": "1.0.11",
+    "name": "Realtalk",
+    "slug": "realtalk",
+    "scheme": "realtalk",
+    "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "platforms": [
@@ -15,11 +15,11 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.mumix.productivityai",
+      "bundleIdentifier": "com.realtalk.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
@@ -33,7 +33,7 @@
       "entitlements": {}
     },
     "android": {
-      "package": "com.mumix.productivityai"
+      "package": "com.realtalk.app"
     },
     "web": {
       "enabled": false

@@ -21,14 +21,7 @@ export default function IndexScreen() {
   const styles = getStyles(activeTheme);
 
   useEffect(() => {
-    if (__DEV__) {
-      // FOR TESTING: Forces the tutorial to reset every single time you open the app
-      const resetTutorialForTesting = async () => {
-        await storage.clearAllUserData();
-        await storage.setSwipeTutorialComplete(false);
-      };
-      resetTutorialForTesting();
-    }
+    // Keep empty or add initialization logic if needed
   }, []);
 
   if (isLoading) return null;

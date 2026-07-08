@@ -5,14 +5,19 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 // @ts-ignore
 import ConfettiCannon from 'react-native-confetti-cannon';
-import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw, Users, Minus, Plus, Flame } from 'lucide-react-native';
+import { ArrowLeft, CornerDownLeft, CornerDownRight, RotateCcw, Users, Minus, Plus, Flame, Share2, X } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, Easing, withTiming, useSharedValue, useAnimatedStyle, withRepeat, withSequence } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import * as Sharing from 'expo-sharing';
+import { captureRef } from 'react-native-view-shot';
 import { SwipableCardStack } from '../src/components/SwipableCardStack';
+import { ShareCard } from '../src/components/ShareCard';
 import { CenteredModal } from '../src/components/CenteredModal';
+import { AnchoredTooltip } from '../src/components/AnchoredTooltip';
 import { useApp } from '../src/context/AppContext';
 import { useDeckQueue } from '../src/hooks/useDeckQueue';
+import { storage } from '../src/utils/storage';
 import { Theme } from '../src/constants/colors';
 import { typography } from '../src/constants/typography';
 
@@ -54,7 +59,15 @@ export default function DeckScreen() {
   const [heat, setHeat] = useState(0);
   const [confettiCount, setConfettiCount] = useState(0);
   const [showHeatModal, setShowHeatModal] = useState(false);
+  const [tooltipAnchor, setTooltipAnchor] = useState<{x: number, y: number, width: number, height: number} | null>(null);
+  const [totalAnsweredSession, setTotalAnsweredSession] = useState(0);
   const maxHeatHapticFired = useRef(false);
+  const heatMeterRef = useRef<View>(null);
+  const shareBtnRef = useRef<View>(null);
+  const shareCardRef = useRef<View>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showShareTooltip, setShowShareTooltip] = useState(false);
+  const [shareTooltipAnchor, setShareTooltipAnchor] = useState<{x: number, y: number, width: number, height: number} | null>(null);
   const heatPulseOpacity = useSharedValue(1);
   const heatPulseScale = useSharedValue(1);
 
@@ -77,19 +90,58 @@ export default function DeckScreen() {
     transform: [{ scale: heatPulseScale.value }]
   }));
 
-  const onSwipeRightWrapper = (card: any) => {
+  const openTooltip = () => {
+    heatMeterRef.current?.measureInWindow((x, y, width, height) => {
+      setTooltipAnchor({ x, y, width, height });
+      setShowHeatModal(true);
+    });
+  };
+
+  const openShareTooltip = () => {
+    shareBtnRef.current?.measureInWindow((x, y, width, height) => {
+      setShareTooltipAnchor({ x, y, width, height });
+      setShowShareTooltip(true);
+    });
+  };
+
+  const onSwipeRightWrapper = async (card: any) => {
     setHeat(prev => Math.min(prev + 1, MAX_HEAT));
     setConfettiCount(prev => prev + 1);
+    
+    const newAnswered = totalAnsweredSession + 1;
+    setTotalAnsweredSession(newAnswered);
+    
+    if (newAnswered === 3) {
+      const hasSeen = await storage.getHasSeenHeatMeterIntro();
+      if (!hasSeen) {
+        openTooltip();
+        await storage.setHasSeenHeatMeterIntro(true);
+      }
+    }
+    
+    if (newAnswered === 4) {
+      const hasSeenShare = await storage.getHasSeenShareIntro();
+      if (!hasSeenShare) {
+        openShareTooltip();
+        await storage.setHasSeenShareIntro(true);
+      }
+    }
+    
     handleSwipeRight(card);
   };
 
   // Show player selection immediately if it has never been set
   useEffect(() => {
     if (playerCount === null && !loading) {
-      setLocalPlayerCount(3);
-      setShowPlayerModal(true);
+      if (gamemode === 'relationship') {
+        setPlayerCount(2);
+        setLocalPlayerCount(2);
+      } else {
+        setLocalPlayerCount(3);
+        setShowPlayerModal(true);
+      }
     }
-  }, [playerCount, loading]);
+  }, [playerCount, loading, gamemode]);
 
   const decrementPlayer = () => setLocalPlayerCount((prev) => Math.max(2, prev - 1));
   const incrementPlayer = () => setLocalPlayerCount((prev) => Math.min(20, prev + 1));
@@ -97,6 +149,21 @@ export default function DeckScreen() {
   const handleContinue = () => {
     setPlayerCount(localPlayerCount);
     setShowPlayerModal(false);
+  };
+
+  const currentQuestion = cards[0]?.label || '';
+
+  const handleShare = async () => {
+    try {
+      const uri = await captureRef(shareCardRef, {
+        format: 'png',
+        quality: 1,
+      });
+      await Sharing.shareAsync(uri);
+      setShowShareModal(false);
+    } catch (e) {
+      console.log('Error sharing:', e);
+    }
   };
 
   return (
@@ -117,9 +184,10 @@ export default function DeckScreen() {
 
         <View style={styles.headerRight}>
           <TouchableOpacity 
+            ref={heatMeterRef as any}
             style={styles.heatMeterContainer} 
             activeOpacity={0.7}
-            onPress={() => setShowHeatModal(true)}
+            onPress={openTooltip}
           >
             <Animated.View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8 }, animatedHeatPulseStyle]}>
               <Flame size={16} color={heat > 0 ? theme.primary : theme.textSecondary} />
@@ -140,6 +208,20 @@ export default function DeckScreen() {
             >
               <Users size={16} color={theme.primary} />
               <Text style={styles.playerCountText}>{playerCount}</Text>
+            </TouchableOpacity>
+          )}
+
+          {cards.length > 0 && (
+            <TouchableOpacity 
+              ref={shareBtnRef as any}
+              onPress={() => {
+                setShowShareTooltip(false); // dismiss if open
+                setShowShareModal(true);
+              }} 
+              style={styles.playerCountBadge}
+              activeOpacity={0.7}
+            >
+              <Share2 size={16} color={theme.primary} />
             </TouchableOpacity>
           )}
         </View>
@@ -197,15 +279,23 @@ export default function DeckScreen() {
         </View>
       </View>
 
-      {/* HEAT EXPLANATION MODAL */}
-      <CenteredModal visible={showHeatModal} onDismiss={() => setShowHeatModal(false)}>
-        <Flame size={48} color={theme.primary} style={{ marginBottom: 16 }} />
-        <Text style={styles.modalTitle}>You're locked in!</Text>
-        <Text style={styles.modalSubtitle}>The AI is now asking the deepest and spiciest questions for this category based on your swipes.</Text>
-        <TouchableOpacity style={[styles.continueButton, { marginTop: 24 }]} onPress={() => setShowHeatModal(false)} activeOpacity={0.85}>
-          <Text style={styles.continueButtonText}>Got it</Text>
-        </TouchableOpacity>
-      </CenteredModal>
+      {/* HEAT EXPLANATION TOOLTIP */}
+      <AnchoredTooltip 
+        visible={showHeatModal} 
+        onDismiss={() => setShowHeatModal(false)}
+        title={heat >= MAX_HEAT ? "You're locked in!" : "Heat Meter"}
+        description="When the bar fills up, the vibes are calibrated and good questions will flow."
+        anchor={tooltipAnchor}
+      />
+
+      {/* SHARE EXPLANATION TOOLTIP */}
+      <AnchoredTooltip 
+        visible={showShareTooltip} 
+        onDismiss={() => setShowShareTooltip(false)}
+        title="Share the Vibe"
+        description="If you really liked a question, you can share it with more people to get their answers!"
+        anchor={shareTooltipAnchor}
+      />
 
       {/* PLAYER SELECTION POPUP MODAL */}
       <CenteredModal visible={showPlayerModal} onDismiss={handleContinue}>
@@ -226,6 +316,27 @@ export default function DeckScreen() {
 
         <TouchableOpacity style={styles.continueButton} onPress={handleContinue} activeOpacity={0.85}>
           <Text style={styles.continueButtonText}>Continue</Text>
+        </TouchableOpacity>
+      </CenteredModal>
+
+      {/* SHARE PREVIEW MODAL */}
+      <CenteredModal visible={showShareModal} onDismiss={() => setShowShareModal(false)}>
+        <View style={{ position: 'absolute', top: 20, right: 20, zIndex: 10 }}>
+          <TouchableOpacity onPress={() => setShowShareModal(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+            <X size={24} color={theme.textSecondary} />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.modalTitle}>Share</Text>
+        <Text style={styles.modalSubtitle}>Preview your export.</Text>
+        
+        <View style={{ width: 1080 * 0.25, height: 1920 * 0.25, alignSelf: 'center', marginVertical: 24, borderRadius: 16, overflow: 'hidden' }}>
+          <View style={{ transform: [{ scale: 0.25 }], transformOrigin: 'top left' }}>
+            <ShareCard ref={shareCardRef} question={currentQuestion} theme={theme} />
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.continueButton} onPress={handleShare} activeOpacity={0.85}>
+          <Text style={styles.continueButtonText}>Share to TikTok/Insta</Text>
         </TouchableOpacity>
       </CenteredModal>
     </SafeAreaView>

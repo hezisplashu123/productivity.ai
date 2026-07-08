@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useApp } from '../src/context/AppContext';
 import { useAuth } from '../src/hooks/useAuth';
 import { SocialAuthButtons } from '../src/components/SocialAuthButtons';
+import { apiService } from '../src/services/api';
 import { Theme } from '../src/constants/colors';
 import { typography } from '../src/constants/typography';
 import { ArrowRight, Lock, Mail, User, AlertTriangle, Trash2, AlertCircle } from 'lucide-react-native';
@@ -14,10 +15,11 @@ export default function AuthScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
-  const { theme } = useApp();
+  const { theme, user, logout } = useApp();
   const styles = getStyles(theme);
 
   const isDeleteMode = params.mode === 'delete_reauth';
+  const isGuest = user?.email?.startsWith('guest_');
   const prefillEmail = (params.email as string) || '';
 
   const {
@@ -45,6 +47,29 @@ export default function AuthScreen() {
     initialIsLogin: params.mode === 'login' || isDeleteMode,
   });
 
+  const handleDeleteGuest = async () => {
+    Alert.alert(
+      "Delete Guest Data",
+      "This will permanently delete your guest profile and history. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (user?.email) await apiService.deleteUser(user.email);
+              await logout();
+              router.replace('/');
+            } catch (e) {
+              Alert.alert("Error", "Could not delete guest data.");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -54,7 +79,7 @@ export default function AuthScreen() {
             {isDeleteMode ? (
               <View style={{ alignItems: 'center' }}><AlertTriangle size={48} color={theme.error} style={{ marginBottom: 16 }} /><Text style={[styles.title, { color: theme.error }]}>Confirm Deletion</Text><Text style={[styles.subtitle, { textAlign: 'center' }]}>Please log in again to permanently delete your account. This action cannot be undone.</Text></View>
             ) : (
-              <><Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text><Text style={styles.subtitle}>{isLogin ? 'Sign in to access your dashboard.' : 'Create an account to save your productivity plan.'}</Text></>
+              <><Text style={styles.title}>{isLogin ? 'Welcome Back' : 'Save Your Profile'}</Text><Text style={styles.subtitle}>{isLogin ? 'Sign in to access your dashboard.' : 'Create an account to save your profile and preferences.'}</Text></>
             )}
           </View>
 
@@ -92,6 +117,12 @@ export default function AuthScreen() {
           )}
 
           {isDeleteMode && <TouchableOpacity style={styles.switchButton} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}><Text style={styles.switchText}>Cancel</Text></TouchableOpacity>}
+
+          {isGuest && !isDeleteMode && (
+            <TouchableOpacity style={{ alignItems: 'center', marginTop: 32 }} onPress={handleDeleteGuest}>
+              <Text style={{ fontFamily: typography.body, color: theme.error, fontSize: 14 }}>Delete Guest Data</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

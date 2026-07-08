@@ -27,12 +27,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const hydrateGuestUser = useCallback(async () => {
     try {
       const savedMode = await storage.getGamemode();
-      setGamemodeState(savedMode);
-
       const savedPlayerCount = await storage.getPlayerCount();
-      setPlayerCountState(savedPlayerCount);
-
       const savedAgeRange = await storage.getAgeRange();
+
+      let activeMode = savedMode;
+      if (savedAgeRange === 'Under 18' && activeMode === 'relationship') {
+        activeMode = 'friendship';
+        await storage.setGamemode('friendship');
+      }
+      setGamemodeState(activeMode);
+      setPlayerCountState(savedPlayerCount);
 
       const deviceId = await getOrCreateDeviceId();
       const email = `guest_${deviceId}@hezi.app`;

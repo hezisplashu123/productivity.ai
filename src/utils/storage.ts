@@ -6,6 +6,8 @@ const DEVICE_ID_KEY = '@device_id';
 const GAMEMODE_KEY = '@gamemode_selection';
 const PLAYER_COUNT_KEY = '@player_count';
 const AGE_RANGE_KEY = '@age_range';
+const HEAT_METER_INTRO_KEY = '@heat_meter_intro';
+const SHARE_INTRO_KEY = '@share_intro';
 
 export async function getOrCreateDeviceId(): Promise<string> {
   try {
@@ -82,6 +84,30 @@ export const storage = {
 
   async setAgeRange(ageRange: string): Promise<void> {
     await AsyncStorage.setItem(AGE_RANGE_KEY, ageRange);
+  },
+
+  async getHasSeenHeatMeterIntro(): Promise<boolean> {
+    try {
+      return (await AsyncStorage.getItem(HEAT_METER_INTRO_KEY)) === 'true';
+    } catch {
+      return false;
+    }
+  },
+
+  async setHasSeenHeatMeterIntro(seen: boolean): Promise<void> {
+    await AsyncStorage.setItem(HEAT_METER_INTRO_KEY, seen ? 'true' : 'false');
+  },
+
+  async getHasSeenShareIntro(): Promise<boolean> {
+    try {
+      return (await AsyncStorage.getItem(SHARE_INTRO_KEY)) === 'true';
+    } catch {
+      return false;
+    }
+  },
+
+  async setHasSeenShareIntro(seen: boolean): Promise<void> {
+    await AsyncStorage.setItem(SHARE_INTRO_KEY, seen ? 'true' : 'false');
   },
 
   async getCachedQueue(gamemode: string, categoryId: string): Promise<any[]> {

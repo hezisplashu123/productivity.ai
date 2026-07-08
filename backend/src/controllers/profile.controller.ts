@@ -58,6 +58,10 @@ export async function getNextPrompt(req: Request, res: Response) {
     });
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
 
+    if (gamemode === 'relationship' && profile.ageRange === 'Under 18') {
+      return res.status(403).json({ error: 'Lovers gamemode is not available for Under 18 profiles.' });
+    }
+
     // 🔒 BULLETPROOF FIX: We ONLY ask the database for questions that match the exact gamemode. 
     // It is now physically impossible for a Family question to enter a Friends queue.
     const dbPrompts = await prisma.questionPrompt.findMany({
@@ -66,7 +70,7 @@ export async function getNextPrompt(req: Request, res: Response) {
     
     const history = profile.history.reverse().map((play) => ({
       answered: play.answered,
-      prompt: { text: play.prompt.text, category: play.prompt.category, tags: play.prompt.tags },
+      prompt: { text: play.prompt.text, category: play.prompt.category, mechanics: play.prompt.mechanics, tone: play.prompt.tone },
     }));
     const playedPromptIds = profile.history.map((play) => play.promptId);
 
@@ -94,7 +98,8 @@ export async function getNextPrompt(req: Request, res: Response) {
               text: p.text, 
               category: result.config.title, 
               gamemode: gamemode,
-              tags: p.tags 
+              mechanics: p.mechanics,
+              tone: p.tone
             }, 
           });
         }
@@ -130,7 +135,8 @@ export async function recordSwipe(req: Request, res: Response) {
     const updatedWeights = applySwipeFeedback(
       parseVibeWeights(profile.vibeWeights),
       prompt.category,
-      prompt.tags,
+      prompt.mechanics,
+      prompt.tone,
       answered,
       historyLength
     );

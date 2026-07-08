@@ -2,7 +2,8 @@ export interface QuestionPrompt {
   id: string;
   text: string;
   category: string;
-  tags: string[];
+  mechanics: string[];
+  tone: string;
 }
 
 export interface UserProfile {
