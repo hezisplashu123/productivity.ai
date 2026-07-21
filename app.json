@@ -1,8 +1,11 @@
 {
   "expo": {
     "name": "Realtalk",
-    "slug": "realtalk",
-    "scheme": "realtalk",
+    "slug": "productivity-ai",
+    "scheme": [
+      "realtalk",
+      "exp+productivity-ai"
+    ],
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -20,12 +23,13 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.realtalk.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.204716304779-266i58dfvid6mg70reivvtdqqrpv2v9p"
+              "com.googleusercontent.apps.1063076160479-4kuapje5osfd4i2hegl3iji5nupq1j3g"
             ]
           }
         ]
@@ -49,7 +53,8 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
