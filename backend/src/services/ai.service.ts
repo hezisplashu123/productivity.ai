@@ -107,6 +107,8 @@ STYLE GUIDE & QUESTION RULES:
 - Describe the goal/scenario, not the specific mechanism or method — don't box the answer into one narrow verb.
 - Apply the "instant answer" test: if a person would need to mentally scan a huge list before answering, narrow the question further.
 - Never write a question that's fully answerable with just "yes" or "no" — always require naming a specific instance.
+- For Friends and Family questions ONLY: phrase every question so whoever reads it aloud could also answer it themselves. Never use imperative commands like "Tell me about a time..." and never assume an exclusive shared past between one narrator and one respondent, like "What did we do..." Use plain interrogative phrasing ("What's...", "Who's...", "When...") aimed at "you" the individual, not "we" as a narrator-and-respondent pair. This rule does NOT apply to Lovers mode — there, direct partner-to-partner address ("tell me," "you," "us") is intentional and correct.
+- Vocabulary: use "cringe" as the adjective, never "cringeworthy." Always prefer the word a person would actually say out loud over a more formal synonym.
 
 OUTPUT REQUIREMENTS:
 For each question you generate, you must also output:
@@ -323,7 +325,7 @@ export async function generatePersonalizedPrompts(
   );
 
   const systemPrompt = `
-You are an expert party game designer creating cards for a chill, social conversation game called Hezi.
+You are an expert party game designer creating cards for a chill, social conversation game called Realtalk.
 
 GAME CONTEXT: The user is playing with their ${gamemode.toUpperCase()}.
 CURRENT DECK/CATEGORY: "${config.title}"

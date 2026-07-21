@@ -1,8 +1,9 @@
 export const typography = {
-  heading: 'SpaceGrotesk_700Bold',
+  heading: 'ArchivoBlack_400Regular',
   body: 'Inter_500Medium',
+  utility: 'IBMPlexMono_500Medium',
   // Variants for easy access if needed later
-  headingBlack: 'SpaceGrotesk_700Bold', // using 700 as default bold
+  headingBlack: 'ArchivoBlack_400Regular', 
   bodyRegular: 'Inter_400Regular',
   bodyBold: 'Inter_700Bold',
 };

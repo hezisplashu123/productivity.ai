@@ -27,7 +27,7 @@ export default function VerifyEmailScreen() {
   const name = params.name as string;
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setTimeout>;
     if (isResendDisabled && timer > 0) interval = setInterval(() => setTimer(t => t - 1), 1000);
     else if (timer === 0) setIsResendDisabled(false);
     return () => clearInterval(interval);

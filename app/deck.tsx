@@ -240,7 +240,7 @@ export default function DeckScreen() {
               onIndexChange={handleIndexChange}
               emptyMessage="Out of cards! Generating more..."
             />
-            <Text style={styles.skipRuleText}>Swipe right to answer the question.</Text>
+            <Text style={styles.skipRuleText}>Swipe right if you liked the question.</Text>
           </>
         )}
       </View>
@@ -417,7 +417,7 @@ const getStyles = (theme: Theme) => StyleSheet.create({
     alignItems: 'center',
   },
   skipRuleText: {
-    fontFamily: typography.body,
+    fontFamily: typography.utility,
     position: 'absolute',
     top: '50%',
     marginTop: 240,

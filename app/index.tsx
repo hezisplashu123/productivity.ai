@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { Flame, ArrowRight } from 'lucide-react-native';
+import { ArrowRight } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useApp } from '../src/context/AppContext';
 import { storage } from '../src/utils/storage';
@@ -32,14 +32,15 @@ export default function IndexScreen() {
       
       <View style={styles.content}>
         <Animated.View entering={FadeInDown.delay(200).duration(500)} style={styles.logoWrapper}>
-          <View style={styles.iconCircle}>
-            <Flame size={56} color={activeTheme.background} fill={activeTheme.background} />
+          <View style={styles.wordmark}>
+            <Text style={styles.quoteMark}>“</Text>
+            <Text style={styles.wordmarkText}>realtalk</Text>
+            <Text style={styles.quoteMark}>”</Text>
           </View>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(300).duration(500)} style={styles.textWrapper}>
-          <Text style={styles.title}>Hezi</Text>
-          <Text style={styles.subtitle}>Deep conversations.{'\n'}Zero small talk.</Text>
+          <Text style={styles.subtitle}>Better questions.{'\n'}Closer connections.</Text>
         </Animated.View>
       </View>
 
@@ -71,28 +72,25 @@ const getStyles = (theme: any) => StyleSheet.create({
   logoWrapper: {
     marginBottom: 40,
   },
-  iconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: theme.primary,
-    justifyContent: 'center',
+  wordmark: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    elevation: 10,
+    gap: 4,
+  },
+  wordmarkText: {
+    fontFamily: typography.heading,
+    fontSize: 54,
+    color: theme.text,
+    letterSpacing: -1,
+  },
+  quoteMark: {
+    fontFamily: typography.heading,
+    fontSize: 64,
+    color: theme.primary,
+    marginTop: -10, // Visually adjust quotes
   },
   textWrapper: {
     alignItems: 'center',
-  },
-  title: {
-    fontFamily: typography.heading,
-    fontSize: 48,
-    color: theme.text,
-    letterSpacing: 2,
-    marginBottom: 16,
   },
   subtitle: {
     fontFamily: typography.body,

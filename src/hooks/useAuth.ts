@@ -39,7 +39,7 @@ export function useAuth({ isDeleteMode, prefillEmail = '', initialIsLogin = true
   const [passwordError, setPasswordError] = useState('');
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    iosClientId: '204716304779-266i58dfvid6mg70reivvtdqqrpv2v9p.apps.googleusercontent.com',
+    iosClientId: '1063076160479-4kuapje5osfd4i2hegl3iji5nupq1j3g.apps.googleusercontent.com',
     webClientId: '204716304779-uuamf2qm95cj38oa4dif2jc91tu0hp3k.apps.googleusercontent.com',
   });
 

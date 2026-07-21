@@ -21,7 +21,7 @@ const AGE_RANGES = ["Under 18", "18-21", "22-25", "26-29", "30-39", "40-49", "50
 
 const TUTORIAL_STEPS = [
   { id: 'tutorial-left', question: 'What is a movie you could watch over and over again?', guidance: "Don't like a question?\nSwipe left to skip.", expectedAction: 'left' as const },
-  { id: 'tutorial-right', question: 'What is your favorite season of the year?', guidance: 'Fits the vibe?\nSwipe right to answer.', expectedAction: 'right' as const },
+  { id: 'tutorial-right', question: 'What is your favorite season of the year?', guidance: 'Fits the vibe?\nSwipe right if you liked the question.', expectedAction: 'right' as const },
   { id: 'tutorial-tap', question: 'What is your favorite season of the year?', guidance: 'Swiped too fast?\nTap the card to undo.', expectedAction: 'tap' as const },
 ];
 
@@ -49,7 +49,7 @@ export default function OnboardingScreen() {
     checkAge();
   }, []);
   
-  const hintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTransitioningRef = useRef(false);
 
   const cardScale = useSharedValue(0.9);

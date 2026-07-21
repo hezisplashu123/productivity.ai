@@ -193,9 +193,9 @@ export const SwipableCardStack: React.FC<{
 const getStyles = (theme: Theme) => StyleSheet.create({
   stackContainer: { width: '100%', height: 440, alignItems: 'center', justifyContent: 'center' },
   cardContainer: { width: SCREEN_WIDTH - 40, height: 440, position: 'absolute' },
-  card: { width: '100%', height: '100%', borderRadius: 32, borderWidth: 1, backgroundColor: 'rgba(20, 20, 20, 0.85)', borderColor: 'rgba(255, 255, 255, 0.1)', shadowColor: '#000', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.3, shadowRadius: 32, elevation: 12, overflow: 'hidden' },
+  card: { width: '100%', height: '100%', borderRadius: 32, borderWidth: 1, backgroundColor: theme.backgroundCard, borderColor: theme.border, shadowColor: '#000', shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.3, shadowRadius: 32, elevation: 12, overflow: 'hidden' },
   cardContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-  categoryTag: { fontFamily: typography.heading, fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase', color: theme.primary, marginBottom: 18 },
+  categoryTag: { fontFamily: typography.utility, fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase', color: theme.primary, marginBottom: 18 },
   cardLabel: { fontFamily: typography.body, fontSize: 26, color: theme.text, textAlign: 'center', lineHeight: 36 },
   cardDescription: { fontFamily: typography.body, fontSize: 16, color: theme.textSecondary, textAlign: 'center', lineHeight: 24, marginTop: 14 },
   ripple: { position: 'absolute', top: '50%', left: '50%', width: 80, height: 80, marginTop: -40, marginLeft: -40, borderRadius: 40, zIndex: 2 },

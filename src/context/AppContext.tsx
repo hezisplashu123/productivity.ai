@@ -30,8 +30,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const savedPlayerCount = await storage.getPlayerCount();
       const savedAgeRange = await storage.getAgeRange();
 
+      const ADULT_AGE_RANGES = ['18-21', '22-25', '26-29', '30-39', '40-49', '50+'];
       let activeMode = savedMode;
-      if (savedAgeRange === 'Under 18' && activeMode === 'relationship') {
+      if (activeMode === 'relationship' && !ADULT_AGE_RANGES.includes(savedAgeRange ?? '')) {
         activeMode = 'friendship';
         await storage.setGamemode('friendship');
       }

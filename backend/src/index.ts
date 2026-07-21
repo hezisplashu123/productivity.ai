@@ -23,5 +23,5 @@ app.use('/users', userRoutes);
 app.use('/profile', profileRoutes);
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Hezi API listening on port ${PORT}`);
+  console.log(`🚀 Realtalk API listening on port ${PORT}`);
 });

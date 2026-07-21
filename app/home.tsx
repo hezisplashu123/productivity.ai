@@ -133,7 +133,7 @@ export default function HomeScreen() {
 
       <View style={styles.pillWrapper}>
         <View style={styles.pillContainer}>
-          {user?.ageRange !== 'Under 18' && (
+          {['18-21', '22-25', '26-29', '30-39', '40-49', '50+'].includes(user?.ageRange ?? '') && (
             <TouchableOpacity onPress={() => setGamemode('relationship')} style={styles.pillOption}>
               {gamemode === 'relationship' && <Animated.View style={[StyleSheet.absoluteFill, { borderRadius: 999 }, backgroundColorStyle]} />}
               <View style={styles.pillContent}>

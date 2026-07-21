@@ -58,8 +58,9 @@ export async function getNextPrompt(req: Request, res: Response) {
     });
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
 
-    if (gamemode === 'relationship' && profile.ageRange === 'Under 18') {
-      return res.status(403).json({ error: 'Lovers gamemode is not available for Under 18 profiles.' });
+    const ADULT_AGE_RANGES = ['18-21', '22-25', '26-29', '30-39', '40-49', '50+'];
+    if (gamemode === 'relationship' && !ADULT_AGE_RANGES.includes(profile.ageRange ?? '')) {
+      return res.status(403).json({ error: 'Lovers gamemode requires confirming you are 18 or older.' });
     }
 
     // 🔒 BULLETPROOF FIX: We ONLY ask the database for questions that match the exact gamemode. 

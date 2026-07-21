@@ -3,10 +3,17 @@ import { AppProvider, useApp } from '../src/context/AppContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
+import * as SplashScreen from 'expo-splash-screen';
 import { storage } from '../src/utils/storage';
 import { colors } from '../src/constants/colors';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
 import { SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk';
+import { ArchivoBlack_400Regular } from '@expo-google-fonts/archivo-black';
+import { IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
+import { LoadingScreen } from '../src/components/LoadingScreen';
+
+// Keep the native splash screen visible until fonts have loaded
+SplashScreen.preventAutoHideAsync();
 
 function RootStack() {
   const { user, isLoading, theme } = useApp();
@@ -41,6 +48,10 @@ function RootStack() {
     }
   }, [user, isLoading, segments]);
 
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
   // Fallback to default colors if theme isn't hydrated yet
   const bgColor = theme?.background || colors.background;
 
@@ -68,7 +79,15 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_700Bold,
     SpaceGrotesk_700Bold,
+    ArchivoBlack_400Regular,
+    IBMPlexMono_500Medium,
   });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
 
   if (!fontsLoaded) return null;
 
