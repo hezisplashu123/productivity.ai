@@ -22,7 +22,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.realtalk.app",
+      "bundleIdentifier": "com.mumix.realtalk",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -37,7 +37,7 @@
       "entitlements": {}
     },
     "android": {
-      "package": "com.realtalk.app"
+      "package": "com.mumix.realtalk"
     },
     "web": {
       "enabled": false
