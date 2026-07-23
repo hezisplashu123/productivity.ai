@@ -12,7 +12,7 @@ export const VIBE_CATEGORIES: Record<string, ConversationCategory[]> = {
     { id: 'friends-icebreakers', title: 'Icebreakers', subtitle: 'Hot takes and instant debates', icon: '✨', intensity: 2, seedWeights: { Funny: 0.9, Scenarios: 0.6 } },
     { id: 'friends-most-likely', title: "Most Likely", subtitle: 'Point fingers and roast each other', icon: '🎯', intensity: 5, seedWeights: { Funny: 0.85, Relationships: 0.7 } },
     { id: 'friends-what-ifs', title: 'What Ifs', subtitle: 'Absurd choices and moral chaos', icon: '🎲', intensity: 8, seedWeights: { Scenarios: 0.95, Funny: 0.5 } },
-    { id: 'friends-nostalgia', title: 'Nostalgia', subtitle: 'Cringe eras and teenage toxicity', icon: '📼', intensity: 11, seedWeights: { Nostalgia: 0.95, Relationships: 0.5 } },
+    { id: 'friends-nostalgia', title: 'Nostalgia', subtitle: 'Old memories and forgotten inside jokes', icon: '📼', intensity: 11, seedWeights: { Nostalgia: 0.95, Relationships: 0.5 } },
     { id: 'friends-confessions', title: 'Confessions', subtitle: 'Call yourself out on your BS', icon: '🔥', intensity: 15, seedWeights: { Vulnerability: 0.85, Funny: 0.7 } },
     { id: 'friends-deep-talk', title: 'Deep Talk', subtitle: 'Existential dread and raw honesty', icon: '🌌', intensity: 18, seedWeights: { Existential: 0.95, Vulnerability: 0.85 } },
   ],
