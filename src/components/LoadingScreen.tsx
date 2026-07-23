@@ -8,9 +8,12 @@ import Animated, {
   withTiming,
   withDelay,
   Easing,
-  SharedValue
+  SharedValue,
+  FadeIn
 } from 'react-native-reanimated';
 import { theme } from '../constants/theme';
+import { TouchableOpacity } from 'react-native';
+import { ArrowRight } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -20,18 +23,28 @@ const snippets = [
   "if we were stranded on an island, who are we sacrificing first?"
 ];
 
-export function LoadingScreen() {
-  const [snippetIndex, setSnippetIndex] = useState(0);
-  const [charIndex, setCharIndex] = useState(0);
-  const [isDeleting, setIsDeleting] = useState(false);
+interface LoadingScreenProps {
+  showGetStarted?: boolean;
+  onGetStarted?: () => void;
+}
+
+let globalSnippetIndex = 0;
+let globalCharIndex = 0;
+let globalIsDeleting = false;
+
+export function LoadingScreen({ showGetStarted = false, onGetStarted }: LoadingScreenProps) {
+  const [snippetIndex, setSnippetIndex] = useState(globalSnippetIndex);
+  const [charIndex, setCharIndex] = useState(globalCharIndex);
+  const [isDeleting, setIsDeleting] = useState(globalIsDeleting);
+
+  useEffect(() => {
+    globalSnippetIndex = snippetIndex;
+    globalCharIndex = charIndex;
+    globalIsDeleting = isDeleting;
+  }, [snippetIndex, charIndex, isDeleting]);
 
   // Blinking cursor
   const cursorOpacity = useSharedValue(1);
-
-  // Dots
-  const dot1 = useSharedValue(0);
-  const dot2 = useSharedValue(0);
-  const dot3 = useSharedValue(0);
 
   useEffect(() => {
     // Blinking cursor effect (steps(1) essentially means toggle instantly)
@@ -43,26 +56,6 @@ export function LoadingScreen() {
       -1,
       false
     );
-
-    // Dots pulsing effect (graphite to signal and back)
-    const dotDuration = 600; // Half pulse
-    const animateDot = (dot: SharedValue<number>, delay: number) => {
-      dot.value = withDelay(
-        delay,
-        withRepeat(
-          withSequence(
-            withTiming(1, { duration: dotDuration, easing: Easing.inOut(Easing.ease) }),
-            withTiming(0, { duration: dotDuration, easing: Easing.inOut(Easing.ease) })
-          ),
-          -1,
-          false
-        )
-      );
-    };
-
-    animateDot(dot1, 0);
-    animateDot(dot2, 150);
-    animateDot(dot3, 300);
   }, []);
 
   useEffect(() => {
@@ -99,13 +92,6 @@ export function LoadingScreen() {
 
   const currentText = snippets[snippetIndex].slice(0, charIndex);
 
-  const getDotStyle = (dotVal: SharedValue<number>) => {
-    return useAnimatedStyle(() => ({
-      backgroundColor: dotVal.value > 0.5 ? theme.colors.signal : theme.colors.graphite,
-      // Interpolating color for smooth transition
-    }));
-  };
-
   const cursorStyle = useAnimatedStyle(() => ({
     opacity: cursorOpacity.value,
   }));
@@ -126,15 +112,18 @@ export function LoadingScreen() {
             <Animated.View style={[styles.cursor, cursorStyle]} />
           </Text>
         </View>
-
-        <View style={styles.loader}>
-          <Animated.View style={[styles.dot, getDotStyle(dot1)]} />
-          <Animated.View style={[styles.dot, getDotStyle(dot2)]} />
-          <Animated.View style={[styles.dot, getDotStyle(dot3)]} />
-        </View>
       </View>
 
-      <Text style={styles.tagline}>KEEP IT REAL</Text>
+      {showGetStarted && (
+        <View style={styles.bottomContainer}>
+          <Animated.View entering={FadeIn.delay(600).duration(800)} style={{ width: '100%' }}>
+            <TouchableOpacity style={styles.button} activeOpacity={0.85} onPress={onGetStarted}>
+              <Text style={styles.buttonText}>Get Started</Text>
+              <ArrowRight size={20} color={theme.colors.ink} strokeWidth={3} />
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 }
@@ -202,12 +191,31 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 2,
   },
-  tagline: {
+  bottomContainer: {
     position: 'absolute',
-    bottom: 40,
-    fontFamily: theme.fonts.utility,
-    fontSize: 10.5,
-    letterSpacing: 1.68,
-    color: theme.colors.fog,
+    bottom: 50,
+    width: '100%',
+    paddingHorizontal: 24,
+  },
+  button: {
+    backgroundColor: theme.colors.signal,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 64,
+    borderRadius: 32,
+    gap: 12,
+    width: '100%',
+    shadowColor: theme.colors.signal,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  buttonText: {
+    fontFamily: theme.fonts.bodyBold,
+    color: theme.colors.ink,
+    fontSize: 20,
+    letterSpacing: 0.5,
   }
 });

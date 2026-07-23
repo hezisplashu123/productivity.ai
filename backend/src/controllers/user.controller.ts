@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { ensureProfile } from './profile.controller';
+import crypto from 'crypto';
 
 export async function syncUser(req: Request, res: Response) {
   const { email, name, provider, socialId } = req.body;
@@ -25,6 +26,7 @@ export async function syncUser(req: Request, res: Response) {
           name: displayName,
           socialId: socialId || user.socialId,
           provider: authProvider,
+          authToken: user.authToken || crypto.randomUUID(),
         },
       });
     } else {
@@ -35,6 +37,7 @@ export async function syncUser(req: Request, res: Response) {
           name: displayName,
           provider: authProvider,
           socialId: socialId ?? null,
+          authToken: crypto.randomUUID(),
         },
       });
     }
@@ -58,6 +61,9 @@ export async function syncUser(req: Request, res: Response) {
 
 export async function getUserByEmail(req: Request, res: Response) {
   const { email } = req.params;
+  if (req.user?.email !== email) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   try {
     const user = await prisma.user.findUnique({ where: { email }, include: { profile: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -69,6 +75,9 @@ export async function getUserByEmail(req: Request, res: Response) {
 
 export async function deleteUserByEmail(req: Request, res: Response) {
   const { email } = req.params;
+  if (req.user?.email !== email) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
   try {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(404).json({ error: 'User not found' });

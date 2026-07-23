@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Check, MessageCircle, Sparkles, X, ArrowRight, Hand, CornerDownLeft, CornerDownRight, RotateCcw, Layers, Users } from 'lucide-react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { cancelAnimation, Easing, Extrapolate, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, FadeIn, FadeOut } from 'react-native-reanimated';
@@ -27,10 +27,12 @@ const TUTORIAL_STEPS = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const { user, theme, refreshUser } = useApp();
   const styles = getStyles(theme);
   
-  const [phase, setPhase] = useState<1 | 2>(1);
+  const initialPhase = params.phase === '2' ? 2 : 1;
+  const [phase, setPhase] = useState<1 | 2>(initialPhase);
   const [selectedAge, setSelectedAge] = useState<string | null>(null);
   
   const [stepIndex, setStepIndex] = useState(0);
@@ -38,16 +40,7 @@ export default function OnboardingScreen() {
   const [showHint, setShowHint] = useState(false);
   const [showReadyModal, setShowReadyModal] = useState(false);
 
-  useEffect(() => {
-    // Pre-populate age if it exists, but don't auto-skip so the user can change it
-    const checkAge = async () => {
-      const age = await storage.getAgeRange();
-      if (age) {
-        setSelectedAge(age);
-      }
-    };
-    checkAge();
-  }, []);
+
   
   const hintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTransitioningRef = useRef(false);

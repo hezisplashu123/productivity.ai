@@ -26,17 +26,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const hydrateGuestUser = useCallback(async () => {
     try {
-      const savedMode = await storage.getGamemode();
       const savedPlayerCount = await storage.getPlayerCount();
       const savedAgeRange = await storage.getAgeRange();
 
-      const ADULT_AGE_RANGES = ['18-21', '22-25', '26-29', '30-39', '40-49', '50+'];
-      let activeMode = savedMode;
-      if (activeMode === 'relationship' && !ADULT_AGE_RANGES.includes(savedAgeRange ?? '')) {
-        activeMode = 'friendship';
-        await storage.setGamemode('friendship');
-      }
-      setGamemodeState(activeMode);
+      // Always default to friendship on app load
+      setGamemodeState('friendship');
+      await storage.setGamemode('friendship');
+      
       setPlayerCountState(savedPlayerCount);
 
       const deviceId = await getOrCreateDeviceId();
@@ -55,6 +51,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // If they have an ageRange saved locally but the backend doesn't have it, ensure it.
         if (savedAgeRange && syncedUser.profile?.ageRange !== savedAgeRange) {
           await apiService.ensureProfile(syncedUser.id, undefined, savedAgeRange);
+        }
+
+        if (syncedUser.authToken) {
+          await storage.setAuthToken(syncedUser.authToken);
         }
 
         setUser({

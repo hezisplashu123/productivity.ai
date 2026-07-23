@@ -8,6 +8,7 @@ const PLAYER_COUNT_KEY = '@player_count';
 const AGE_RANGE_KEY = '@age_range';
 const HEAT_METER_INTRO_KEY = '@heat_meter_intro';
 const SHARE_INTRO_KEY = '@share_intro';
+const AUTH_TOKEN_KEY = '@auth_token';
 
 export async function getOrCreateDeviceId(): Promise<string> {
   try {
@@ -142,5 +143,17 @@ export const storage = {
     } catch (e) {
       console.warn("Failed to clear storage", e);
     }
+  },
+
+  async getAuthToken(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  },
+
+  async setAuthToken(token: string): Promise<void> {
+    await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
   },
 };

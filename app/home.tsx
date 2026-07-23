@@ -90,14 +90,13 @@ export default function HomeScreen() {
           <Text style={styles.headline}>Pick a Vibe</Text>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => router.push('/onboarding')} style={styles.howToPlayBtn} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => router.push({ pathname: '/onboarding', params: { phase: 2 } })} style={styles.howToPlayBtn} activeOpacity={0.8}>
             <HelpCircle size={16} color={theme.text} />
             <Text style={styles.howToPlayText}>How to play</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={() => {
-              const isGuest = user?.email?.startsWith('guest_');
-              router.push(isGuest ? '/auth' : '/account');
+              router.push('/account');
             }} 
             style={styles.accountBtn} 
             activeOpacity={0.8}
@@ -165,9 +164,9 @@ export default function HomeScreen() {
 const getStyles = (theme: Theme) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12 },
-  headlineRow: { flexDirection: 'row', alignItems: 'center' },
+  headlineRow: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 16 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headline: { fontFamily: typography.heading, fontSize: 32, color: theme.text, letterSpacing: 0.5 },
+  headline: { fontFamily: typography.heading, fontSize: 28, color: theme.text, letterSpacing: 0.5 },
   howToPlayBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.backgroundElevated, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, gap: 6 },
   howToPlayText: { fontFamily: typography.bodyBold, color: theme.text, fontSize: 13 },
   accountBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: theme.border },

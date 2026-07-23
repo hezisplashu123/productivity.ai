@@ -26,11 +26,10 @@ function RootStack() {
     // Safely get the current screen (defaults to 'index' for the root '/' route)
     const screen = segments[0] || 'index';
     
-    const isAuthScreen = screen === 'auth' || screen === 'verify-email';
-    const isGuestAllowedScreen = ['index', 'onboarding', 'home', 'deck'].includes(screen);
+    const isGuestAllowedScreen = ['index', 'onboarding', 'home', 'deck', 'account'].includes(screen);
 
     // If completely unauthorized, kick to index
-    if (!user && !isAuthScreen && !isGuestAllowedScreen) {
+    if (!user && !isGuestAllowedScreen) {
       router.replace('/');
       return;
     }
@@ -64,8 +63,6 @@ function RootStack() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="verify-email" />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="home" />
       <Stack.Screen name="deck" options={{ animation: 'fade' }} />

@@ -26,38 +26,64 @@ export interface Theme {
   glow: string;
 }
 
-const unifiedTheme: Theme = {
+const baseTheme = {
   background: brandTheme.colors.ink,
   backgroundElevated: brandTheme.colors.graphite,
   backgroundLight: brandTheme.colors.graphite,
   backgroundCard: brandTheme.colors.graphite,
   backgroundCardHover: '#403C36',
-  primary: brandTheme.colors.signal,
-  primaryLight: '#FF6B85',
-  primaryDark: '#D42B47',
-  primaryGlow: 'rgba(255, 59, 92, 0.35)',
   text: brandTheme.colors.paper,
   textSecondary: brandTheme.colors.fog,
   textMuted: brandTheme.colors.fog,
   textLight: brandTheme.colors.fog,
   border: '#403C36',
   borderSubtle: brandTheme.colors.graphite,
-  swipeKeep: brandTheme.colors.signal,
-  swipeKeepGlow: 'rgba(255, 59, 92, 0.25)',
   swipeSkip: brandTheme.colors.fog,
   swipeSkipGlow: 'rgba(143, 138, 129, 0.25)',
-  success: brandTheme.colors.signal,
   error: '#FF0000',
   overlay: 'rgba(21, 19, 15, 0.85)',
+};
+
+const friendshipTheme: Theme = {
+  ...baseTheme,
+  primary: brandTheme.colors.signal,
+  primaryLight: '#FF6B85',
+  primaryDark: '#D42B47',
+  primaryGlow: 'rgba(255, 59, 92, 0.35)',
+  swipeKeep: brandTheme.colors.signal,
+  swipeKeepGlow: 'rgba(255, 59, 92, 0.25)',
+  success: brandTheme.colors.signal,
   glow: 'rgba(255, 59, 92, 0.15)',
 };
 
-// Map all palettes to the unified Realtalk brand theme
-export const palettes: Record<'friendship' | 'relationship' | 'family', Theme> = {
-  friendship: unifiedTheme,
-  relationship: unifiedTheme,
-  family: unifiedTheme,
+const loversTheme: Theme = {
+  ...baseTheme,
+  primary: '#A855F7',
+  primaryLight: '#C084FC',
+  primaryDark: '#7E22CE',
+  primaryGlow: 'rgba(168, 85, 247, 0.35)',
+  swipeKeep: '#A855F7',
+  swipeKeepGlow: 'rgba(168, 85, 247, 0.25)',
+  success: '#A855F7',
+  glow: 'rgba(168, 85, 247, 0.15)',
 };
 
-// Default export used before Context mounts
-export const colors = unifiedTheme;
+const familyTheme: Theme = {
+  ...baseTheme,
+  primary: '#0EA5E9',
+  primaryLight: '#38BDF8',
+  primaryDark: '#0369A1',
+  primaryGlow: 'rgba(14, 165, 233, 0.35)',
+  swipeKeep: '#0EA5E9',
+  swipeKeepGlow: 'rgba(14, 165, 233, 0.25)',
+  success: '#0EA5E9',
+  glow: 'rgba(14, 165, 233, 0.15)',
+};
+
+export const palettes: Record<'friendship' | 'relationship' | 'family', Theme> = {
+  friendship: friendshipTheme,
+  relationship: loversTheme,
+  family: familyTheme,
+};
+
+export const colors = friendshipTheme;

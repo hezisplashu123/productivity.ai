@@ -300,7 +300,7 @@ export default function DeckScreen() {
       {/* PLAYER SELECTION POPUP MODAL */}
       <CenteredModal visible={showPlayerModal} onDismiss={handleContinue}>
         <Text style={styles.modalTitle}>Group Size</Text>
-        <Text style={styles.modalSubtitle}>We adjust the AI for the number of players.</Text>
+        <Text style={styles.modalSubtitle}>We adjust the questions based on number of players.</Text>
 
         <View style={styles.counterRow}>
           <TouchableOpacity onPress={decrementPlayer} style={styles.circleBtn} activeOpacity={0.7}>

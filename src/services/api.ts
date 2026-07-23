@@ -1,10 +1,18 @@
 import { API_BASE_URL } from '../config/api';
+import { storage } from '../utils/storage';
 
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'User-Agent': 'Hezi-Mobile',
-  'ngrok-skip-browser-warning': 'true',
-});
+const getHeaders = async () => {
+  const token = await storage.getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'User-Agent': 'Hezi-Mobile',
+    'ngrok-skip-browser-warning': 'true',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
 
 const handleResponse = async (response: Response) => {
   const text = await response.text();
@@ -48,7 +56,7 @@ export const apiService = {
   async syncUser(userData: { email: string; name?: string; socialId?: string; provider?: string }) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/users/sync`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify(userData),
     });
     return handleResponse(res);
@@ -57,7 +65,7 @@ export const apiService = {
   async getUserProfile(email: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
       method: 'GET',
-      headers: getHeaders(),
+      headers: await getHeaders(),
     });
     return handleResponse(res);
   },
@@ -65,7 +73,7 @@ export const apiService = {
   async deleteUser(email: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/users/${email}`, {
       method: 'DELETE',
-      headers: getHeaders(),
+      headers: await getHeaders(),
     });
     return handleResponse(res);
   },
@@ -73,7 +81,7 @@ export const apiService = {
   async ensureProfile(userId: string, seedWeights?: Record<string, number>, ageRange?: string) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/ensure`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({ userId, seedWeights, ageRange }),
     });
     return handleResponse(res);
@@ -82,7 +90,7 @@ export const apiService = {
   async getNextPrompts(profileId: string, gamemode: string, categoryId: string, count: number = 5, playerCount: number = 3) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/next-prompt`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({ profileId, count, gamemode, categoryId, playerCount }),
     });
     return handleResponse(res);
@@ -91,7 +99,7 @@ export const apiService = {
   async recordSwipe(profileId: string, promptId: string, answered: boolean) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/${profileId}/swipe`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({ promptId, answered }),
     });
     return handleResponse(res);
@@ -100,7 +108,7 @@ export const apiService = {
   async resetProfileWeights(profileId: string, seedWeights: Record<string, number>) {
     const res = await fetchWithTimeout(`${API_BASE_URL}/profile/${profileId}/reset-weights`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({ seedWeights }),
     });
     return handleResponse(res);

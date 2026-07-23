@@ -33,6 +33,7 @@ export async function ensureProfile(userId: string, seedWeights?: Record<string,
 export async function ensureProfileHandler(req: Request, res: Response) {
   const { userId, seedWeights, ageRange } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId is required' });
+  if (req.user?.id !== userId) return res.status(403).json({ error: 'Forbidden' });
   try {
     const profile = await ensureProfile(String(userId), seedWeights, ageRange);
     res.json(profile);
@@ -57,6 +58,7 @@ export async function getNextPrompt(req: Request, res: Response) {
       },
     });
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
+    if (profile.userId !== req.user?.id) return res.status(403).json({ error: 'Forbidden' });
 
     const ADULT_AGE_RANGES = ['18-21', '22-25', '26-29', '30-39', '40-49', '50+'];
     if (gamemode === 'relationship' && !ADULT_AGE_RANGES.includes(profile.ageRange ?? '')) {
@@ -130,6 +132,7 @@ export async function recordSwipe(req: Request, res: Response) {
     });
     const prompt = await prisma.questionPrompt.findUnique({ where: { id: promptId } });
     if (!profile || !prompt) return res.status(404).json({ error: 'Profile or prompt not found' });
+    if (profile.userId !== req.user?.id) return res.status(403).json({ error: 'Forbidden' });
 
     const historyLength = profile._count.history;
 
@@ -162,6 +165,9 @@ export async function resetWeights(req: Request, res: Response) {
   const { profileId } = req.params;
   const { seedWeights } = req.body;
   try {
+    const existing = await prisma.userProfile.findUnique({ where: { id: profileId } });
+    if (existing?.userId !== req.user?.id) return res.status(403).json({ error: 'Forbidden' });
+
     const weights = seedWeights ? applySeedWeights(seedWeights) : DEFAULT_VIBE_WEIGHTS;
     const profile = await prisma.userProfile.update({
       where: { id: profileId },

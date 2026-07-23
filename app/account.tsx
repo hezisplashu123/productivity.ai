@@ -3,10 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { User, LogOut, Trash2, ArrowLeft } from 'lucide-react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { RefreshCw, ArrowLeft, FileText, Info } from 'lucide-react-native';
 import { useApp } from '../src/context/AppContext';
+import { apiService } from '../src/services/api';
 import { Theme } from '../src/constants/colors';
 import { typography } from '../src/constants/typography';
+
+const PRIVACY_POLICY_URL = "https://docs.google.com/document/d/e/2PACX-1vSPAtSLuOobWyjVFamz8iWoAPRAAy-_9B1CgmImqHc4xNPo4hRG5OWGfryXSFJw4_w1fWsWq8MfwOa-/pub";
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -15,12 +19,12 @@ export default function AccountScreen() {
 
   const handleSignOut = async () => {
     Alert.alert(
-      "Sign Out",
-      "Are you sure you want to sign out?",
+      "Reset App Data",
+      "This will clear all your history and generate a fresh profile. Continue?",
       [
         { text: "Cancel", style: "cancel" },
         { 
-          text: "Sign Out", 
+          text: "Reset", 
           style: "destructive",
           onPress: async () => {
             await logout();
@@ -31,8 +35,8 @@ export default function AccountScreen() {
     );
   };
 
-  const handleDeleteAccount = () => {
-    router.push('/auth?mode=delete_reauth');
+  const handleOpenPrivacyPolicy = async () => {
+    await WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL);
   };
 
   return (
@@ -47,30 +51,27 @@ export default function AccountScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.profileSection}>
-          <View style={styles.avatar}>
-            <User size={40} color={theme.primary} />
-          </View>
-          <Text style={styles.name}>{user?.name || 'Player'}</Text>
-          <Text style={styles.email}>{user?.email || ''}</Text>
-        </View>
-
         <View style={styles.actionSection}>
           <TouchableOpacity style={styles.actionButton} onPress={handleSignOut} activeOpacity={0.8}>
             <View style={styles.actionLeft}>
               <View style={[styles.actionIconContainer, { backgroundColor: theme.backgroundElevated }]}>
-                <LogOut size={20} color={theme.text} />
+                <RefreshCw size={20} color={theme.text} />
               </View>
-              <Text style={styles.actionText}>Sign Out</Text>
+              <Text style={styles.actionText}>Reset Profile Data</Text>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton} onPress={handleDeleteAccount} activeOpacity={0.8}>
+          <View style={styles.infoBox}>
+            <Info size={16} color={theme.textSecondary} style={{ marginTop: 2 }} />
+            <Text style={styles.infoText}>This resets the algorithm for question selection so be careful because this is your profile.</Text>
+          </View>
+
+          <TouchableOpacity style={styles.actionButton} onPress={handleOpenPrivacyPolicy} activeOpacity={0.8}>
             <View style={styles.actionLeft}>
-              <View style={[styles.actionIconContainer, { backgroundColor: '#FEF2F2' }]}>
-                <Trash2 size={20} color={theme.error} />
+              <View style={[styles.actionIconContainer, { backgroundColor: theme.backgroundElevated }]}>
+                <FileText size={20} color={theme.text} />
               </View>
-              <Text style={[styles.actionText, { color: theme.error }]}>Delete Account</Text>
+              <Text style={styles.actionText}>Privacy Policy</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -84,14 +85,12 @@ const getStyles = (theme: Theme) => StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 16, paddingBottom: 12 },
   iconButton: { width: 48, height: 48, borderRadius: 24, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: theme.border },
   headerTitle: { fontFamily: typography.heading, fontSize: 20, color: theme.text },
-  content: { padding: 24 },
-  profileSection: { alignItems: 'center', marginBottom: 48, marginTop: 24 },
-  avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: theme.backgroundElevated, justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 2, borderColor: theme.border },
-  name: { fontFamily: typography.heading, fontSize: 28, color: theme.text, marginBottom: 4 },
-  email: { fontFamily: typography.body, fontSize: 16, color: theme.textSecondary },
+  content: { padding: 24, paddingTop: 40 },
   actionSection: { gap: 16 },
   actionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.backgroundCard, padding: 16, borderRadius: 20, borderWidth: 1, borderColor: theme.border },
   actionLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   actionIconContainer: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
   actionText: { fontFamily: typography.bodyBold, fontSize: 16, color: theme.text },
+  infoBox: { flexDirection: 'row', backgroundColor: theme.backgroundElevated, padding: 16, borderRadius: 16, gap: 12, marginTop: 8 },
+  infoText: { fontFamily: typography.body, fontSize: 13, color: theme.textSecondary, flex: 1, lineHeight: 18 },
 });
