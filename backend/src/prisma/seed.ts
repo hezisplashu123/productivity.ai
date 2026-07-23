@@ -71,7 +71,7 @@ const calibrationPrompts = [
   { gamemode: "friendship", category: "Deep Talk", text: "What's something you've forgiven someone for, but haven't fully let go of?", mechanics: ["vulnerability","specific_instance"], tone: "vulnerable" },
   { gamemode: "friendship", category: "Deep Talk", text: "What's a fear you have that you've never said out loud to anyone before?", mechanics: ["vulnerability"], tone: "vulnerable" },
   { gamemode: "friendship", category: "Deep Talk", text: "What's a compliment someone gave you once that quietly changed how you see yourself?", mechanics: ["vulnerability","exact_moment"], tone: "heartfelt" },
-  { gamemode: "friendship", category: "Deep Talk", text: "What's your biggest regret?", mechanics: ["vulnerability"], tone: "heartfelt" },
+
   { gamemode: "relationship", category: "Warm Up", text: "What's a weird, highly specific habit of mine that you secretly love?", mechanics: ["direct_address","specific_instance"], tone: "wholesome" },
   { gamemode: "relationship", category: "Warm Up", text: "If we could teleport to any restaurant right now, where are we eating?", mechanics: ["escapist_hypothetical","direct_address"], tone: "playful" },
   { gamemode: "relationship", category: "Warm Up", text: "What's an outfit of mine that you love seeing me in?", mechanics: ["direct_address","specific_instance"], tone: "wholesome" },
